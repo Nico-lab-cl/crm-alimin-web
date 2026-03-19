@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { queryMarketing } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
