@@ -26,10 +26,11 @@ export default function LoginPage() {
         router.refresh();
       } else {
         const data = await res.json();
-        setError(data.message || 'Contraseña incorrecta');
+        setError(data.message || `Error del servidor (${res.status})`);
       }
-    } catch {
-      setError('Error al intentar iniciar sesión');
+    } catch (err) {
+      console.error('Login Fetch Error:', err);
+      setError('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }

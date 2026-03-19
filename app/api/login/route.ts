@@ -14,9 +14,8 @@ export async function POST(request: Request) {
     }
 
     if (password === adminPassword) {
-      // En una app real, usaríamos un JWT o similar. 
-      // Para esta app interna simple, una cookie con valor fijo es aceptable según requerimientos.
-      const cookieStore = await cookies();
+      // En Next.js 14 cookies() es síncrono.
+      const cookieStore = cookies();
       cookieStore.set('crm_auth_session', 'authenticated', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -29,7 +28,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ message: 'Contraseña incorrecta' }, { status: 401 });
-  } catch {
+  } catch (error) {
+    console.error('Login Error:', error);
     return NextResponse.json({ message: 'Error interno del servidor' }, { status: 500 });
   }
 }
