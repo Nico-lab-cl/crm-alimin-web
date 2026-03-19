@@ -28,10 +28,10 @@ export async function POST(request: Request) {
 
     const query = `
       INSERT INTO campaigns (name, title, subject, html_content, mjml_content, status)
-      VALUES ($1, $1, $2, $3, $4, 'DRAFT')
+      VALUES ($1, $2, $3, $4, $5, 'DRAFT')
       RETURNING *
     `;
-    const params = [title, subject, html, mjml];
+    const params = [title, title, subject, html, mjml];
 
     const result = await queryMarketing(query, params);
     
