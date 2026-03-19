@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     }
 
     const query = `
-      INSERT INTO campaigns (title, subject, html_content, mjml_content)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO campaigns (name, title, subject, html_content, mjml_content, status)
+      VALUES ($1, $1, $2, $3, $4, 'DRAFT')
       RETURNING *
     `;
     const params = [title, subject, html, mjml];
