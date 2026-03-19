@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         [username || 'admin', password]
       );
       
-      if (userRes.rowCount > 0) {
+      if (userRes && (userRes.rowCount ?? 0) > 0) {
         const cookieStore = cookies();
         cookieStore.set('crm_auth_session', 'authenticated', {
           httpOnly: true,
