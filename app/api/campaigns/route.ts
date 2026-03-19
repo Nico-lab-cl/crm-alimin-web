@@ -36,8 +36,11 @@ export async function POST(request: Request) {
     const result = await queryMarketing(query, params);
     
     return NextResponse.json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating campaign:', error);
-    return NextResponse.json({ message: 'Error al guardar la campaña' }, { status: 500 });
+    return NextResponse.json(
+      { message: 'Error al guardar la campaña: ' + (error.message || 'Error desconocido') }, 
+      { status: 500 }
+    );
   }
 }

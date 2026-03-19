@@ -94,6 +94,13 @@ const ProfessionalEmailEditor: React.FC<EmailEditorComponentProps> = ({ onSave, 
             locale: 'es-ES',
             appearance: {
               theme: 'dark'
+            },
+            features: {
+              textEditor: {
+                color: true,
+                cleanPaste: true,
+                emojis: true
+              }
             }
           }}
         />
