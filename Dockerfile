@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Desactivar telemetría de Next.js durante el build
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Nota: El build fallará si no puede conectar a la DB durante la generación de páginas estáticas
 # pero el exit code 0 que vimos antes sugiere que pasó.

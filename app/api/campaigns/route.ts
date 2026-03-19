@@ -36,10 +36,11 @@ export async function POST(request: Request) {
     const result = await queryMarketing(query, params);
     
     return NextResponse.json(result.rows[0]);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating campaign:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     return NextResponse.json(
-      { message: 'Error al guardar la campaña: ' + (error.message || 'Error desconocido') }, 
+      { message: 'Error al guardar la campaña: ' + errorMessage }, 
       { status: 500 }
     );
   }
