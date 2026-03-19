@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/api/track') ||
     pathname.startsWith('/api/webhooks') ||
+    pathname.startsWith('/api/login') ||
     pathname === '/login' ||
     pathname.startsWith('/_next') ||
     pathname.includes('.')

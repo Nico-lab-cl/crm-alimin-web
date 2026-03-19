@@ -1,5 +1,19 @@
 -- Script de inicialización para la base de datos de marketing (MARKETING_DB)
 
+-- Tabla de usuarios
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar usuario admin inicial (contraseña: chris.2026)
+-- Nota: En producción esto debería cambiarse
+INSERT INTO users (username, password_hash)
+VALUES ('admin', 'chris.2026')
+ON CONFLICT (username) DO NOTHING;
+
 -- Tabla de campañas
 CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
