@@ -13,7 +13,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { title, subject, html, mjml } = await request.json();
+    const body = await request.json();
+    const title = body.title;
+    const subject = body.subject;
+    const html = body.html_content || body.html;
+    const mjml = body.mjml_content || body.mjml;
 
     if (!title || !subject || !html) {
       return NextResponse.json(
