@@ -1,113 +1,105 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import grapesjs, { Editor } from 'grapesjs';
-import gjsMjml from 'grapesjs-mjml';
-import 'grapesjs/dist/css/grapes.min.css';
+import React, { useRef, useState } from 'react';
+import EmailEditor, { EditorRef } from 'react-email-editor';
 
-interface EmailEditorProps {
-  onSave: (data: { html: string; mjml: string; subject: string; title: string }) => void;
-  initialData?: { mjml: string; subject: string; title: string };
+interface EmailEditorComponentProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSave: (data: { html: string; design: any; subject: string; title: string }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialData?: { design: any; subject: string; title: string };
 }
 
-// Extender el tipo Editor para incluir métodos agregados por gjsMjml
-interface MjmlEditor extends Editor {
-  getMjml: () => string;
-}
-
-const EmailEditor: React.FC<EmailEditorProps> = ({ onSave, initialData }) => {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [title, setTitle] = useState(initialData?.title || '');
+const ProfessionalEmailEditor: React.FC<EmailEditorComponentProps> = ({ onSave, initialData }) => {
+  const emailEditorRef = useRef<EditorRef>(null);
   const [subject, setSubject] = useState(initialData?.subject || '');
+  const [title, setTitle] = useState(initialData?.title || '');
 
-  useEffect(() => {
-    if (editorRef.current && !editor) {
-      const e = grapesjs.init({
-        container: editorRef.current,
-        height: 'calc(100vh - 150px)',
-        width: '100%',
-        plugins: [gjsMjml],
-        pluginsOpts: {
-          'grapesjs-mjml': {
-            // MJML options if any
-          },
-        },
-        storageManager: false, // Manejamos el guardado manualmente
-      });
+  const exportHtml = () => {
+    const unlayer = emailEditorRef.current?.editor;
 
-      if (initialData?.mjml) {
-        e.setComponents(initialData.mjml);
-      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    unlayer?.exportHtml((data: any) => {
+      const { design, html } = data;
+      onSave({ html, design, subject, title });
+    });
+  };
 
-      setEditor(e);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const onReady = (unlayer: any) => {
+    // Escuchar cambios para autosave si se desea en el futuro
+    // unlayer.addEventListener('design:updated', (data) => { ... })
+    
+    if (initialData?.design) {
+      const design = typeof initialData.design === 'string' 
+        ? JSON.parse(initialData.design) 
+        : initialData.design;
+      unlayer.loadDesign(design);
     }
-
-    return () => {
-      if (editor) {
-        editor.destroy();
-      }
-    };
-  }, [editor, initialData]);
-
-  const handleSave = () => {
-    if (!editor) return;
-
-    const mjmlEditor = editor as MjmlEditor;
-    const html = mjmlEditor.getHtml();
-    const mjml = mjmlEditor.getMjml(); 
-
-    onSave({ html, mjml, subject, title });
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-white font-sans">
-      <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900 shadow-lg">
-        <div className="flex space-x-4 flex-1 max-w-2xl">
-          <input
-            type="text"
-            placeholder="Título de la Campaña"
-            className="bg-zinc-800 border-zinc-700 text-white px-4 py-2 rounded-lg w-full focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Asunto del Correo"
-            className="bg-zinc-800 border-zinc-700 text-white px-4 py-2 rounded-lg w-full focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
+    <div className="flex flex-col h-screen bg-zinc-950 text-white">
+      {/* Header del Editor */}
+      <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md">
+        <div className="flex gap-4 flex-1 max-w-2xl">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wider">Título de la Campaña</label>
+            <input
+              type="text"
+              placeholder="Ej: Promo Verano 2024"
+              className="w-full bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wider">Asunto del Correo</label>
+            <input
+              type="text"
+              placeholder="Ej: ¡No te pierdas estas ofertas!"
+              className="w-full bg-zinc-800 border-zinc-700 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
         </div>
-        <button
-          onClick={handleSave}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-all ml-4"
-        >
-          Guardar Plantilla
-        </button>
+        
+        <div className="ml-4">
+          <button
+            onClick={exportHtml}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+          >
+            Guardar Plantilla
+          </button>
+        </div>
       </div>
-      <div className="flex-1">
-        <div ref={editorRef} />
+
+      {/* Área del Editor */}
+      <div className="flex-1 relative">
+        <EmailEditor
+          ref={emailEditorRef}
+          onReady={onReady}
+          minHeight="100%"
+          appearance={{
+            theme: 'dark',
+            panels: {
+              tools: {
+                dock: 'left'
+              }
+            }
+          }}
+          options={{
+            version: 'latest',
+            locale: 'es-ES',
+            appearance: {
+              theme: 'dark'
+            }
+          }}
+        />
       </div>
-      <style jsx global>{`
-        .gjs-cv-canvas {
-          background-color: #18181b !important;
-        }
-        .gjs-one-bg {
-          background-color: #18181b !important;
-        }
-        .gjs-two-color {
-          color: #e4e4e7 !important;
-        }
-        .gjs-three-color {
-          color: #a1a1aa !important;
-        }
-        .gjs-four-color {
-          color: #6366f1 !important;
-        }
-      `}</style>
     </div>
   );
 };
 
-export default EmailEditor;
+export default ProfessionalEmailEditor;

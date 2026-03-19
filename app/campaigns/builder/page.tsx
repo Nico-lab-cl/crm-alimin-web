@@ -16,17 +16,23 @@ const EmailEditor = dynamic(() => import('@/components/EmailEditor'), {
 export default function BuilderPage() {
   const router = useRouter();
 
-  const handleSave = async (data: { html: string; mjml: string; subject: string; title: string }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleSave = async (data: { html: string; design: any; subject: string; title: string }) => {
     try {
       const res = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          title: data.title,
+          subject: data.subject,
+          html_content: data.html,
+          mjml_content: JSON.stringify(data.design)
+        }),
       });
 
       if (res.ok) {
-        alert('Campaña guardada con éxito');
         router.push('/');
+        router.refresh();
       } else {
         const errorData = await res.json();
         alert('Error al guardar: ' + errorData.message);
