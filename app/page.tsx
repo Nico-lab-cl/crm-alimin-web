@@ -1,101 +1,197 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+interface Campaign {
+  id: string;
+  title: string;
+  subject: string;
+  created_at: string;
+}
+
+interface CampaignLog {
+  id: string;
+  campaign_title: string;
+  email: string;
+  status: string;
+  sent_at: string;
+  opened_at: string;
+}
+
+export default function Dashboard() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [logs, setLogs] = useState<CampaignLog[]>([]);
+  const [statuses, setStatuses] = useState<string[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchLogs, 5000); // Polling para ver actualizaciones de tracking
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
+    const [cRes, sRes, lRes] = await Promise.all([
+      fetch('/api/campaigns'),
+      fetch('/api/leads/filters'),
+      fetch('/api/campaigns/logs'),
+    ]);
+    
+    if (cRes.ok) setCampaigns(await cRes.json());
+    if (sRes.ok) setStatuses(await sRes.json());
+    if (lRes.ok) setLogs(await lRes.json());
+  };
+
+  const fetchLogs = async () => {
+    const lRes = await fetch('/api/campaigns/logs');
+    if (lRes.ok) setLogs(await lRes.json());
+  };
+
+  const handleExecute = async () => {
+    if (!selectedCampaign) return alert('Selecciona una campaña');
+    
+    setLoading(true);
+    try {
+      const res = await fetch('/api/campaigns/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: selectedCampaign,
+          filters: { status: selectedStatus || undefined },
+        }),
+      });
+
+      const data = await res.json();
+      alert(data.message + (data.leads_processed ? ` (${data.leads_processed} leads)` : ''));
+      fetchLogs();
+    } catch {
+      alert('Error ejecutando campaña');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-zinc-950 text-white font-sans p-8">
+      <div className="max-w-7xl mx-auto space-y-10">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight text-white">Email Marketing CRM</h1>
+            <p className="text-zinc-400 mt-2">Gestiona tus campañas y trackea resultados en tiempo real.</p>
+          </div>
+          <Link 
+            href="/campaigns/builder"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            + Nueva Campaña
+          </Link>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Execution Card */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8 backdrop-blur-sm space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+              Ejecutar Campaña
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Seleccionar Campaña</label>
+                <select 
+                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={selectedCampaign}
+                  onChange={(e) => setSelectedCampaign(e.target.value)}
+                >
+                  <option value="">-- Elige una --</option>
+                  {campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Filtrar por Status (Leads)</label>
+                <select 
+                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                >
+                  <option value="">Todos los leads</option>
+                  {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <button 
+              onClick={handleExecute}
+              disabled={loading || !selectedCampaign}
+              className="w-full bg-white text-zinc-950 hover:bg-zinc-200 py-4 rounded-xl font-bold transition-all disabled:opacity-50"
+            >
+              {loading ? 'Procesando Envíos...' : 'Iniciar Envío Masivo'}
+            </button>
+          </div>
+
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8">
+            <h2 className="text-xl font-semibold mb-6">Métricas Rápidas</h2>
+            <div className="space-y-6">
+              <div className="flex justify-between items-end border-b border-zinc-800 pb-4">
+                <span className="text-zinc-400">Total Enviados</span>
+                <span className="text-2xl font-bold">{logs.length}</span>
+              </div>
+              <div className="flex justify-between items-end border-b border-zinc-800 pb-4">
+                <span className="text-zinc-400">Aperturas</span>
+                <span className="text-2xl font-bold text-green-400">
+                  {logs.filter(l => l.status === 'OPENED').length}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Logs Table */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Logs de Envíos Recientes</h2>
+            <span className="text-xs bg-zinc-800 px-3 py-1 rounded-full text-zinc-400">Últimos 100</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-zinc-800/30 text-zinc-400 text-sm">
+                  <th className="px-6 py-4 font-medium">Campaña</th>
+                  <th className="px-6 py-4 font-medium">Destinatario</th>
+                  <th className="px-6 py-4 font-medium">Estado</th>
+                  <th className="px-6 py-4 font-medium">Enviado</th>
+                  <th className="px-6 py-4 font-medium">Abierto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {logs.map((log) => (
+                  <tr key={log.id} className="hover:bg-zinc-800/20 transition-colors">
+                    <td className="px-6 py-4 font-medium text-white">{log.campaign_title}</td>
+                    <td className="px-6 py-4 text-zinc-400">{log.email}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        log.status === 'OPENED' ? 'bg-green-500/10 text-green-500' :
+                        log.status === 'SENT' ? 'bg-blue-500/10 text-blue-500' :
+                        'bg-zinc-500/10 text-zinc-500'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-zinc-400 text-sm">
+                      {log.sent_at ? new Date(log.sent_at).toLocaleString() : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-zinc-400 text-sm">
+                      {log.opened_at ? new Date(log.opened_at).toLocaleString() : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
