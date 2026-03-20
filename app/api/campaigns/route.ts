@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const result = await queryMarketing('SELECT * FROM campaigns ORDER BY created_at DESC');
+    console.log(`Fetched ${result.rowCount} campaigns from MARKETING_DB`);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Error fetching campaigns:', error);
