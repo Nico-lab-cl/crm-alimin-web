@@ -5,8 +5,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const dbNameRes = await queryMarketing('SELECT current_database()');
+    const dbName = dbNameRes.rows[0].current_database;
     const result = await queryMarketing('SELECT * FROM campaigns ORDER BY created_at DESC');
-    console.log(`Fetched ${result.rowCount} campaigns from MARKETING_DB`);
+    console.log(`Connected to DB: ${dbName}. Fetched ${result.rowCount} campaigns from MARKETING_DB`);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Error fetching campaigns:', error);
