@@ -9,6 +9,7 @@ interface Campaign {
   id: string;
   title: string;
   subject: string;
+  status: string;
   created_at: string;
 }
 
@@ -147,6 +148,58 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Campañas Guardadas Table */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden mt-8">
+          <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Campañas Guardadas</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-zinc-800/30 text-zinc-400 text-sm">
+                  <th className="px-6 py-4 font-medium">Título</th>
+                  <th className="px-6 py-4 font-medium">Asunto</th>
+                  <th className="px-6 py-4 font-medium">Estado</th>
+                  <th className="px-6 py-4 font-medium">Fecha Creación</th>
+                  <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {campaigns.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
+                      No hay campañas guardadas.
+                    </td>
+                  </tr>
+                ) : (
+                  campaigns.map((campaign) => (
+                    <tr key={campaign.id} className="hover:bg-zinc-800/20 transition-colors">
+                      <td className="px-6 py-4 font-medium text-white">{campaign.title}</td>
+                      <td className="px-6 py-4 text-zinc-400">{campaign.subject}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 bg-zinc-800 text-zinc-300 rounded-full text-xs font-medium">
+                          {campaign.status || 'DRAFT'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-zinc-400 text-sm">
+                        {new Date(campaign.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link
+                          href={`/campaigns/builder/${campaign.id}`}
+                          className="text-indigo-400 hover:text-indigo-300 font-medium text-sm transition-colors"
+                        >
+                          Editar Diseño
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

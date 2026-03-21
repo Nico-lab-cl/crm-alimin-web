@@ -31,6 +31,7 @@ export default function BuilderPage() {
       });
 
       if (res.ok) {
+        localStorage.removeItem('campaign_draft_new');
         router.push('/');
         router.refresh();
       } else {
