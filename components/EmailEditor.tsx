@@ -23,6 +23,7 @@ const ProfessionalEmailEditor: React.FC<EmailEditorComponentProps> = ({ onSave, 
     const unlayer = emailEditorRef.current?.editor;
     if (!unlayer) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     unlayer.saveDesign((design: any) => {
       const draft = {
         design,
