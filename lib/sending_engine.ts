@@ -5,6 +5,7 @@ interface SendCampaingOptions {
   leadFilters?: {
     // Ejemplo: status, region, etc.
     status?: string;
+    source?: string;
   };
 }
 
@@ -22,8 +23,13 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const params: string[] = [];
   
   if (leadFilters?.status) {
-    leadQuery += ' AND status = $1';
     params.push(leadFilters.status);
+    leadQuery += ` AND status = $${params.length}`;
+  }
+
+  if (leadFilters?.source) {
+    params.push(leadFilters.source);
+    leadQuery += ` AND source = $${params.length}`;
   }
 
   const leadsRes = await queryMain(leadQuery, params);

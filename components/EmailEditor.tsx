@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import EmailEditor, { EditorRef } from 'react-email-editor';
+import { useRouter } from 'next/navigation';
 
 interface EmailEditorComponentProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,6 +14,7 @@ interface EmailEditorComponentProps {
 
 const ProfessionalEmailEditor: React.FC<EmailEditorComponentProps> = ({ onSave, initialData, campaignId }) => {
   const emailEditorRef = useRef<EditorRef>(null);
+  const router = useRouter();
   const [subject, setSubject] = useState(initialData?.subject || '');
   const [title, setTitle] = useState(initialData?.title || '');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -83,11 +85,30 @@ const ProfessionalEmailEditor: React.FC<EmailEditorComponentProps> = ({ onSave, 
     }
   };
 
+  const handleBack = () => {
+    if (window.confirm('¿Deseas guardar tu progreso como borrador para continuar más tarde?')) {
+      saveDraftToLocal();
+      router.push('/');
+    } else {
+      if (window.confirm('¿Estás seguro de salir sin guardar? Se pederán tus cambios no guardados.')) {
+        localStorage.removeItem(getStorageKey());
+        router.push('/');
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white">
       {/* Header del Editor */}
       <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md">
-        <div className="flex gap-4 flex-1 max-w-2xl">
+        <div className="flex gap-4 flex-1 max-w-2xl items-center">
+          <button 
+            onClick={handleBack}
+            className="p-2 hover:bg-zinc-800 rounded-full transition-colors mr-2 flex-shrink-0"
+            title="Volver al inicio"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 hover:text-white"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+          </button>
           <div className="flex-1">
             <label className="block text-xs font-medium text-zinc-500 mb-1 uppercase tracking-wider">Título de la Campaña</label>
             <input

@@ -26,8 +26,14 @@ export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [logs, setLogs] = useState<CampaignLog[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
+  const [sources, setSources] = useState<string[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedSource, setSelectedSource] = useState('');
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [previewLeads, setPreviewLeads] = useState<any[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -36,15 +42,51 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const fetchPreview = async () => {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch('/api/campaigns/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            filters: { 
+              status: selectedStatus || undefined, 
+              source: selectedSource || undefined 
+            } 
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPreviewCount(data.count);
+          setPreviewLeads(data.preview || []);
+        }
+      } catch (err) {
+        console.error('Error fetching preview:', err);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+    fetchPreview();
+  }, [selectedStatus, selectedSource]);
+
   const fetchData = async () => {
-    const [cRes, sRes, lRes] = await Promise.all([
+    const [cRes, filtersRes, lRes] = await Promise.all([
       fetch('/api/campaigns'),
       fetch('/api/leads/filters'),
       fetch('/api/campaigns/logs'),
     ]);
     
     if (cRes.ok) setCampaigns(await cRes.json());
-    if (sRes.ok) setStatuses(await sRes.json());
+    if (filtersRes.ok) {
+       const data = await filtersRes.json();
+       if (Array.isArray(data)) {
+         setStatuses(data);
+       } else {
+         setStatuses(data.statuses || []);
+         setSources(data.sources || []);
+       }
+    }
     if (lRes.ok) setLogs(await lRes.json());
   };
 
@@ -63,7 +105,10 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           campaignId: selectedCampaign,
-          filters: { status: selectedStatus || undefined },
+          filters: { 
+            status: selectedStatus || undefined,
+            source: selectedSource || undefined
+          },
         }),
       });
 
@@ -101,7 +146,7 @@ export default function Dashboard() {
               <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
               Ejecutar Campaña
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Seleccionar Campaña</label>
                 <select 
@@ -114,7 +159,7 @@ export default function Dashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Filtrar por Status (Leads)</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Filtrar por Status</label>
                 <select 
                   className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
                   value={selectedStatus}
@@ -124,10 +169,56 @@ export default function Dashboard() {
                   {statuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Filtrar por Source</label>
+                <select 
+                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={selectedSource}
+                  onChange={(e) => setSelectedSource(e.target.value)}
+                >
+                  <option value="">Todos los orígenes</option>
+                  {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
+
+            <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-xl p-5 mt-2">
+               <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                 Previsualización de Destinatarios
+               </h3>
+               {previewLoading ? (
+                 <div className="text-zinc-500 text-sm animate-pulse">Calculando leads compatibles...</div>
+               ) : (
+                 <>
+                   <div className="text-2xl font-bold text-white mb-3">
+                     {previewCount !== null ? (
+                       <span className="flex items-end gap-2">
+                         {previewCount} <span className="text-sm font-normal text-zinc-500 mb-1">Leads coinciden con los filtros</span>
+                       </span>
+                     ) : 'Selecciona filtros'}
+                   </div>
+                   {previewCount && previewCount > 0 ? (
+                     <div className="text-xs text-zinc-400 max-h-32 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+                       <p className="mb-2 font-medium text-zinc-500 uppercase tracking-wider">Muestra de destinatarios ({previewLeads.length}):</p>
+                       <ul className="space-y-1.5">
+                         {previewLeads.map(l => (
+                           <li key={l.id} className="flex items-center gap-2">
+                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 opacity-50"></span>
+                             <span className="text-zinc-300">{l.email}</span>
+                             <span className="text-zinc-600 bg-zinc-800/50 px-2 py-0.5 rounded text-[10px]">{l.source || 'Sin origen'}</span>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
+                   ) : null}
+                 </>
+               )}
+            </div>
+
             <button 
               onClick={handleExecute}
-              disabled={loading || !selectedCampaign}
+              disabled={loading || !selectedCampaign || previewCount === 0 || previewCount === null}
               className="w-full bg-white text-zinc-950 hover:bg-zinc-200 py-4 rounded-xl font-bold transition-all disabled:opacity-50"
             >
               {loading ? 'Procesando Envíos...' : 'Iniciar Envío Masivo'}
