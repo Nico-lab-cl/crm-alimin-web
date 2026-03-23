@@ -57,9 +57,12 @@ export async function executeCampaign(options: SendCampaingOptions) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           log_id: logId,
+          campaign_id: campaignId,
+          title: campaign.title,
           email: lead.email,
           subject: campaign.subject,
           html: finalHtml,
+          design: campaign.mjml_content,
         }),
       }).catch(err => console.error(`Error enviando lead ${lead.email} a n8n:`, err));
 
