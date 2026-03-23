@@ -34,6 +34,8 @@ export default function Dashboard() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [previewLeads, setPreviewLeads] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -122,6 +124,27 @@ export default function Dashboard() {
     }
   };
 
+  const handleSendTest = async () => {
+    if (!selectedCampaign || !testEmail) return alert('Selecciona campaña e ingresa un email');
+    
+    setTestLoading(true);
+    try {
+      const res = await fetch('/api/campaigns/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: selectedCampaign, email: testEmail }),
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      fetchLogs();
+    } catch {
+      alert('Error enviando prueba');
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans p-8">
       <div className="max-w-7xl mx-auto space-y-10">
@@ -142,10 +165,30 @@ export default function Dashboard() {
         {/* Execution Card */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8 backdrop-blur-sm space-y-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
-              Ejecutar Campaña
-            </h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                Ejecutar Campaña
+              </h2>
+              
+              {/* Test Send Input */}
+              <div className="flex items-center gap-2 bg-zinc-800/50 p-1 rounded-lg border border-zinc-700/50">
+                <input 
+                  type="email" 
+                  placeholder="Email de prueba..."
+                  className="bg-transparent border-none text-xs px-3 py-1.5 focus:ring-0 outline-none w-48 text-zinc-300"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                />
+                <button 
+                  onClick={handleSendTest}
+                  disabled={testLoading || !selectedCampaign || !testEmail}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-md transition-all disabled:opacity-50"
+                >
+                  {testLoading ? 'Enviando...' : 'Enviar Prueba'}
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Seleccionar Campaña</label>

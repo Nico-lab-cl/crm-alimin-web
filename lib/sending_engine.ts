@@ -85,3 +85,43 @@ export async function executeCampaign(options: SendCampaingOptions) {
 
   return { processed: leads.length };
 }
+
+export async function sendTestCampaign(campaignId: string, targetEmail: string) {
+  // 1. Obtener la campaña
+  const campaignRes = await queryMarketing('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
+  if (campaignRes.rowCount === 0) throw new Error('Campaña no encontrada');
+  const campaign = campaignRes.rows[0];
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const n8nUrl = process.env.N8N_WEBHOOK_URL;
+  if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
+
+  // 2. Crear log de prueba
+  const logRes = await queryMarketing(
+    `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
+     VALUES ($1, $2, $3, 'TEST') RETURNING id`,
+    [campaignId, 'test-id', targetEmail]
+  );
+  const logId = logRes.rows[0].id;
+
+  // 3. Inyectar Píxel
+  const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
+  const finalHtml = campaign.html_content + trackingPixel;
+
+  // 4. Enviar a n8n
+  await fetch(n8nUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      log_id: logId,
+      campaign_id: campaignId,
+      title: `[PRUEBA] ${campaign.title}`,
+      email: targetEmail,
+      subject: `[PRUEBA] ${campaign.subject}`,
+      html: finalHtml,
+      design: campaign.mjml_content,
+    }),
+  });
+
+  return { success: true };
+}
