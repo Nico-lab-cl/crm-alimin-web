@@ -1,0 +1,90 @@
+{
+  "name": "Email Marketing [HTTP FIXED V3]",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Webhook",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://email.us-east-2.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "SendEmail"
+            },
+            {
+              "name": "Version",
+              "value": "2010-12-01"
+            },
+            {
+              "name": "Source",
+              "value": "bienesraices@aliminspa.cl"
+            },
+            {
+              "name": "Destination.ToAddresses.member.1",
+              "value": "={{ $json.body.email }}"
+            },
+            {
+              "name": "Message.Subject.Data",
+              "value": "={{ $json.body.subject }}"
+            },
+            {
+              "name": "Message.Body.Html.Data",
+              "value": "={{ $json.body.html }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3e9b1f2e-4d5c-6b7a-8d9e-0f1a2b3c4d5e",
+      "name": "HTTP Request (SES Form Fix)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        280,
+        0
+      ],
+      "credentials": {
+        "aws": {
+          "id": "lW6k4jh3hyEZNH8I",
+          "name": "AWS (IAM) account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (SES Form Fix)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

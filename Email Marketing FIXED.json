@@ -1,0 +1,50 @@
+{
+  "name": "Email Marketing [FIXED]",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Webhook",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* \n * FIX PARA ERROR 414 - REQUEST-URI TOO LARGE\n * Este nodo usa la librería AWS-SDK para enviar el email mediante POST BODY\n * evitando el límite de URL que tiene el nodo nativo de n8n v1.\n */\n\nconst AWS = require('aws-sdk');\n\n// 1. CONFIGURA TUS CREDENCIALES AQUÍ\n// NOTA: Es importante que las pongas aquí porque el nodo de código no lee \n// las credenciales del almacén de n8n automáticamente.\nAWS.config.update({\n  accessKeyId: 'AKIA5DQJYVAKYDIJLBHP', // Reemplaza con tu Key\n  secretAccessKey: 'REEMPLAZAR_CON_TU_SECRET_KEY', \n  region: 'us-east-1' // Asegúrate que sea la región correcta\n});\n\nconst ses = new AWS.SES();\n\n// 2. EXTRAER DATOS DEL WEBHOOK\n// Recuperamos los datos que envía el CRM (subject, email, html)\nconst body = $node[\"Webhook\"].getMatchingItem().json.body;\n\nconst params = {\n  Destination: {\n    ToAddresses: [body.email]\n  },\n  Message: {\n    Body: {\n      Html: {\n        Charset: \"UTF-8\",\n        Data: body.html\n      }\n    },\n    Subject: {\n      Charset: \"UTF-8\",\n      Data: body.subject\n    }\n  },\n  Source: \"bienesraices@aliminspa.cl\", // Debe ser un remitente verificado en tu AWS SES\n};\n\ntry {\n  const result = await ses.sendEmail(params).promise();\n  return { \n    status: 'success', \n    messageId: result.MessageId, \n    email: body.email \n  };\n} catch (error) {\n  return { \n    status: 'error', \n    message: error.message, \n    email: body.email \n  };\n}"
+      },
+      "id": "7cd685b6-ab03-4f78-aa7f-21fd276941a8",
+      "name": "AWS SES (SDK Fix)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        280,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AWS SES (SDK Fix)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

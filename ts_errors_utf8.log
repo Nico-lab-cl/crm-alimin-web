@@ -1,0 +1,1 @@
+﻿components/EmailEditor.tsx(5,27): error TS2307: Cannot find module 'lucide-react' or its corresponding type declarations.

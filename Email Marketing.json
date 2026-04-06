@@ -1,0 +1,81 @@
+{
+  "name": "Email Marketing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Webhook",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "isBodyHtml": true,
+        "subject": "={{ $json.body.subject }}",
+        "body": "={{ $json.body.html }}",
+        "fromEmail": "bienesraices@aliminspa.cl",
+        "toAddresses": [
+          "={{ $json.body.email }}"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsSes",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "7cd685b6-ab03-4f78-aa7f-21fd276941a8",
+      "name": "Send an email",
+      "credentials": {
+        "aws": {
+          "id": "lW6k4jh3hyEZNH8I",
+          "name": "AWS (IAM) account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send an email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fadcf9bc-fa30-431f-bcca-fce2ae39ce1a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e88b42a5e011f39a6920cb8fcbced8eb6ca6be5a13db9dc945e745822e35ac5"
+  },
+  "id": "xfb7e9BiUGjCwoIg",
+  "tags": [
+    {
+      "updatedAt": "2026-01-24T17:16:43.490Z",
+      "createdAt": "2026-01-24T17:16:43.490Z",
+      "id": "2BzKuztLUNtPN0dg",
+      "name": "alimin"
+    }
+  ]
+}
