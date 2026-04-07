@@ -3,25 +3,65 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f9fc;
+  --foreground: #33475b;
+  
+  --primary: #2d544c;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #c49a00;
+  --secondary-foreground: #ffffff;
+  
+  --card: #ffffff;
+  --card-foreground: #33475b;
+  
+  --border: #cbd6e2;
+  --input: #cbd6e2;
+  
+  --muted: #f5f8fa;
+  --muted-foreground: #516f90;
+  
+  --accent: #eaf0f6;
+  --accent-foreground: #2d544c;
+  
+  --destructive: #ff4747;
+  --destructive-foreground: #ffffff;
+
+  --radius: 0.5rem;
+  
+  /* HubSpot specific colors */
+  --hubspot-blue: #0091ae;
+  --hubspot-orange: #ff7a59;
+  --hubspot-gray-900: #33475b;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md font-semibold transition-all shadow-sm active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4 py-2 rounded-md font-semibold transition-all shadow-sm active:scale-95;
+  }
+  
+  .card-hubspot {
+    @apply bg-card border border-border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow;
+  }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-hubspot-gray-900 font-medium transition-all hover:bg-accent hover:text-primary;
+  }
+
+  .sidebar-item.active {
+    @apply bg-accent text-primary border-l-4 border-primary rounded-l-none;
   }
 }
