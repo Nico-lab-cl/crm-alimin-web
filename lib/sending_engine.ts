@@ -7,54 +7,93 @@ interface SendCampaingOptions {
     source?: string;
     project?: string;
   };
+  advancedFilters?: Array<{ column: string; operator: string; value: string }>;
+  dateRange?: { start?: string; end?: string };
 }
 
 export async function executeCampaign(options: SendCampaingOptions) {
-  const { campaignId, leadFilters } = options;
+  const { campaignId, leadFilters, advancedFilters, dateRange } = options;
 
   // 1. Obtener la campaña
   const campaignRes = await queryMarketing('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
   if (campaignRes.rowCount === 0) throw new Error('Campaña no encontrada');
   const campaign = campaignRes.rows[0];
 
-  // 2. Obtener los Leads de MAIN_DB (Solo lectura)
-  // Usamos DISTINCT ON (email) para asegurar que no enviamos duplicados si el usuario lo pidió
-  // El usuario confirmó que prefiere emails únicos.
-  let leadQuery = 'SELECT DISTINCT ON (email) id, email FROM "Lead" WHERE email IS NOT NULL AND email != \'\'';
-  const params: string[] = [];
-  
-  let filterClause = '';
+  // 2. Construir Query Dinámica de Leads
+  let whereClauses = ['email IS NOT NULL AND email != \'\''];
+  const params: (string | number | Date)[] = [];
+
+  // Filtros Básicos
   if (leadFilters?.status) {
     params.push(leadFilters.status);
-    filterClause += ` AND status = $${params.length}`;
+    whereClauses.push(`status = $${params.length}`);
   }
-
   if (leadFilters?.source) {
     params.push(leadFilters.source);
-    filterClause += ` AND source = $${params.length}`;
+    whereClauses.push(`source = $${params.length}`);
   }
-
   if (leadFilters?.project) {
     params.push(leadFilters.project);
-    filterClause += ` AND (project = $${params.length} OR source = $${params.length})`;
+    whereClauses.push(`(project = $${params.length} OR source = $${params.length})`);
   }
 
-  leadQuery += filterClause;
-  // Con DISTINCT ON debemos ordenar por la columna de distinción primero
-  leadQuery += ' ORDER BY email, created_at DESC';
+  // Filtros Avanzados
+  if (Array.isArray(advancedFilters)) {
+    advancedFilters.forEach((f) => {
+      if (!f.column || !f.value) return;
+      const safeCol = `"${f.column.replace(/"/g, '')}"`;
+      switch (f.operator) {
+        case 'equals':
+          params.push(f.value);
+          whereClauses.push(`${safeCol} = $${params.length}`);
+          break;
+        case 'contains':
+          params.push(`%${f.value}%`);
+          whereClauses.push(`${safeCol} ILIKE $${params.length}`);
+          break;
+        case 'starts_with':
+          params.push(`${f.value}%`);
+          whereClauses.push(`${safeCol} ILIKE $${params.length}`);
+          break;
+        case 'ends_with':
+          params.push(`%${f.value}`);
+          whereClauses.push(`${safeCol} ILIKE $${params.length}`);
+          break;
+      }
+    });
+  }
+
+  // Filtro de Fecha
+  if (dateRange?.start) {
+    params.push(new Date(dateRange.start));
+    whereClauses.push(`created_at >= $${params.length}`);
+  }
+  if (dateRange?.end) {
+    const endDate = new Date(dateRange.end);
+    endDate.setHours(23, 59, 59, 999);
+    params.push(endDate);
+    whereClauses.push(`created_at <= $${params.length}`);
+  }
+
+  const whereString = whereClauses.join(' AND ');
+  // DISTINCT ON (email) para evitar duplicados y ORDER BY para los más recientes
+  const leadQuery = `
+    SELECT DISTINCT ON (email) id, email 
+    FROM "Lead" 
+    WHERE ${whereString} 
+    ORDER BY email, created_at DESC
+  `;
 
   const leadsRes = await queryMain(leadQuery, params);
   const leads = leadsRes.rows;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
-
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 
   // 3. Procesar cada lead
   for (const lead of leads) {
     try {
-      // Crear log en PENDING
       const logRes = await queryMarketing(
         `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
          VALUES ($1, $2, $3, 'PENDING') RETURNING id`,
@@ -62,11 +101,9 @@ export async function executeCampaign(options: SendCampaingOptions) {
       );
       const logId = logRes.rows[0].id;
 
-      // Inyectar Píxel de seguimiento
       const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
       const finalHtml = campaign.html_content + trackingPixel;
 
-      // Enviar a n8n
       fetch(n8nUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,14 +116,12 @@ export async function executeCampaign(options: SendCampaingOptions) {
           html: finalHtml,
           design: campaign.mjml_content,
         }),
-      }).catch(err => console.error(`Error enviando lead ${lead.email} a n8n:`, err));
+      }).catch(err => console.error(`Error enviando a n8n:`, err));
 
-      // Marcar como SENT
       await queryMarketing(
         'UPDATE campaign_logs SET status = \'SENT\', sent_at = CURRENT_TIMESTAMP WHERE id = $1',
         [logId]
       );
-
     } catch (error) {
       console.error(`Error procesando lead ${lead.email}:`, error);
     }
@@ -96,7 +131,6 @@ export async function executeCampaign(options: SendCampaingOptions) {
 }
 
 export async function sendTestCampaign(campaignId: string, targetEmail: string) {
-  // 1. Obtener la campaña
   const campaignRes = await queryMarketing('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
   if (campaignRes.rowCount === 0) throw new Error('Campaña no encontrada');
   const campaign = campaignRes.rows[0];
@@ -105,7 +139,6 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 
-  // 2. Crear log de prueba
   const logRes = await queryMarketing(
     `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
      VALUES ($1, $2, $3, 'TEST') RETURNING id`,
@@ -113,11 +146,9 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
   );
   const logId = logRes.rows[0].id;
 
-  // 3. Inyectar Píxel
   const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
   const finalHtml = campaign.html_content + trackingPixel;
 
-  // 4. Enviar a n8n
   await fetch(n8nUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

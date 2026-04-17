@@ -10,7 +10,13 @@ import {
   Filter, 
   RefreshCcw,
   Zap,
-  ArrowUpRight
+  ArrowUpRight,
+  Settings,
+  Calendar,
+  ChevronDown,
+  Trash2,
+  ListFilter,
+  Check
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +60,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Campaign | null>(null);
   const [automationLoading, setAutomationLoading] = useState(false);
+  
+  // -- Nuevos Estados para Explorador Avanzado --
+  const [schema, setSchema] = useState<{name: string, type: string, label: string}[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<{column: string, operator: string, value: string}[]>([]);
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(['email', 'name', 'status', 'source', 'created_at']);
+  const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -73,7 +87,12 @@ export default function Dashboard() {
               status: selectedStatus || undefined, 
               source: selectedSource || undefined,
               project: selectedProject || undefined
-            } 
+            },
+            advancedFilters,
+            dateRange: {
+              start: dateRange.start || undefined,
+              end: dateRange.end || undefined
+            }
           })
         });
         if (res.ok) {
@@ -89,7 +108,7 @@ export default function Dashboard() {
       }
     };
     fetchPreview();
-  }, [selectedStatus, selectedSource, selectedProject]);
+  }, [selectedStatus, selectedSource, selectedProject, advancedFilters, dateRange]);
 
   const fetchData = async () => {
     try {
@@ -108,6 +127,7 @@ export default function Dashboard() {
             setStatuses(data.statuses || []);
             setSources(data.sources || []);
             setProjects(data.projects || []);
+            if (data.schema) setSchema(data.schema);
           }
       }
       if (lRes.ok) setLogs(await lRes.json());
@@ -136,6 +156,8 @@ export default function Dashboard() {
             source: selectedSource || undefined,
             project: selectedProject || undefined
           },
+          advancedFilters,
+          dateRange
         }),
       });
 
@@ -324,42 +346,193 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Preview Box */}
-              <div className="bg-[#eaf0f6]/50 border border-[#cbd6e2] rounded-xl p-6">
-                <h4 className="text-xs font-bold text-[#2d544c] uppercase tracking-widest mb-4">Muestra de Audiencia Seleccionada</h4>
-                {previewLoading ? (
-                  <div className="flex items-center gap-3 text-[#516f90] animate-pulse">
-                    <div className="w-4 h-4 bg-[#cbd6e2] rounded-full" />
-                    <span className="text-sm">Analizando leads compatibles...</span>
+              {/* Rango de Fechas Avanzado */}
+              <div className="bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-[#2d544c] flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Filtrar por Periodo
+                  </h3>
+                  <button 
+                    onClick={() => setDateRange({ start: '', end: '' })}
+                    className="text-[10px] font-bold text-[#516f90] hover:text-red-600 transition-all"
+                  >
+                    LIMPIAR FECHAS
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-[#516f90] uppercase">Desde</span>
+                    <input 
+                      type="date" 
+                      className="w-full bg-white border-[#cbd6e2] border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                      value={dateRange.start}
+                      onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                    />
                   </div>
-                ) : previewCount !== null ? (
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-6">
-                      <div className="flex flex-col">
-                        <span className="text-4xl font-black text-[#2d544c]">{previewCount}</span>
-                        <span className="text-[10px] font-bold text-[#2d544c] uppercase">Emails Únicos</span>
-                      </div>
-                      <div className="w-px h-12 bg-[#cbd6e2]" />
-                      <div className="flex flex-col">
-                        <span className="text-3xl font-bold text-[#516f90]">{totalCount || '--'}</span>
-                        <span className="text-[10px] font-bold text-[#516f90] uppercase tracking-tight">Total Leads (CRM)</span>
-                      </div>
-                    </div>
-                    {previewLeads.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                        {previewLeads.map(l => (
-                          <div key={l.id} className="flex items-center gap-2 text-xs text-[#33475b] bg-white border border-[#cbd6e2]/50 p-2 rounded-md truncate">
-                            <span className="w-2 h-2 rounded-full bg-green-500" />
-                            {l.email}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-[#516f90] uppercase">Hasta</span>
+                    <input 
+                      type="date" 
+                      className="w-full bg-white border-[#cbd6e2] border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                      value={dateRange.end}
+                      onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                    />
                   </div>
-                ) : (
-                  <p className="text-sm text-[#516f90]">Selecciona una campaña y filtros para ver la audiencia potencial.</p>
+                </div>
+              </div>
+
+              {/* Constructor de Filtros Avanzados */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <button 
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className="text-xs font-bold text-[#0091ae] flex items-center gap-1 hover:underline"
+                  >
+                    {showAdvancedFilters ? '- Ocultar Filtros Avanzados' : '+ Añadir Filtros Especiales (CRM Pro)'}
+                  </button>
+                  {advancedFilters.length > 0 && (
+                    <button 
+                      onClick={() => setAdvancedFilters([])}
+                      className="text-[10px] font-bold text-[#516f90] hover:text-red-500"
+                    >
+                      ELIMINAR TODOS
+                    </button>
+                  )}
+                </div>
+
+                {showAdvancedFilters && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                    {advancedFilters.map((f, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-[#f5f8fa] p-2 rounded-lg border border-[#cbd6e2]">
+                        <select 
+                          className="flex-1 bg-white border-[#cbd6e2] border rounded-md px-2 py-1.5 text-xs outline-none"
+                          value={f.column}
+                          onChange={(e) => {
+                            const newFilters = [...advancedFilters];
+                            newFilters[idx].column = e.target.value;
+                            setAdvancedFilters(newFilters);
+                          }}
+                        >
+                          <option value="">Seleccionar Campo</option>
+                          {schema.map(s => <option key={s.name} value={s.name}>{s.label}</option>)}
+                        </select>
+                        
+                        <select 
+                          className="w-32 bg-white border-[#cbd6e2] border rounded-md px-2 py-1.5 text-xs outline-none"
+                          value={f.operator}
+                          onChange={(e) => {
+                            const newFilters = [...advancedFilters];
+                            newFilters[idx].operator = e.target.value;
+                            setAdvancedFilters(newFilters);
+                          }}
+                        >
+                          <option value="equals">Es igual a</option>
+                          <option value="contains">Contiene</option>
+                          <option value="starts_with">Empieza con</option>
+                        </select>
+
+                        <input 
+                          type="text" 
+                          placeholder="Valor..."
+                          className="flex-[1.5] bg-white border-[#cbd6e2] border rounded-md px-3 py-1.5 text-xs outline-none"
+                          value={f.value}
+                          onChange={(e) => {
+                            const newFilters = [...advancedFilters];
+                            newFilters[idx].value = e.target.value;
+                            setAdvancedFilters(newFilters);
+                          }}
+                        />
+
+                        <button 
+                          onClick={() => setAdvancedFilters(advancedFilters.filter((_, i) => i !== idx))}
+                          className="p-1.5 text-[#516f90] hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    <button 
+                      onClick={() => setAdvancedFilters([...advancedFilters, { column: '', operator: 'contains', value: '' }])}
+                      className="w-full py-2 border-2 border-dashed border-[#cbd6e2] rounded-lg text-[#516f90] text-xs font-bold hover:bg-[#f5f8fa] hover:border-[#2d544c] transition-all"
+                    >
+                      + AGREGAR REGLA DE FILTRADO
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {/* Preview Box con Selector de Columnas */}
+              <div className="bg-white border border-[#cbd6e2] rounded-xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-[#cbd6e2] bg-[#f5f8fa] flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[#2d544c] uppercase tracking-widest">
+                    Explorador de Audiencia ({previewCount || 0} leads)
+                  </h4>
+                  <button 
+                    onClick={() => setShowColumnConfig(!showColumnConfig)}
+                    className="flex items-center gap-2 text-xs font-bold text-[#516f90] hover:text-[#2d544c] bg-white border border-[#cbd6e2] px-3 py-1.5 rounded-lg shadow-sm"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    Configurar Columnas
+                  </button>
+                </div>
+
+                {showColumnConfig && (
+                  <div className="p-4 bg-[#eaf0f6]/50 border-b border-[#cbd6e2] grid grid-cols-2 sm:grid-cols-4 gap-3 animate-in fade-in duration-200">
+                    {schema.map(col => (
+                      <label key={col.name} className="flex items-center gap-2 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-[#cbd6e2] text-[#2d544c] focus:ring-[#2d544c]"
+                          checked={visibleColumns.includes(col.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) setVisibleColumns([...visibleColumns, col.name]);
+                            else setVisibleColumns(visibleColumns.filter(c => c !== col.name));
+                          }}
+                        />
+                        <span className="text-[11px] font-medium text-[#516f90] group-hover:text-[#2d544c] transition-colors">{col.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <div className="p-0 overflow-x-auto max-h-[400px]">
+                  {previewLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-[#516f90] animate-pulse">
+                      <RefreshCcw className="w-8 h-8 animate-spin" />
+                      <span className="text-sm font-bold uppercase tracking-widest">Sincronizando Leads...</span>
+                    </div>
+                  ) : previewLeads.length > 0 ? (
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-[#f5f8fa] border-b border-[#cbd6e2]">
+                        <tr>
+                          {visibleColumns.map(col => (
+                            <th key={col} className="px-4 py-3 font-bold text-[#516f90] uppercase tracking-tighter text-nowrap">
+                              {schema.find(s => s.name === col)?.label || col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#cbd6e2]">
+                        {previewLeads.map((lead, idx) => (
+                          <tr key={idx} className="hover:bg-[#f5f8fa] transition-colors">
+                            {visibleColumns.map(col => (
+                              <td key={col} className="px-4 py-3 text-[#33475b] max-w-[200px] truncate">
+                                {col === 'created_at' ? new Date(lead[col]).toLocaleDateString() : (lead[col] || '-')}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="py-20 text-center space-y-2">
+                       <ListFilter className="w-10 h-10 text-[#cbd6e2] mx-auto" />
+                       <p className="text-sm text-[#516f90] font-medium">No se encontraron leads con estos criterios.</p>
+                    </div>
+                  )}
+                </div>
 
               <button 
                 onClick={handleExecute}

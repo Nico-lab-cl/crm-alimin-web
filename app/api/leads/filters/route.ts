@@ -3,29 +3,38 @@ import { queryMain } from '@/lib/db';
 
 export async function GET() {
   try {
-    // Obtener estados únicos
-    const statusResult = await queryMain('SELECT DISTINCT status FROM "Lead" WHERE status IS NOT NULL');
-    const statuses = statusResult.rows.map((r: { status: string }) => r.status);
+    // 1. Obtener estados y fuentes de forma dinámica (retrocompatibilidad)
+    const statusQuery = 'SELECT DISTINCT status FROM "Lead" WHERE status IS NOT NULL AND status != \'\'';
+    const sourceQuery = 'SELECT DISTINCT source FROM "Lead" WHERE source IS NOT NULL AND source != \'\'';
+    
+    const [statusRes, sourceRes] = await Promise.all([
+      queryMain(statusQuery),
+      queryMain(sourceQuery)
+    ]);
 
-    // Obtener orígenes únicos
-    const sourceResult = await queryMain('SELECT DISTINCT source FROM "Lead" WHERE source IS NOT NULL');
-    const sources = sourceResult.rows.map((r: { source: string }) => r.source);
+    // 2. Descubrimiento dinámico del esquema (Todas las columnas)
+    const schemaQuery = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'Lead'
+      ORDER BY ordinal_position
+    `;
+    const schemaRes = await queryMain(schemaQuery);
+    
+    // Mapeamos los nombres de las columnas para que sean legibles si es necesario
+    const schema = schemaRes.rows.map(col => ({
+      name: col.column_name,
+      type: col.data_type,
+      label: col.column_name.charAt(0).toUpperCase() + col.column_name.slice(1).replace(/_/g, ' ')
+    }));
 
-    // Obtener proyectos únicos
-    let projects: string[] = [];
-    try {
-      // Intentamos buscar una columna 'project'. Si falla, usamos 'source' como base de proyectos.
-      const projectResult = await queryMain('SELECT DISTINCT project FROM "Lead" WHERE project IS NOT NULL');
-      projects = projectResult.rows.map((r: { project: string }) => r.project);
-    } catch (e) {
-      // Si la columna no existe, el CRM probablemente usa 'source' o 'formid' para identificar proyectos.
-      // Por ahora devolvemos sources como proyectos para que la UI no rompa.
-      projects = sources;
-    }
-
-    return NextResponse.json({ statuses, sources, projects });
+    return NextResponse.json({
+      statuses: statusRes.rows.map(r => r.status),
+      sources: sourceRes.rows.map(r => r.source),
+      schema: schema
+    });
   } catch (error) {
-    console.error('Error fetching lead filters:', error);
-    return NextResponse.json({ message: 'Error interno' }, { status: 500 });
+    console.error('Error fetching leads filters/schema:', error);
+    return NextResponse.json({ message: 'Error al obtener filtros' }, { status: 500 });
   }
 }

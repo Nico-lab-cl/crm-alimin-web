@@ -3,15 +3,18 @@ import { executeCampaign } from '@/lib/sending_engine';
 
 export async function POST(request: Request) {
   try {
-    const { campaignId, filters } = await request.json();
+    const { campaignId, filters, advancedFilters, dateRange } = await request.json();
 
     if (!campaignId) {
       return NextResponse.json({ message: 'campaignId es requerido' }, { status: 400 });
     }
 
-    // Ejecutar en segundo plano (aunque en Serverless/Vercel esto tiene límites de tiempo)
-    // Para esta app interna asumimos que corre en un ambiente con mayor timeout o procesos pequeños
-    const result = await executeCampaign({ campaignId, leadFilters: filters });
+    const result = await executeCampaign({ 
+      campaignId, 
+      leadFilters: filters,
+      advancedFilters,
+      dateRange
+    });
 
     return NextResponse.json({ 
       message: 'Campaña iniciada con éxito',
