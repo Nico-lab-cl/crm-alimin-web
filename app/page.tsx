@@ -13,10 +13,8 @@ import {
   ArrowUpRight,
   Settings,
   Calendar,
-  ChevronDown,
   Trash2,
-  ListFilter,
-  Check
+  ListFilter
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +49,6 @@ export default function Dashboard() {
   const [selectedSource, setSelectedSource] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
   const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [previewLeads, setPreviewLeads] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -98,7 +95,6 @@ export default function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           setPreviewCount(data.mailableCount || data.count);
-          setTotalCount(data.totalCount || null);
           setPreviewLeads(data.preview || []);
         }
       } catch (err) {

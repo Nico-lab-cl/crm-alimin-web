@@ -20,7 +20,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const campaign = campaignRes.rows[0];
 
   // 2. Construir Query Dinámica de Leads
-  let whereClauses = ['email IS NOT NULL AND email != \'\''];
+  const whereClauses = ['email IS NOT NULL AND email != \'\''];
   const params: (string | number | Date)[] = [];
 
   // Filtros Básicos
