@@ -533,6 +533,7 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+              </div>
 
               <button 
                 onClick={handleExecute}
