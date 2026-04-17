@@ -426,6 +426,7 @@ export default function Dashboard() {
                           <option value="equals">Es igual a</option>
                           <option value="contains">Contiene</option>
                           <option value="starts_with">Empieza con</option>
+                          <option value="ends_with">Termina con</option>
                         </select>
 
                         <input 
