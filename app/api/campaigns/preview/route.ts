@@ -5,32 +5,54 @@ export async function POST(request: Request) {
   try {
     const { filters } = await request.json();
 
-    let leadQuery = 'SELECT id, email, source FROM "Lead" WHERE email IS NOT NULL AND email != \'\'';
+    // 1. Construir filtros comunes
+    let filterClause = '1=1';
     const params: string[] = [];
     
     if (filters?.status) {
       params.push(filters.status);
-      leadQuery += ` AND status = $${params.length}`;
+      filterClause += ` AND status = $${params.length}`;
     }
 
     if (filters?.source) {
       params.push(filters.source);
-      leadQuery += ` AND source = $${params.length}`;
+      filterClause += ` AND source = $${params.length}`;
     }
 
-    // Limitamos la lista a 20 leads para la UI para no pesar mucho la db ni red, aunque la query devuelve todos.
-    // Lo ideal seria hacer un COUNT(*) separado y un LIMIT, pero para listas de cientos de leads, cargar todos es rapido en PG.
-    // Lo optimizaremos haciendo la query de COUNT separada del preview.
-    const countQuery = leadQuery.replace('SELECT id, email, source', 'SELECT COUNT(*) as exact_count');
-    const countRes = await queryMain(countQuery, params);
-    const count = parseInt(countRes.rows[0].exact_count, 10);
+    if (filters?.project) {
+      params.push(filters.project);
+      // Intentamos filtrar por columna 'project', si falla asumimos que el valor viene de 'source'
+      // Esto es para compatibilidad con la lógica de fallback de la API de filtros.
+      filterClause += ` AND (project = $${params.length} OR (NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Lead' AND column_name = 'project') AND source = $${params.length}))`;
+    }
 
-    // Agregamos un limit solo para los leads de prueba que se van a retornar
-    const previewQuery = leadQuery + ' LIMIT 50';
+    // 2. Query para el Conteo Total (Coincide con CRM Móvil)
+    const totalCountRes = await queryMain(`SELECT COUNT(*) as total FROM "Lead" WHERE ${filterClause}`, params);
+    const totalCount = parseInt(totalCountRes.rows[0].total, 10);
+
+    // 3. Query para Leads Enviables (Emails Únicos)
+    const mailableCountRes = await queryMain(`
+      SELECT COUNT(DISTINCT email) as mailable 
+      FROM "Lead" 
+      WHERE ${filterClause} 
+      AND email IS NOT NULL AND email != ''
+    `, params);
+    const mailableCount = parseInt(mailableCountRes.rows[0].mailable, 10);
+
+    // 4. Query para Previsualización (muestra de leads)
+    const previewQuery = `
+      SELECT id, email, source 
+      FROM "Lead" 
+      WHERE ${filterClause} 
+      AND email IS NOT NULL AND email != ''
+      LIMIT 50
+    `;
     const leadsRes = await queryMain(previewQuery, params);
 
     return NextResponse.json({ 
-      count, 
+      count: mailableCount, // El frontend actual usa 'count', lo mantenemos para compatibilidad inicial
+      mailableCount,
+      totalCount,
       preview: leadsRes.rows 
     });
   } catch (error: unknown) {

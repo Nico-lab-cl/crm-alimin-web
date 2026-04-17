@@ -3,9 +3,9 @@ import { queryMain, queryMarketing } from '@/lib/db';
 interface SendCampaingOptions {
   campaignId: string;
   leadFilters?: {
-    // Ejemplo: status, region, etc.
     status?: string;
     source?: string;
+    project?: string;
   };
 }
 
@@ -18,19 +18,30 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const campaign = campaignRes.rows[0];
 
   // 2. Obtener los Leads de MAIN_DB (Solo lectura)
-  // Nota: Ajustar query según filtros reales requeridos por el usuario
-  let leadQuery = 'SELECT id, email FROM "Lead" WHERE email IS NOT NULL AND email != \'\'';
+  // Usamos DISTINCT ON (email) para asegurar que no enviamos duplicados si el usuario lo pidió
+  // El usuario confirmó que prefiere emails únicos.
+  let leadQuery = 'SELECT DISTINCT ON (email) id, email FROM "Lead" WHERE email IS NOT NULL AND email != \'\'';
   const params: string[] = [];
   
+  let filterClause = '';
   if (leadFilters?.status) {
     params.push(leadFilters.status);
-    leadQuery += ` AND status = $${params.length}`;
+    filterClause += ` AND status = $${params.length}`;
   }
 
   if (leadFilters?.source) {
     params.push(leadFilters.source);
-    leadQuery += ` AND source = $${params.length}`;
+    filterClause += ` AND source = $${params.length}`;
   }
+
+  if (leadFilters?.project) {
+    params.push(leadFilters.project);
+    filterClause += ` AND (project = $${params.length} OR source = $${params.length})`;
+  }
+
+  leadQuery += filterClause;
+  // Con DISTINCT ON debemos ordenar por la columna de distinción primero
+  leadQuery += ' ORDER BY email, created_at DESC';
 
   const leadsRes = await queryMain(leadQuery, params);
   const leads = leadsRes.rows;
@@ -56,8 +67,6 @@ export async function executeCampaign(options: SendCampaingOptions) {
       const finalHtml = campaign.html_content + trackingPixel;
 
       // Enviar a n8n
-      // No esperamos el resultado para evitar timeout si son muchos leads, 
-      // pero en este loop simple de node-postgres podríamos querer ser más eficientes (Promise.all con chunks)
       fetch(n8nUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

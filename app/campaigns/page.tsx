@@ -10,9 +10,7 @@ import {
   MoreHorizontal,
   ChevronRight,
   Zap,
-  Calendar,
-  Send,
-  Eye
+  Calendar
 } from 'lucide-react';
 
 interface Campaign {

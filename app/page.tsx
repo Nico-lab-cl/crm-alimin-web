@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
-  Users, 
   Mail, 
   Send, 
   Eye, 
@@ -11,7 +10,6 @@ import {
   Filter, 
   RefreshCcw,
   Zap,
-  MoreVertical,
   ArrowUpRight
 } from 'lucide-react';
 
@@ -41,10 +39,13 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<CampaignLog[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedSource, setSelectedSource] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
   const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [previewLeads, setPreviewLeads] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -70,13 +71,15 @@ export default function Dashboard() {
           body: JSON.stringify({ 
             filters: { 
               status: selectedStatus || undefined, 
-              source: selectedSource || undefined 
+              source: selectedSource || undefined,
+              project: selectedProject || undefined
             } 
           })
         });
         if (res.ok) {
           const data = await res.json();
-          setPreviewCount(data.count);
+          setPreviewCount(data.mailableCount || data.count);
+          setTotalCount(data.totalCount || null);
           setPreviewLeads(data.preview || []);
         }
       } catch (err) {
@@ -86,7 +89,7 @@ export default function Dashboard() {
       }
     };
     fetchPreview();
-  }, [selectedStatus, selectedSource]);
+  }, [selectedStatus, selectedSource, selectedProject]);
 
   const fetchData = async () => {
     try {
@@ -99,12 +102,13 @@ export default function Dashboard() {
       if (cRes.ok) setCampaigns(await cRes.json());
       if (filtersRes.ok) {
          const data = await filtersRes.json();
-         if (Array.isArray(data)) {
-           setStatuses(data);
-         } else {
-           setStatuses(data.statuses || []);
-           setSources(data.sources || []);
-         }
+          if (Array.isArray(data)) {
+            setStatuses(data);
+          } else {
+            setStatuses(data.statuses || []);
+            setSources(data.sources || []);
+            setProjects(data.projects || []);
+          }
       }
       if (lRes.ok) setLogs(await lRes.json());
     } catch (error) {
@@ -129,7 +133,8 @@ export default function Dashboard() {
           campaignId: selectedCampaign,
           filters: { 
             status: selectedStatus || undefined,
-            source: selectedSource || undefined
+            source: selectedSource || undefined,
+            project: selectedProject || undefined
           },
         }),
       });
@@ -306,6 +311,17 @@ export default function Dashboard() {
                     {sources.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-[#516f90]">4. Filtrar por Proyecto</label>
+                  <select 
+                    className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-sm"
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                  >
+                    <option value="">Todos los Proyectos</option>
+                    {projects.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
               </div>
 
               {/* Preview Box */}
@@ -318,9 +334,16 @@ export default function Dashboard() {
                   </div>
                 ) : previewCount !== null ? (
                   <div className="flex flex-col gap-4">
-                    <div className="flex items-end gap-3">
-                      <span className="text-4xl font-black text-[#2d544c]">{previewCount}</span>
-                      <span className="text-sm text-[#516f90] mb-1.5 font-medium">leads encontrados</span>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col">
+                        <span className="text-4xl font-black text-[#2d544c]">{previewCount}</span>
+                        <span className="text-[10px] font-bold text-[#2d544c] uppercase">Emails Únicos</span>
+                      </div>
+                      <div className="w-px h-12 bg-[#cbd6e2]" />
+                      <div className="flex flex-col">
+                        <span className="text-3xl font-bold text-[#516f90]">{totalCount || '--'}</span>
+                        <span className="text-[10px] font-bold text-[#516f90] uppercase tracking-tight">Total Leads (CRM)</span>
+                      </div>
                     </div>
                     {previewLeads.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
