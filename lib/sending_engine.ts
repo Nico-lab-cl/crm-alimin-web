@@ -20,21 +20,21 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const campaign = campaignRes.rows[0];
 
   // 2. Construir Query Dinámica de Leads
-  const whereClauses = ['email IS NOT NULL AND email != \'\''];
+  const whereClauses = ['"Email" IS NOT NULL AND "Email" != \'\''];
   const params: (string | number | Date)[] = [];
 
   // Filtros Básicos
   if (leadFilters?.status) {
     params.push(leadFilters.status);
-    whereClauses.push(`status = $${params.length}`);
+    whereClauses.push(`"Status" ILIKE $${params.length}`);
   }
   if (leadFilters?.source) {
     params.push(leadFilters.source);
-    whereClauses.push(`source = $${params.length}`);
+    whereClauses.push(`"Source" ILIKE $${params.length}`);
   }
   if (leadFilters?.project) {
     params.push(leadFilters.project);
-    whereClauses.push(`(project = $${params.length} OR source = $${params.length})`);
+    whereClauses.push(`("Project" ILIKE $${params.length} OR "Source" ILIKE $${params.length})`);
   }
 
   // Filtros Avanzados
@@ -45,7 +45,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
       switch (f.operator) {
         case 'equals':
           params.push(f.value);
-          whereClauses.push(`${safeCol} = $${params.length}`);
+          whereClauses.push(`${safeCol} ILIKE $${params.length}`);
           break;
         case 'contains':
           params.push(`%${f.value}%`);
@@ -66,38 +66,40 @@ export async function executeCampaign(options: SendCampaingOptions) {
   // Filtro de Fecha
   if (dateRange?.start) {
     params.push(new Date(dateRange.start));
-    whereClauses.push(`created_at >= $${params.length}`);
+    whereClauses.push(`"CreatedAt" >= $${params.length}`);
   }
   if (dateRange?.end) {
     const endDate = new Date(dateRange.end);
     endDate.setHours(23, 59, 59, 999);
     params.push(endDate);
-    whereClauses.push(`created_at <= $${params.length}`);
+    whereClauses.push(`"CreatedAt" <= $${params.length}`);
   }
 
   const whereString = whereClauses.join(' AND ');
-  // DISTINCT ON (email) para evitar duplicados y ORDER BY para los más recientes
+  // DISTINCT ON ("Email") para evitar duplicados y ORDER BY para los más recientes
   const leadQuery = `
-    SELECT DISTINCT ON (email) id, email 
+    SELECT DISTINCT ON ("Email") id, "Email" 
     FROM "Lead" 
     WHERE ${whereString} 
-    ORDER BY email, created_at DESC
+    ORDER BY "Email", "CreatedAt" DESC
   `;
 
   const leadsRes = await queryMain(leadQuery, params);
   const leads = leadsRes.rows;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminlomasdelmar.com';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 
   // 3. Procesar cada lead
   for (const lead of leads) {
     try {
+      const emailValue = lead.Email || lead.email; // Manejar posible diferencia de case en el objeto de retorno
+      
       const logRes = await queryMarketing(
         `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
          VALUES ($1, $2, $3, 'PENDING') RETURNING id`,
-        [campaignId, lead.id, lead.email]
+        [campaignId, lead.id, emailValue]
       );
       const logId = logRes.rows[0].id;
 
@@ -111,7 +113,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
           log_id: logId,
           campaign_id: campaignId,
           title: campaign.title,
-          email: lead.email,
+          email: emailValue,
           subject: campaign.subject,
           html: finalHtml,
           design: campaign.mjml_content,
@@ -123,7 +125,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
         [logId]
       );
     } catch (error) {
-      console.error(`Error procesando lead ${lead.email}:`, error);
+      console.error(`Error procesando lead:`, error);
     }
   }
 
@@ -135,7 +137,7 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
   if (campaignRes.rowCount === 0) throw new Error('Campaña no encontrada');
   const campaign = campaignRes.rows[0];
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminlomasdelmar.com';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 

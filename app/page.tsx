@@ -62,7 +62,7 @@ export default function Dashboard() {
   const [schema, setSchema] = useState<{name: string, type: string, label: string}[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState<{column: string, operator: string, value: string}[]>([]);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(['email', 'name', 'status', 'source', 'created_at']);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(['Email', 'FirstName', 'Status', 'Source', 'CreatedAt']);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 

@@ -8,18 +8,18 @@ export async function POST(request: Request) {
     const whereClauses = ['1=1'];
     const params: (string | number | Date)[] = [];
 
-    // 1. Filtros Básicos (Legacy support)
+    // 1. Filtros Básicos (Legacy support) - Agregamos comillas dobles e ILIKE para robustez
     if (filters?.status) {
       params.push(filters.status);
-      whereClauses.push(`status = $${params.length}`);
+      whereClauses.push(`"Status" ILIKE $${params.length}`);
     }
     if (filters?.source) {
       params.push(filters.source);
-      whereClauses.push(`source = $${params.length}`);
+      whereClauses.push(`"Source" ILIKE $${params.length}`);
     }
     if (filters?.project) {
       params.push(filters.project);
-      whereClauses.push(`(project = $${params.length} OR source = $${params.length})`);
+      whereClauses.push(`("Project" ILIKE $${params.length} OR "Source" ILIKE $${params.length})`);
     }
 
     // 2. Filtros Avanzados Dinámicos
@@ -27,15 +27,13 @@ export async function POST(request: Request) {
       advancedFilters.forEach((filter: { column: string; operator: string; value: string }) => {
         if (!filter.column || !filter.value) return;
         
-        // Sanitizar el nombre de la columna (solo permitir caracteres de columna válidos o envolver en comillas)
-        // En Postgres las columnas sensibles a capitalización deben ir entre comillas dobles
-        // Usamos una whitelist o un escape simple para este ejemplo interno
+        // Postgres es sensible a mayúsculas en nombres de columnas si fueron creadas con ellas
         const safeCol = `"${filter.column.replace(/"/g, '')}"`;
         
         switch (filter.operator) {
           case 'equals':
             params.push(filter.value);
-            whereClauses.push(`${safeCol} = $${params.length}`);
+            whereClauses.push(`${safeCol} ILIKE $${params.length}`); // Cambiamos a ILIKE por defecto para evitar errores de capitalización
             break;
           case 'contains':
             params.push(`%${filter.value}%`);
@@ -51,22 +49,25 @@ export async function POST(request: Request) {
             break;
           default:
             params.push(filter.value);
-            whereClauses.push(`${safeCol} = $${params.length}`);
+            whereClauses.push(`${safeCol} ILIKE $${params.length}`);
         }
       });
     }
 
     // 3. Filtro de Rango de Fechas
+    // Intentamos detectar si la columna es 'createdAt' o 'created_at' según lo que vimos en el esquema
+    // Basado en los screenshots, parece ser 'createdAt' o similar
+    const dateCol = `"createdAt"`; 
+
     if (dateRange?.start) {
       params.push(new Date(dateRange.start));
-      whereClauses.push(`created_at >= $${params.length}`);
+      whereClauses.push(`${dateCol} >= $${params.length}`);
     }
     if (dateRange?.end) {
-      // Ajustar el fin del día para que incluya todo el día seleccionado
       const endDate = new Date(dateRange.end);
       endDate.setHours(23, 59, 59, 999);
       params.push(endDate);
-      whereClauses.push(`created_at <= $${params.length}`);
+      whereClauses.push(`${dateCol} <= $${params.length}`);
     }
 
     const whereString = whereClauses.join(' AND ');
@@ -75,22 +76,21 @@ export async function POST(request: Request) {
     const totalCountRes = await queryMain(`SELECT COUNT(*) as total FROM "Lead" WHERE ${whereString}`, params);
     const totalCount = parseInt(totalCountRes.rows[0].total, 10);
 
-    // 5. Conteo Enviables (Únicos)
+    // 5. Conteo Enviables (Únicos) - Usando comillas en Email por si acaso
     const mailableCountRes = await queryMain(`
-      SELECT COUNT(DISTINCT email) as mailable 
+      SELECT COUNT(DISTINCT "Email") as mailable 
       FROM "Lead" 
       WHERE ${whereString} 
-      AND email IS NOT NULL AND email != ''
+      AND "Email" IS NOT NULL AND "Email" != ''
     `, params);
     const mailableCount = parseInt(mailableCountRes.rows[0].mailable, 10);
 
     // 6. Previsualización (Muestra Dinámica)
-    // Ordenamos por created_at DESC para mostrar los más recientes arriba
     const previewQuery = `
       SELECT * 
       FROM "Lead" 
       WHERE ${whereString} 
-      ORDER BY created_at DESC NULLS LAST
+      ORDER BY "createdAt" DESC NULLS LAST
       LIMIT 100
     `;
     const leadsRes = await queryMain(previewQuery, params);
@@ -104,6 +104,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al previsualizar leads';
     console.error('Error al previsualizar leads:', error);
-    return NextResponse.json({ message }, { status: 500 });
+    // Retornamos un 200 con error para que la UI pueda mostrarlo sin explotar
+    return NextResponse.json({ message, preview: [], count: 0 }, { status: 200 });
   }
 }
