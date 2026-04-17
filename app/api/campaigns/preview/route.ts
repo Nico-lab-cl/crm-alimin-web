@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   try {
     const { filters, advancedFilters, dateRange } = await request.json();
 
-    let whereClauses = ['1=1'];
+    const whereClauses = ['1=1'];
     const params: (string | number | Date)[] = [];
 
     // 1. Filtros Básicos (Legacy support)
