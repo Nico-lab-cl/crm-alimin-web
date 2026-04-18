@@ -54,10 +54,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Filtro de Rango de Fechas
-    // Intentamos detectar si la columna es 'createdAt' o 'created_at' según lo que vimos en el esquema
-    // Basado en los screenshots, parece ser 'createdAt' o similar
-    const dateCol = `"createdAt"`; 
+    const dateCol = `"CreatedAt"`; 
 
     if (dateRange?.start) {
       params.push(new Date(dateRange.start));
@@ -90,7 +87,7 @@ export async function POST(request: Request) {
       SELECT * 
       FROM "Lead" 
       WHERE ${whereString} 
-      ORDER BY "createdAt" DESC NULLS LAST
+      ORDER BY "CreatedAt" DESC NULLS LAST
       LIMIT 100
     `;
     const leadsRes = await queryMain(previewQuery, params);
