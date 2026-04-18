@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const dateCol = `"CreatedAt"`; 
+    const dateCol = `"createdAt"`; 
 
     if (dateRange?.start) {
       params.push(new Date(dateRange.start));
@@ -75,10 +75,10 @@ export async function POST(request: Request) {
 
     // 5. Conteo Enviables (Únicos) - Usando comillas en Email por si acaso
     const mailableCountRes = await queryMain(`
-      SELECT COUNT(DISTINCT "Email") as mailable 
+      SELECT COUNT(DISTINCT email) as mailable 
       FROM "Lead" 
       WHERE ${whereString} 
-      AND "Email" IS NOT NULL AND "Email" != ''
+      AND email IS NOT NULL AND email != ''
     `, params);
     const mailableCount = parseInt(mailableCountRes.rows[0].mailable, 10);
 
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       SELECT * 
       FROM "Lead" 
       WHERE ${whereString} 
-      ORDER BY "CreatedAt" DESC NULLS LAST
+      ORDER BY "createdAt" DESC NULLS LAST
       LIMIT 100
     `;
     const leadsRes = await queryMain(previewQuery, params);

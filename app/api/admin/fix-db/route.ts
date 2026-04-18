@@ -1,0 +1,95 @@
+import { NextResponse } from 'next/server';
+import { queryMarketing } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  try {
+    const results: string[] = [];
+
+    // 1. Check if 'updated_at' exists
+    const checkUpdatedAt = await queryMarketing(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'campaigns' AND column_name = 'updated_at'
+    `);
+
+    if (checkUpdatedAt.rows.length === 0) {
+      await queryMarketing(`
+        ALTER TABLE campaigns 
+        ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      `);
+      results.push("Added 'updated_at' column to campaigns table.");
+    } else {
+      results.push("'updated_at' column already exists.");
+    }
+
+    // 2. Check if 'name' exists
+    const checkName = await queryMarketing(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'campaigns' AND column_name = 'name'
+    `);
+
+    if (checkName.rows.length === 0) {
+      await queryMarketing(`
+        ALTER TABLE campaigns 
+        ADD COLUMN name VARCHAR(255)
+      `);
+      // Update name with title for existing rows
+      await queryMarketing(`UPDATE campaigns SET name = title WHERE name IS NULL`);
+      // Make it NOT NULL
+      await queryMarketing(`ALTER TABLE campaigns ALTER COLUMN name SET NOT NULL`);
+      results.push("Added 'name' column to campaigns table and populated it with titles.");
+    } else {
+      results.push("'name' column already exists.");
+    }
+
+    // 3. Check if 'is_automation' exists (used in automation/route.ts)
+    const checkAutomation = await queryMarketing(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'campaigns' AND column_name = 'is_automation'
+    `);
+
+    if (checkAutomation.rows.length === 0) {
+        await queryMarketing(`
+          ALTER TABLE campaigns 
+          ADD COLUMN is_automation BOOLEAN DEFAULT FALSE,
+          ADD COLUMN automation_formid VARCHAR(255)
+        `);
+        results.push("Added 'is_automation' and 'automation_formid' columns to campaigns table.");
+    }
+
+    // 4. Check for 'created_at' in campaign_logs
+    const checkLogsCreatedAt = await queryMarketing(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'campaign_logs' AND column_name = 'created_at'
+    `);
+
+    if (checkLogsCreatedAt.rows.length === 0) {
+      await queryMarketing(`
+        ALTER TABLE campaign_logs 
+        ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      `);
+      results.push("Added 'created_at' column to campaign_logs table.");
+    } else {
+      results.push("Column 'created_at' already exists in campaign_logs.");
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Database schema update check completed.",
+      details: results
+    });
+  } catch (error) {
+    console.error('Error fixing database:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    return NextResponse.json({
+      success: false,
+      message: "Error updating database schema",
+      error: errorMessage
+    }, { status: 500 });
+  }
+}
