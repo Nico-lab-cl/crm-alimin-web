@@ -20,7 +20,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const campaign = campaignRes.rows[0];
 
   // 2. Construir Query Dinámica de Leads
-  const whereClauses = ['"Email" IS NOT NULL AND "Email" != \'\''];
+  const whereClauses = ['email IS NOT NULL AND email != \'\''];
   const params: (string | number | Date)[] = [];
 
   // Filtros Básicos
@@ -66,22 +66,22 @@ export async function executeCampaign(options: SendCampaingOptions) {
   // Filtro de Fecha
   if (dateRange?.start) {
     params.push(new Date(dateRange.start));
-    whereClauses.push(`"CreatedAt" >= $${params.length}`);
+    whereClauses.push(`"createdAt" >= $${params.length}`);
   }
   if (dateRange?.end) {
     const endDate = new Date(dateRange.end);
     endDate.setHours(23, 59, 59, 999);
     params.push(endDate);
-    whereClauses.push(`"CreatedAt" <= $${params.length}`);
+    whereClauses.push(`"createdAt" <= $${params.length}`);
   }
 
   const whereString = whereClauses.join(' AND ');
   // DISTINCT ON ("Email") para evitar duplicados y ORDER BY para los más recientes
   const leadQuery = `
-    SELECT DISTINCT ON ("Email") id, "Email" 
+    SELECT DISTINCT ON (email) id, email 
     FROM "Lead" 
     WHERE ${whereString} 
-    ORDER BY "Email", "CreatedAt" DESC
+    ORDER BY email, "createdAt" DESC
   `;
 
   const leadsRes = await queryMain(leadQuery, params);
