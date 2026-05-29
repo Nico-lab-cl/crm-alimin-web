@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || '';
     const source = searchParams.get('source') || '';
     const project = searchParams.get('project') || '';
+    const interest = searchParams.get('interest') || '';
+    const startDate = searchParams.get('startDate') || '';
+    const endDate = searchParams.get('endDate') || '';
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
@@ -61,6 +64,19 @@ export async function GET(request: Request) {
       }
       if (project) {
         filtered = filtered.filter(l => l.Project.toLowerCase() === project.toLowerCase());
+      }
+      if (startDate) {
+        const start = new Date(startDate).getTime();
+        filtered = filtered.filter(l => new Date(l.CreatedAt).getTime() >= start);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        const endTime = end.getTime();
+        filtered = filtered.filter(l => new Date(l.CreatedAt).getTime() <= endTime);
+      }
+      if (interest) {
+        filtered = filtered.filter(l => l.Lote.toLowerCase().includes(interest.toLowerCase()));
       }
 
       const totalCount = filtered.length;
@@ -119,9 +135,53 @@ export async function GET(request: Request) {
       params.push(source);
       whereClauses.push(`${sourceCol} ILIKE $${params.length}`);
     }
+    
+    // Proyecto Inteligente (Filtra por Project, Source, FormId o AdName)
     if (project && columns.includes(projectCol.replace(/"/g, ''))) {
       params.push(project);
-      whereClauses.push(`${projectCol} ILIKE $${params.length}`);
+      const projIdx = params.length;
+      
+      const formIdCol = findCol('formid') || findCol('FormId') || '"FormId"';
+      const adNameCol = findCol('adname') || findCol('AdName') || '"AdName"';
+      
+      let projectFilter = `(${projectCol} ILIKE $${projIdx} OR ${sourceCol} ILIKE $${projIdx}`;
+      
+      const projLower = project.toLowerCase();
+      if (projLower.includes('lomas') || projLower.includes('mar')) {
+        projectFilter += ` OR ${formIdCol} = '798890826611593'`;
+        if (columns.includes(adNameCol.replace(/"/g, ''))) {
+          projectFilter += ` OR ${adNameCol} ILIKE '%lomas%' OR ${adNameCol} ILIKE '%mar%'`;
+        }
+      } else if (projLower.includes('arena') || projLower.includes('sol')) {
+        projectFilter += ` OR ${formIdCol} = '1896385304349584'`;
+        if (columns.includes(adNameCol.replace(/"/g, ''))) {
+          projectFilter += ` OR ${adNameCol} ILIKE '%arena%' OR ${adNameCol} ILIKE '%sol%'`;
+        }
+      }
+      
+      projectFilter += `)`;
+      whereClauses.push(projectFilter);
+    }
+
+    // Filtro por Interés
+    if (interest) {
+      const interestCol = findCol('interest') || findCol('interes') || findCol('adname') || findCol('AdName');
+      if (interestCol && columns.includes(interestCol.replace(/"/g, ''))) {
+        params.push(interest);
+        whereClauses.push(`${interestCol} ILIKE $${params.length}`);
+      }
+    }
+
+    // Filtro por rango de fechas de creación
+    if (startDate && columns.includes(createdAtCol.replace(/"/g, ''))) {
+      params.push(new Date(startDate));
+      whereClauses.push(`${createdAtCol} >= $${params.length}`);
+    }
+    if (endDate && columns.includes(createdAtCol.replace(/"/g, ''))) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      params.push(end);
+      whereClauses.push(`${createdAtCol} <= $${params.length}`);
     }
 
     const whereStr = whereClauses.join(' AND ');

@@ -3,42 +3,99 @@ import { queryMain } from '@/lib/db';
 
 export async function GET() {
   try {
-    // 1. Fuentes y Proyectos dinámicos (Usamos comillas dobles por la capitalización en la DB)
-    const sourceQuery = 'SELECT DISTINCT "Source" FROM "Lead" WHERE "Source" IS NOT NULL AND "Source" != \'\'';
-    const projectQuery = 'SELECT DISTINCT "Project" FROM "Lead" WHERE "Project" IS NOT NULL AND "Project" != \'\'';
+    // 1. Descubrimiento dinámico del esquema (Todas las columnas) para saber la capitalización exacta
+    let columns: string[] = [];
+    let dbConnected = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let schemaRes: any = null;
     
-    // Ejecutamos con catch individual para que un error en uno no rompa todo el filtro
+    try {
+      schemaRes = await queryMain(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'Lead'
+        ORDER BY ordinal_position
+      `);
+      columns = schemaRes.rows.map((r: { column_name: string }) => r.column_name);
+      dbConnected = columns.length > 0;
+    } catch (e) {
+      console.warn('Error descubriendo esquema en filtros:', (e as Error).message);
+    }
+
+    // Si no está conectada la base de datos, retornar mock
+    if (!dbConnected) {
+      return NextResponse.json({
+        statuses: ['Nuevo', 'Contactado', 'Visita'],
+        sources: ['META', 'Sitio Web', 'Referido', 'Manual'],
+        projects: ['Lomas del Mar', 'Arena y Sol'],
+        interests: ['Lote Agrícola', 'Lote Residencial', 'Inversión', 'Vivienda'],
+        schema: []
+      });
+    }
+
+    const findCol = (name: string) => columns.find(c => c.toLowerCase() === name.toLowerCase());
+
+    const sourceCol = findCol('source');
+    const projectCol = findCol('project');
+    const interestCol = findCol('interest') || findCol('interes') || findCol('adname') || findCol('AdName');
+
     let sources: string[] = [];
     let projects: string[] = [];
-    
-    try {
-      const sourceRes = await queryMain(sourceQuery);
-      sources = sourceRes.rows.map(r => r.Source || r.source);
-    } catch (e) {
-      console.error('Error fetching sources:', e);
+    let interests: string[] = [];
+
+    // Fuentes dinámicas
+    if (sourceCol) {
+      try {
+        const sourceRes = await queryMain(`
+          SELECT DISTINCT "${sourceCol}" 
+          FROM "Lead" 
+          WHERE "${sourceCol}" IS NOT NULL AND "${sourceCol}" != ''
+          ORDER BY "${sourceCol}" ASC
+        `);
+        sources = sourceRes.rows.map((r: Record<string, string>) => r[sourceCol]);
+      } catch (e) {
+        console.error('Error fetching sources:', e);
+      }
     }
 
-    try {
-      const projectRes = await queryMain(projectQuery);
-      projects = projectRes.rows.map(r => r.Project || r.project);
-    } catch (e) {
-      console.error('Error fetching projects:', e);
+    // Proyectos dinámicos
+    if (projectCol) {
+      try {
+        const projectRes = await queryMain(`
+          SELECT DISTINCT "${projectCol}" 
+          FROM "Lead" 
+          WHERE "${projectCol}" IS NOT NULL AND "${projectCol}" != ''
+          ORDER BY "${projectCol}" ASC
+        `);
+        projects = projectRes.rows.map((r: Record<string, string>) => r[projectCol]);
+      } catch (e) {
+        console.error('Error fetching projects:', e);
+      }
+    }
+    // Asegurarnos de que los proyectos principales se incluyan para filtros si la base de datos los tiene vacíos en el campo físico pero mapeados por FormId
+    if (!projects.includes('Lomas del Mar')) projects.push('Lomas del Mar');
+    if (!projects.includes('Arena y Sol')) projects.push('Arena y Sol');
+
+    // Intereses dinámicos (anuncio u oferta)
+    if (interestCol) {
+      try {
+        const interestRes = await queryMain(`
+          SELECT DISTINCT "${interestCol}" 
+          FROM "Lead" 
+          WHERE "${interestCol}" IS NOT NULL AND "${interestCol}" != ''
+          ORDER BY "${interestCol}" ASC
+          LIMIT 30
+        `);
+        interests = interestRes.rows.map((r: Record<string, string>) => r[interestCol]);
+      } catch (e) {
+        console.error('Error fetching interests:', e);
+      }
     }
 
-    // 2. Estados Simplificados (según requerimiento del usuario)
     const statuses = ['Nuevo', 'Contactado', 'Visita'];
 
-    // 3. Descubrimiento dinámico del esquema (Todas las columnas)
-    const schemaQuery = `
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'Lead'
-      ORDER BY ordinal_position
-    `;
-    const schemaRes = await queryMain(schemaQuery);
-    
-    // Mapeamos los nombres de las columnas para que sean legibles y respeten capitalización
-    const schema = schemaRes.rows.map(col => {
+    // Mapeamos los nombres de las columnas para la UI
+    const schema = schemaRes!.rows.map((col: { column_name: string; data_type: string }) => {
       const name = col.column_name;
       let label = name;
       
@@ -48,7 +105,7 @@ export async function GET() {
         'Email': 'Email',
         'Source': 'Origen',
         'Status': 'Estado',
-        'AdName': 'Nombre Anuncio',
+        'AdName': 'Nombre Anuncio / Interés',
         'FormId': 'ID Formulario',
         'createdAt': 'Fecha Creación',
         'CreatedAt': 'Fecha Creación',
@@ -74,15 +131,16 @@ export async function GET() {
       statuses,
       sources,
       projects,
-      schema: schema
+      interests,
+      schema
     });
   } catch (error) {
     console.error('Error fetching leads filters/schema:', error);
-    // Retornamos un objeto básico para que el frontend no rompa
     return NextResponse.json({ 
       statuses: ['Nuevo', 'Contactado', 'Visita'], 
-      sources: [], 
-      projects: [], 
+      sources: ['META', 'Sitio Web', 'Referido', 'Manual'], 
+      projects: ['Lomas del Mar', 'Arena y Sol'], 
+      interests: ['Lote Agrícola', 'Lote Residencial', 'Inversión', 'Vivienda'],
       schema: [] 
     });
   }

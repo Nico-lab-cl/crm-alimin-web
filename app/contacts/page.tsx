@@ -35,11 +35,15 @@ export default function ContactsPage() {
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
   const [project, setProject] = useState('');
+  const [interest, setInterest] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   
   // Opciones de filtros dinámicos (cargados desde API)
   const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita']);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
 
   // Estado del Modal de Añadir Contacto
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,6 +77,7 @@ export default function ContactsPage() {
           if (data.statuses && data.statuses.length > 0) setStatuses(data.statuses);
           if (data.sources) setSources(data.sources);
           if (data.projects) setProjects(data.projects);
+          if (data.interests) setInterests(data.interests);
         }
       } catch (e) {
         console.error('Error fetching filters:', e);
@@ -91,7 +96,10 @@ export default function ContactsPage() {
         search,
         status,
         source,
-        project
+        project,
+        interest,
+        startDate,
+        endDate
       });
       const res = await fetch(`/api/leads?${params.toString()}`);
       if (res.ok) {
@@ -106,7 +114,7 @@ export default function ContactsPage() {
     } finally {
       if (showLoadingSpinner) setLoading(false);
     }
-  }, [page, limit, search, status, source, project]);
+  }, [page, limit, search, status, source, project, interest, startDate, endDate]);
 
   // Efecto para búsquedas y filtrados dinámicos
   useEffect(() => {
@@ -153,7 +161,38 @@ export default function ContactsPage() {
   const getLeadPhone = (lead: Lead) => lead.Phone || lead.phone || 'Sin Teléfono';
   const getLeadStatus = (lead: Lead) => lead.Status || lead.status || 'Nuevo';
   const getLeadSource = (lead: Lead) => lead.Source || lead.source || 'Manual';
-  const getLeadProject = (lead: Lead) => lead.Project || lead.project || '-';
+  
+  const getLeadProject = (lead: Lead) => {
+    // 1. Si el campo Project / project existe y no está vacío, usarlo
+    const proj = lead.Project || lead.project;
+    if (proj && proj !== '-') return proj;
+
+    // 2. Si no, intentar inferir por FormId (formularios de Meta)
+    const formId = lead.FormId || lead.formid || lead.FormID;
+    if (formId) {
+      if (formId === '798890826611593') return 'Lomas del Mar';
+      if (formId === '1896385304349584') return 'Arena y Sol';
+    }
+
+    // 3. Intentar inferir por AdName (nombre del anuncio / interés)
+    const adName = lead.AdName || lead.adname || lead.Adname;
+    if (adName) {
+      const adNameLower = adName.toLowerCase();
+      if (adNameLower.includes('lomas') || adNameLower.includes('mar')) return 'Lomas del Mar';
+      if (adNameLower.includes('arena') || adNameLower.includes('sol')) return 'Arena y Sol';
+    }
+
+    // 4. Si el origen (Source) es el nombre del proyecto
+    const src = lead.Source || lead.source;
+    if (src) {
+      const srcLower = src.toLowerCase();
+      if (srcLower.includes('lomas') || srcLower.includes('mar')) return 'Lomas del Mar';
+      if (srcLower.includes('arena') || srcLower.includes('sol')) return 'Arena y Sol';
+    }
+
+    return '-';
+  };
+
   const getLeadLote = (lead: Lead) => lead.Lote || lead.lote || '';
   const getLeadEtapa = (lead: Lead) => lead.Etapa || lead.etapa || '';
   const getLeadDate = (lead: Lead) => lead.CreatedAt || lead.createdAt || lead.created_at || '';
@@ -306,71 +345,145 @@ export default function ContactsPage() {
       </div>
 
       {/* Filtros de Búsqueda y Segmentación */}
-      <div className="bg-white border border-[#cbd6e2] rounded-xl p-5 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-        {/* Buscador */}
-        <div className="space-y-1.5 lg:col-span-2">
-          <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Buscar contacto</label>
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#516f90] group-focus-within:text-[#2d544c] transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Buscar por nombre, email, teléfono..." 
-              value={search}
+      <div className="bg-white border border-[#cbd6e2] rounded-xl p-5 shadow-sm space-y-4">
+        {/* Fila 1: Búsqueda y Filtros Básicos */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          {/* Buscador */}
+          <div className="space-y-1.5 lg:col-span-2">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Buscar contacto</label>
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#516f90] group-focus-within:text-[#2d544c] transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Buscar por nombre, email, teléfono..." 
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1); // Reiniciar página al buscar
+                }}
+                className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d544c]/20 focus:bg-white transition-all text-[#33475b]"
+              />
+            </div>
+          </div>
+
+          {/* Filtrar por Estado */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Estado</label>
+            <select 
+              value={status}
               onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1); // Reiniciar página al buscar
+                setStatus(e.target.value);
+                setPage(1);
               }}
-              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d544c]/20 focus:bg-white transition-all text-[#33475b]"
-            />
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Todos los Estados</option>
+              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Filtrar por Origen */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Origen</label>
+            <select 
+              value={source}
+              onChange={(e) => {
+                setSource(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Todos los Orígenes</option>
+              {sources.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Filtrar por Proyecto */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Proyecto</label>
+            <select 
+              value={project}
+              onChange={(e) => {
+                setProject(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Todos los Proyectos</option>
+              {projects.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
         </div>
 
-        {/* Filtrar por Estado */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Estado</label>
-          <select 
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
-            className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
-          >
-            <option value="">Todos los Estados</option>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+        {/* Fila 2: Filtros Avanzados (Interés y Fecha de Creación) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end pt-2 border-t border-[#cbd6e2]/40">
+          {/* Filtrar por Interés */}
+          <div className="space-y-1.5 lg:col-span-2">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Interés del Lead</label>
+            <select 
+              value={interest}
+              onChange={(e) => {
+                setInterest(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Todos los Intereses / Anuncios</option>
+              {interests.map(i => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </div>
 
-        {/* Filtrar por Origen */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Origen</label>
-          <select 
-            value={source}
-            onChange={(e) => {
-              setSource(e.target.value);
-              setPage(1);
-            }}
-            className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
-          >
-            <option value="">Todos los Orígenes</option>
-            {sources.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+          {/* Creado Desde */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Creado Desde</label>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            />
+          </div>
 
-        {/* Filtrar por Proyecto */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Proyecto</label>
-          <select 
-            value={project}
-            onChange={(e) => {
-              setProject(e.target.value);
-              setPage(1);
-            }}
-            className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
-          >
-            <option value="">Todos los Proyectos</option>
-            {projects.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+          {/* Creado Hasta */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Creado Hasta</label>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            />
+          </div>
+
+          {/* Botón de Limpiar Filtros */}
+          <div>
+            {(search || status || source || project || interest || startDate || endDate) ? (
+              <button 
+                onClick={() => {
+                  setSearch('');
+                  setStatus('');
+                  setSource('');
+                  setProject('');
+                  setInterest('');
+                  setStartDate('');
+                  setEndDate('');
+                  setPage(1);
+                }}
+                className="w-full py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 text-zinc-600 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <X className="w-3.5 h-3.5" />
+                Limpiar Filtros
+              </button>
+            ) : (
+              <div className="h-10 hidden lg:block" />
+            )}
+          </div>
         </div>
       </div>
 
@@ -389,13 +502,16 @@ export default function ContactsPage() {
               </div>
               <p className="text-xl font-bold text-[#33475b]">No se encontraron contactos</p>
               <p className="text-[#516f90] mt-2 max-w-sm text-sm">Prueba limpiando los filtros actuales o añade un contacto nuevo manualmente.</p>
-              {(search || status || source || project) && (
+              {(search || status || source || project || interest || startDate || endDate) && (
                 <button 
                   onClick={() => {
                     setSearch('');
                     setStatus('');
                     setSource('');
                     setProject('');
+                    setInterest('');
+                    setStartDate('');
+                    setEndDate('');
                     setPage(1);
                   }}
                   className="mt-5 text-sm font-bold text-[#2d544c] hover:underline"
