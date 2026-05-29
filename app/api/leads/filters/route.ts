@@ -25,7 +25,7 @@ export async function GET() {
     // Si no está conectada la base de datos, retornar mock
     if (!dbConnected) {
       return NextResponse.json({
-        statuses: ['Nuevo', 'Contactado', 'Visita'],
+        statuses: ['Nuevo', 'Contactado', 'Visita', 'Reservado'],
         sources: ['META', 'Sitio Web', 'Referido', 'Manual'],
         projects: ['Lomas del Mar', 'Arena y Sol'],
         interests: ['FRIO', 'INTERESADO', 'VENTA'],
@@ -90,7 +90,7 @@ export async function GET() {
     // Intereses del lead unificados (Frío, Interesado, Venta)
     interests = ['FRIO', 'INTERESADO', 'VENTA'];
 
-    const statuses = ['Nuevo', 'Contactado', 'Visita'];
+    const statuses = ['Nuevo', 'Contactado', 'Visita', 'Reservado'];
 
     // Mapeamos los nombres de las columnas para la UI
     const schema = schemaRes!.rows.map((col: { column_name: string; data_type: string }) => {
@@ -135,7 +135,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching leads filters/schema:', error);
     return NextResponse.json({ 
-      statuses: ['Nuevo', 'Contactado', 'Visita'], 
+      statuses: ['Nuevo', 'Contactado', 'Visita', 'Reservado'], 
       sources: ['META', 'Sitio Web', 'Referido', 'Manual'], 
       projects: ['Lomas del Mar', 'Arena y Sol'], 
       interests: ['FRIO', 'INTERESADO', 'VENTA'],

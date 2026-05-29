@@ -47,7 +47,7 @@ export default function ContactsPage() {
   const [endDate, setEndDate] = useState('');
   
   // Opciones de filtros dinámicos (cargados desde API)
-  const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita']);
+  const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita', 'Reservado']);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
 
@@ -237,6 +237,14 @@ export default function ContactsPage() {
       if (srcLower.includes('arena') || srcLower.includes('sol')) return 'Arena y Sol';
     }
 
+    // 5. Intentar inferir por interests / interes (campo de procedencia web)
+    const int = lead.interests || lead.Interests || lead.interes || lead.Interes;
+    if (int) {
+      const intLower = int.toLowerCase();
+      if (intLower.includes('lomas') || intLower.includes('mar')) return 'Lomas del Mar';
+      if (intLower.includes('arena') || intLower.includes('sol')) return 'Arena y Sol';
+    }
+
     return '-';
   };
 
@@ -327,6 +335,7 @@ export default function ContactsPage() {
     if (s === 'nuevo' || s === 'new') return 'bg-sky-50 text-sky-700 border-sky-200';
     if (s === 'contactado' || s === 'contacted') return 'bg-amber-50 text-amber-700 border-amber-200';
     if (s === 'visita' || s === 'visited') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (s === 'reservado' || s === 'reserved') return 'bg-purple-50 text-purple-700 border-purple-200';
     return 'bg-slate-50 text-slate-600 border-slate-200';
   };
 
@@ -1029,14 +1038,79 @@ export default function ContactsPage() {
                             </div>
                           )}
  
-                          {/* Evento de Ingreso */}
+                          {/* Evento de Reserva (si el estado es Reservado o tiene datos de firma) */}
+                          {(getLeadStatus(selectedLead).toLowerCase() === 'reservado' || selectedLead.signingStatus) && (
+                            <div className="relative animate-fade-in">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-purple-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <Sparkles className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold text-purple-800 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-purple-600 animate-pulse" /> Propiedad Reservada
+                                </p>
+                                <p className="leading-relaxed">El lead ha reservado con éxito un lote en el proyecto <span className="font-bold">{selectedLead.signingProject || getLeadProject(selectedLead)}</span>.</p>
+                                {selectedLead.signingLote && <p className="text-[11px] text-[#516f90]">Lote: {selectedLead.signingLote} | Etapa: {selectedLead.signingEtapa || '1'}</p>}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Evento de Visita (si visitó o tiene fecha de visita) */}
+                          {(selectedLead.visited || selectedLead.visitProject || selectedLead.visitDate) && (
+                            <div className="relative animate-fade-in">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <MapPin className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold text-emerald-800">Visita Terreno Agendada/Realizada</p>
+                                <p className="leading-relaxed">Se registró una visita presencial al proyecto <span className="font-bold">{selectedLead.visitProject || getLeadProject(selectedLead)}</span>.</p>
+                                {selectedLead.visitDate && <p className="text-[10px] text-[#516f90]">Fecha registrada: {new Date(selectedLead.visitDate).toLocaleString()}</p>}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Registro de Actividad en Meta Ads (Si tiene formId o adName) */}
+                          {(selectedLead.formId || selectedLead.adName) && (
+                            <div className="relative animate-fade-in">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <FileText className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold text-indigo-800">Conversión de Meta Lead Ads</p>
+                                <p className="leading-relaxed">El usuario convirtió y envió sus datos desde un formulario de Facebook Ads.</p>
+                                <div className="text-[11px] text-[#516f90] mt-1 space-y-0.5">
+                                  {selectedLead.adName && <p><strong>Anuncio:</strong> {selectedLead.adName}</p>}
+                                  {selectedLead.formId && <p><strong>ID Formulario:</strong> {selectedLead.formId}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Registro de Suscripción en la Web (Si tiene utmSource o intereses literal de la web) */}
+                          {(selectedLead.utmSource || selectedLead.utmCampaign || selectedLead.interests || selectedLead.Interests) && (
+                            <div className="relative animate-fade-in">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-sky-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <Link2 className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold text-sky-800">Suscripción Web Activa</p>
+                                <p className="leading-relaxed">El usuario se registró en la web principal completando el formulario de contacto.</p>
+                                <div className="text-[11px] text-[#516f90] mt-1 space-y-0.5">
+                                  {selectedLead.utmSource && <p><strong>Origen UTM:</strong> {selectedLead.utmSource}</p>}
+                                  {selectedLead.utmCampaign && <p><strong>Campaña UTM:</strong> {selectedLead.utmCampaign}</p>}
+                                  {(selectedLead.interests || selectedLead.Interests) && <p><strong>Interés del sitio:</strong> {selectedLead.interests || selectedLead.Interests}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+ 
+                          {/* Evento de Ingreso Inicial */}
                           <div className="relative">
                             <div className="absolute -left-[31px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
                               <Check className="w-2 h-2 text-white" />
                             </div>
                             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
-                              <p className="font-bold text-emerald-800">Contacto Registrado</p>
-                              <p className="leading-relaxed">Ingresó al sistema desde origen <span className="font-bold">{getLeadSource(selectedLead)}</span>.</p>
+                              <p className="font-bold text-emerald-800">Contacto Creado en el Sistema</p>
+                              <p className="leading-relaxed">Ingreso inicial registrado con origen principal <span className="font-bold">{getLeadSource(selectedLead)}</span>.</p>
                               <p className="text-[10px] text-[#516f90]">{getLeadDate(selectedLead) ? new Date(getLeadDate(selectedLead)).toLocaleString() : '-'}</p>
                             </div>
                           </div>
