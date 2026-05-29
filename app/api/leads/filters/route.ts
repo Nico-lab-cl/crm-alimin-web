@@ -52,7 +52,19 @@ export async function GET() {
           WHERE "${sourceCol}" IS NOT NULL AND "${sourceCol}" != ''
           ORDER BY "${sourceCol}" ASC
         `);
-        sources = sourceRes.rows.map((r: Record<string, string>) => r[sourceCol]);
+        const rawSources = sourceRes.rows.map((r: Record<string, string>) => r[sourceCol]);
+        
+        // Unificar 'web', 'Web' o 'aliminspa.cl' a 'Sitio Web'
+        const uniqueSources = new Set<string>();
+        rawSources.forEach((s: string) => {
+          const sLower = s.toLowerCase();
+          if (sLower === 'web' || sLower.includes('aliminspa')) {
+            uniqueSources.add('Sitio Web');
+          } else {
+            uniqueSources.add(s);
+          }
+        });
+        sources = Array.from(uniqueSources);
       } catch (e) {
         console.error('Error fetching sources:', e);
       }

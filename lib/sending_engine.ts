@@ -29,8 +29,13 @@ export async function executeCampaign(options: SendCampaingOptions) {
     whereClauses.push(`"Status" ILIKE $${params.length}`);
   }
   if (leadFilters?.source) {
-    params.push(leadFilters.source);
-    whereClauses.push(`"Source" ILIKE $${params.length}`);
+    const srcLower = leadFilters.source.toLowerCase();
+    if (srcLower === 'sitio web' || srcLower === 'web' || srcLower === 'aliminspa.cl') {
+      whereClauses.push(`("Source" ILIKE 'web' OR "Source" ILIKE 'Sitio Web' OR "Source" ILIKE 'Sitio web' OR "Source" ILIKE '%aliminspa%')`);
+    } else {
+      params.push(leadFilters.source);
+      whereClauses.push(`"Source" ILIKE $${params.length}`);
+    }
   }
   if (leadFilters?.project) {
     params.push(leadFilters.project);

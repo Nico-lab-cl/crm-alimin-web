@@ -132,8 +132,13 @@ export async function GET(request: Request) {
       whereClauses.push(`${statusCol} ILIKE $${params.length}`);
     }
     if (source && columns.includes(sourceCol.replace(/"/g, ''))) {
-      params.push(source);
-      whereClauses.push(`${sourceCol} ILIKE $${params.length}`);
+      const srcLower = source.toLowerCase();
+      if (srcLower === 'sitio web' || srcLower === 'web' || srcLower === 'aliminspa.cl') {
+        whereClauses.push(`(${sourceCol} ILIKE 'web' OR ${sourceCol} ILIKE 'Sitio Web' OR ${sourceCol} ILIKE 'Sitio web' OR ${sourceCol} ILIKE '%aliminspa%')`);
+      } else {
+        params.push(source);
+        whereClauses.push(`${sourceCol} ILIKE $${params.length}`);
+      }
     }
     
     // Proyecto Inteligente (Filtra por Project, Source, FormId o AdName)

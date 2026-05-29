@@ -160,7 +160,12 @@ export default function ContactsPage() {
   const getLeadEmail = (lead: Lead) => lead.Email || lead.email || 'Sin Email';
   const getLeadPhone = (lead: Lead) => lead.Phone || lead.phone || 'Sin Teléfono';
   const getLeadStatus = (lead: Lead) => lead.Status || lead.status || 'Nuevo';
-  const getLeadSource = (lead: Lead) => lead.Source || lead.source || 'Manual';
+  const getLeadSource = (lead: Lead) => {
+    const src = lead.Source || lead.source || 'Manual';
+    const srcLower = src.toLowerCase();
+    if (srcLower === 'web' || srcLower.includes('aliminspa')) return 'Sitio Web';
+    return src;
+  };
   
   const getLeadProject = (lead: Lead) => {
     // 1. Si el campo Project / project existe y no está vacío, usarlo

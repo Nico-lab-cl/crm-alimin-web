@@ -14,8 +14,13 @@ export async function POST(request: Request) {
       whereClauses.push(`"Status" ILIKE $${params.length}`);
     }
     if (filters?.source) {
-      params.push(filters.source);
-      whereClauses.push(`"Source" ILIKE $${params.length}`);
+      const srcLower = filters.source.toLowerCase();
+      if (srcLower === 'sitio web' || srcLower === 'web' || srcLower === 'aliminspa.cl') {
+        whereClauses.push(`("Source" ILIKE 'web' OR "Source" ILIKE 'Sitio Web' OR "Source" ILIKE 'Sitio web' OR "Source" ILIKE '%aliminspa%')`);
+      } else {
+        params.push(filters.source);
+        whereClauses.push(`"Source" ILIKE $${params.length}`);
+      }
     }
     if (filters?.project) {
       params.push(filters.project);
