@@ -14,7 +14,14 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  Info,
+  Clock,
+  Link2,
+  Edit3,
+  Map,
+  FileText
 } from 'lucide-react';
 
 interface Lead {
@@ -43,6 +50,43 @@ export default function ContactsPage() {
   const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita']);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+
+  // Estado para la vista de detalle estilo HubSpot
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [activeTab, setActiveTab] = useState<'notes' | 'activity'>('notes');
+  const [newNote, setNewNote] = useState('');
+  const [isUpdatingField, setIsUpdatingField] = useState(false);
+
+  useEffect(() => {
+    if (selectedLead) {
+      setNewNote(selectedLead.notes || '');
+    }
+  }, [selectedLead]);
+
+  const handleUpdateLead = async (leadId: string, fieldsToUpdate: Partial<Lead>) => {
+    // Actualización optimista en local
+    setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, ...fieldsToUpdate } : l));
+    if (selectedLead && selectedLead.id === leadId) {
+      setSelectedLead(prev => prev ? { ...prev, ...fieldsToUpdate } : null);
+    }
+    
+    setIsUpdatingField(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fieldsToUpdate)
+      });
+      if (!res.ok) {
+        throw new Error('Error al actualizar contacto');
+      }
+    } catch (e) {
+      console.error('Error updating lead:', e);
+      alert('No se pudo guardar la información del contacto en el servidor.');
+    } finally {
+      setIsUpdatingField(false);
+    }
+  };
 
   // Estado del Modal de Añadir Contacto
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -525,7 +569,7 @@ export default function ContactsPage() {
               </thead>
               <tbody className="divide-y divide-[#cbd6e2]">
                 {leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-[#f5f8fa] transition-all group">
+                  <tr key={lead.id} onClick={() => setSelectedLead(lead)} className="hover:bg-[#f5f8fa] transition-all group cursor-pointer select-none">
                     <td className="px-6 py-4">
                       <p className="font-bold text-[#33475b] group-hover:text-[#2d544c] transition-colors">{getLeadName(lead)}</p>
                     </td>
@@ -789,6 +833,398 @@ export default function ContactsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Panel de Detalle Estilo HubSpot (3 Columnas) */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex justify-center items-center backdrop-blur-sm bg-black/40 animate-fade-in p-4 md:p-6">
+          <div className="bg-[#f5f8fa] w-full max-w-7xl h-[92vh] rounded-2xl border border-[#cbd6e2] shadow-2xl flex flex-col overflow-hidden animate-slide-up">
+            
+            {/* Cabecera del Panel */}
+            <div className="px-6 py-4 bg-white border-b border-[#cbd6e2] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#eaf0f6] rounded-full flex items-center justify-center font-bold text-[#2d544c] border border-[#2d544c]/20 text-lg uppercase select-none">
+                  {(selectedLead.FirstName || selectedLead.firstName || 'C')[0]}
+                  {(selectedLead.LastName || selectedLead.lastName || '')[0]}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#33475b] flex items-center gap-2">
+                    {getLeadName(selectedLead)}
+                    <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-xs text-[#516f90] rounded font-bold uppercase tracking-wide">
+                      {getLeadSource(selectedLead)}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-[#516f90] font-medium">{getLeadEmail(selectedLead)}</p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setSelectedLead(null)}
+                className="p-2 text-[#516f90] hover:text-[#33475b] hover:bg-[#f5f8fa] rounded-full transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Cuerpo del Panel (3 Columnas) */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+              
+              {/* Columna Izquierda (3/12) - Perfil & Información General */}
+              <div className="lg:col-span-3 bg-white border-r border-[#cbd6e2] p-5 overflow-y-auto space-y-6 flex flex-col">
+                <div>
+                  <h3 className="text-xs font-bold text-[#516f90] uppercase tracking-wider mb-4">Información del Contacto</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Nombre Completo */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Nombre</label>
+                      <input 
+                        type="text" 
+                        defaultValue={selectedLead.FirstName || selectedLead.firstName || ''}
+                        onBlur={(e) => handleUpdateLead(selectedLead.id, { firstName: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Apellido</label>
+                      <input 
+                        type="text" 
+                        defaultValue={selectedLead.LastName || selectedLead.lastName || ''}
+                        onBlur={(e) => handleUpdateLead(selectedLead.id, { lastName: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
+                      />
+                    </div>
+                    
+                    {/* Email */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Correo Electrónico</label>
+                      <input 
+                        type="email" 
+                        defaultValue={getLeadEmail(selectedLead)}
+                        onBlur={(e) => handleUpdateLead(selectedLead.id, { email: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
+                      />
+                    </div>
+                    
+                    {/* Teléfono */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Teléfono</label>
+                      <input 
+                        type="text" 
+                        defaultValue={getLeadPhone(selectedLead)}
+                        onBlur={(e) => handleUpdateLead(selectedLead.id, { phone: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
+                      />
+                    </div>
+                    
+                    {/* Estado */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Estado</label>
+                      <select 
+                        value={getLeadStatus(selectedLead)}
+                        onChange={(e) => handleUpdateLead(selectedLead.id, { status: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
+                      >
+                        {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+ 
+                    {/* Temperatura (Interés) */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Interés / Temperatura</label>
+                      <select 
+                        value={selectedLead.Rating || selectedLead.rating || 'FRIO'}
+                        onChange={(e) => handleUpdateLead(selectedLead.id, { rating: e.target.value })}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none font-bold text-slate-700"
+                      >
+                        <option value="FRIO">Frío ❄️</option>
+                        <option value="INTERESADO">Interesado 🔥</option>
+                        <option value="VENTA">Venta 💰</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+ 
+                <div className="pt-4 border-t border-[#cbd6e2]/40 flex-1 flex flex-col justify-end text-xs text-[#516f90] space-y-2">
+                  <div className="flex justify-between">
+                    <span>Creado:</span>
+                    <span className="font-bold">{getLeadDate(selectedLead) ? new Date(getLeadDate(selectedLead)).toLocaleDateString() : '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Último Update:</span>
+                    <span className="font-bold">{selectedLead.updatedAt ? new Date(selectedLead.updatedAt).toLocaleDateString() : '-'}</span>
+                  </div>
+                  {isUpdatingField && (
+                    <p className="text-[10px] text-[#2d544c] font-bold animate-pulse text-right">✓ Sincronizando cambios...</p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Columna Central (6/12) - Notas & Actividad */}
+              <div className="lg:col-span-6 flex flex-col p-5 overflow-hidden">
+                <div className="border-b border-[#cbd6e2] pb-3 mb-4 flex items-center justify-between">
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setActiveTab('notes')}
+                      className={`text-sm font-bold pb-2 transition-all border-b-2 ${activeTab === 'notes' ? 'border-[#2d544c] text-[#2d544c]' : 'border-transparent text-[#516f90]'}`}
+                    >
+                      Notas & Historial
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('activity')}
+                      className={`text-sm font-bold pb-2 transition-all border-b-2 ${activeTab === 'activity' ? 'border-[#2d544c] text-[#2d544c]' : 'border-transparent text-[#516f90]'}`}
+                    >
+                      Actividad Técnica
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {activeTab === 'notes' ? (
+                    <>
+                      {/* Editor de Notas */}
+                      <div className="bg-white border border-[#cbd6e2] rounded-xl p-4 shadow-sm space-y-3">
+                        <label className="text-xs font-bold text-[#33475b] block">Editar Nota Principal</label>
+                        <textarea 
+                          placeholder="Agrega comentarios o detalles importantes del contacto aquí..."
+                          value={newNote}
+                          onChange={(e) => setNewNote(e.target.value)}
+                          rows={3}
+                          className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-lg p-3 text-sm text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none resize-none"
+                        />
+                        <div className="flex justify-end">
+                          <button 
+                            onClick={async () => {
+                              await handleUpdateLead(selectedLead.id, { notes: newNote });
+                            }}
+                            disabled={isUpdatingField}
+                            className="bg-[#2d544c] hover:bg-[#1f3a35] text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm disabled:opacity-50"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Guardar Nota
+                          </button>
+                        </div>
+                      </div>
+ 
+                      {/* Línea de Tiempo de Actividades */}
+                      <div className="space-y-4 pt-2">
+                        <h4 className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Historial de Eventos</h4>
+                        
+                        <div className="relative border-l-2 border-[#cbd6e2] ml-3 pl-6 space-y-6 py-2">
+                          
+                          {/* Nota Principal */}
+                          {selectedLead.notes && (
+                            <div className="relative">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <Edit3 className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                                  <Edit3 className="w-3 h-3" /> Nota del Asesor
+                                </p>
+                                <p className="leading-relaxed whitespace-pre-wrap">{selectedLead.notes}</p>
+                              </div>
+                            </div>
+                          )}
+ 
+                          {/* Evento de Ingreso */}
+                          <div className="relative">
+                            <div className="absolute -left-[31px] top-0 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
+                              <Check className="w-2 h-2 text-white" />
+                            </div>
+                            <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                              <p className="font-bold text-emerald-800">Contacto Registrado</p>
+                              <p className="leading-relaxed">Ingresó al sistema desde origen <span className="font-bold">{getLeadSource(selectedLead)}</span>.</p>
+                              <p className="text-[10px] text-[#516f90]">{getLeadDate(selectedLead) ? new Date(getLeadDate(selectedLead)).toLocaleString() : '-'}</p>
+                            </div>
+                          </div>
+ 
+                          {/* Evento de Última Actividad */}
+                          {selectedLead.lastActivity && (
+                            <div className="relative">
+                              <div className="absolute -left-[31px] top-0 w-4 h-4 bg-[#2d544c] rounded-full border-2 border-white flex items-center justify-center">
+                                <Clock className="w-2 h-2 text-white" />
+                              </div>
+                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm text-xs text-[#33475b] space-y-1">
+                                <p className="font-bold text-slate-800">Última Actividad Registrada</p>
+                                <p className="leading-relaxed">{selectedLead.lastActivity}</p>
+                                {selectedLead.lastNoteAt && (
+                                  <p className="text-[10px] text-[#516f90]">{new Date(selectedLead.lastNoteAt).toLocaleString()}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* Actividad Técnica */
+                    <div className="bg-white border border-[#cbd6e2] rounded-xl p-5 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold text-[#33475b] uppercase tracking-wider flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-[#2d544c]" />
+                        Metadatos Completos en DB
+                      </h4>
+                      <p className="text-xs text-[#516f90]">A continuación se listan todos los campos físicos y valores de la tabla Lead devueltos en la base de datos de producción:</p>
+                      
+                      <div className="divide-y divide-[#cbd6e2]/40 text-xs border border-[#cbd6e2]/60 rounded-lg bg-slate-50/50">
+                        {Object.keys(selectedLead).map((key) => {
+                          const val = selectedLead[key];
+                          if (val === null || val === undefined || typeof val === 'object') return null;
+                          return (
+                            <div key={key} className="flex py-2 px-3 hover:bg-slate-50 justify-between items-center">
+                              <span className="font-mono text-[#516f90] font-semibold">{key}</span>
+                              <span className="font-medium text-[#33475b] max-w-xs break-all text-right">{val.toString()}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Columna Derecha (3/12) - Datos Asociados & Parámetros Tracking */}
+              <div className="lg:col-span-3 bg-white border-l border-[#cbd6e2] p-5 overflow-y-auto space-y-6">
+                
+                {/* Sección 1: Asociación de Propiedad */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-[#516f90] uppercase tracking-wider flex items-center gap-1.5">
+                    <Map className="w-4 h-4 text-[#2d544c]" />
+                    Propiedad & Proyecto
+                  </h4>
+                  
+                  <div className="bg-slate-50 rounded-xl p-3 border border-[#cbd6e2]/60 space-y-2.5 text-xs">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-[#516f90]">Proyecto</p>
+                      <p className="font-bold text-[#33475b] text-sm mt-0.5">{getLeadProject(selectedLead)}</p>
+                    </div>
+                    {getLeadLote(selectedLead) && (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-[#516f90]">Lote Asignado</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Lote {getLeadLote(selectedLead)}</p>
+                      </div>
+                    )}
+                    {getLeadEtapa(selectedLead) && (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-[#516f90]">Etapa</p>
+                        <p className="text-slate-700 mt-0.5">{getLeadEtapa(selectedLead)}</p>
+                      </div>
+                    )}
+                    {!getLeadLote(selectedLead) && !getLeadEtapa(selectedLead) && (
+                      <p className="text-slate-400 italic">No hay lote ni etapa asociados en la base de datos.</p>
+                    )}
+                  </div>
+                </div>
+ 
+                {/* Sección 2: Visitas Agendadas */}
+                {(selectedLead.visited || selectedLead.visitProject || selectedLead.visitDate) && (
+                  <div className="space-y-3 pt-3 border-t border-[#cbd6e2]/40">
+                    <h4 className="text-xs font-bold text-[#516f90] uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-[#2d544c]" />
+                      Visitas
+                    </h4>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-[#cbd6e2]/60 space-y-2.5 text-xs text-[#33475b]">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-[#516f90]">¿Realizó Visita?</p>
+                        <p className="font-bold mt-0.5">{selectedLead.visited ? 'Sí ✓' : 'No'}</p>
+                      </div>
+                      {selectedLead.visitProject && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">Proyecto Visitado</p>
+                          <p className="font-semibold mt-0.5">{selectedLead.visitProject}</p>
+                        </div>
+                      )}
+                      {selectedLead.visitDate && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">Fecha de Visita</p>
+                          <p className="mt-0.5">{new Date(selectedLead.visitDate).toLocaleString()}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+ 
+                {/* Sección 3: Parámetros UTM de Captura */}
+                {(selectedLead.utmSource || selectedLead.utmMedium || selectedLead.utmCampaign || selectedLead.utmContent || selectedLead.utmTerm) && (
+                  <div className="space-y-3 pt-3 border-t border-[#cbd6e2]/40">
+                    <h4 className="text-xs font-bold text-[#516f90] uppercase tracking-wider flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4 text-[#2d544c]" />
+                      Parámetros UTM
+                    </h4>
+                    
+                    <div className="bg-slate-50 rounded-xl p-3 border border-[#cbd6e2]/60 space-y-2 text-xs">
+                      {selectedLead.utmSource && (
+                        <div>
+                          <span className="font-bold text-[#516f90]">Source:</span> <span className="text-[#33475b]">{selectedLead.utmSource}</span>
+                        </div>
+                      )}
+                      {selectedLead.utmMedium && (
+                        <div>
+                          <span className="font-bold text-[#516f90]">Medium:</span> <span className="text-[#33475b]">{selectedLead.utmMedium}</span>
+                        </div>
+                      )}
+                      {selectedLead.utmCampaign && (
+                        <div>
+                          <span className="font-bold text-[#516f90]">Campaign:</span> <span className="text-[#33475b]">{selectedLead.utmCampaign}</span>
+                        </div>
+                      )}
+                      {selectedLead.utmContent && (
+                        <div>
+                          <span className="font-bold text-[#516f90]">Content:</span> <span className="text-[#33475b]">{selectedLead.utmContent}</span>
+                        </div>
+                      )}
+                      {selectedLead.utmTerm && (
+                        <div>
+                          <span className="font-bold text-[#516f90]">Term:</span> <span className="text-[#33475b]">{selectedLead.utmTerm}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+ 
+                {/* Sección 4: Datos Técnicos (Meta Lead Ads) */}
+                {(selectedLead.formId || selectedLead.adName || selectedLead.adId || selectedLead.contactId) && (
+                  <div className="space-y-3 pt-3 border-t border-[#cbd6e2]/40">
+                    <h4 className="text-xs font-bold text-[#516f90] uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-[#2d544c]" />
+                      Meta Ads Integración
+                    </h4>
+                    
+                    <div className="bg-slate-50 rounded-xl p-3 border border-[#cbd6e2]/60 space-y-2 text-xs">
+                      {selectedLead.formId && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">ID Formulario</p>
+                          <p className="font-mono text-[#33475b] mt-0.5">{selectedLead.formId}</p>
+                        </div>
+                      )}
+                      {selectedLead.adName && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">Nombre del Anuncio</p>
+                          <p className="text-[#33475b] mt-0.5">{selectedLead.adName}</p>
+                        </div>
+                      )}
+                      {selectedLead.adId && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">ID del Anuncio</p>
+                          <p className="font-mono text-[#33475b] mt-0.5">{selectedLead.adId}</p>
+                        </div>
+                      )}
+                      {selectedLead.contactId && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-[#516f90]">ID de Contacto (Meta)</p>
+                          <p className="font-mono text-[#33475b] mt-0.5">{selectedLead.contactId}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+ 
+              </div>
+              
+            </div>
+            
           </div>
         </div>
       )}
