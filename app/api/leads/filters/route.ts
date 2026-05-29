@@ -28,7 +28,7 @@ export async function GET() {
         statuses: ['Nuevo', 'Contactado', 'Visita'],
         sources: ['META', 'Sitio Web', 'Referido', 'Manual'],
         projects: ['Lomas del Mar', 'Arena y Sol'],
-        interests: ['Lote Agrícola', 'Lote Residencial', 'Inversión', 'Vivienda'],
+        interests: ['FRIO', 'INTERESADO', 'VENTA'],
         schema: []
       });
     }
@@ -37,7 +37,6 @@ export async function GET() {
 
     const sourceCol = findCol('source');
     const projectCol = findCol('project');
-    const interestCol = findCol('interest') || findCol('interes') || findCol('adname') || findCol('AdName');
 
     let sources: string[] = [];
     let projects: string[] = [];
@@ -88,21 +87,8 @@ export async function GET() {
     if (!projects.includes('Lomas del Mar')) projects.push('Lomas del Mar');
     if (!projects.includes('Arena y Sol')) projects.push('Arena y Sol');
 
-    // Intereses dinámicos (anuncio u oferta)
-    if (interestCol) {
-      try {
-        const interestRes = await queryMain(`
-          SELECT DISTINCT "${interestCol}" 
-          FROM "Lead" 
-          WHERE "${interestCol}" IS NOT NULL AND "${interestCol}" != ''
-          ORDER BY "${interestCol}" ASC
-          LIMIT 30
-        `);
-        interests = interestRes.rows.map((r: Record<string, string>) => r[interestCol]);
-      } catch (e) {
-        console.error('Error fetching interests:', e);
-      }
-    }
+    // Intereses del lead unificados (Frío, Interesado, Venta)
+    interests = ['FRIO', 'INTERESADO', 'VENTA'];
 
     const statuses = ['Nuevo', 'Contactado', 'Visita'];
 
@@ -152,7 +138,7 @@ export async function GET() {
       statuses: ['Nuevo', 'Contactado', 'Visita'], 
       sources: ['META', 'Sitio Web', 'Referido', 'Manual'], 
       projects: ['Lomas del Mar', 'Arena y Sol'], 
-      interests: ['Lote Agrícola', 'Lote Residencial', 'Inversión', 'Vivienda'],
+      interests: ['FRIO', 'INTERESADO', 'VENTA'],
       schema: [] 
     });
   }

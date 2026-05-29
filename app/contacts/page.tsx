@@ -43,7 +43,6 @@ export default function ContactsPage() {
   const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita']);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
-  const [interests, setInterests] = useState<string[]>([]);
 
   // Estado del Modal de Añadir Contacto
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,7 +76,6 @@ export default function ContactsPage() {
           if (data.statuses && data.statuses.length > 0) setStatuses(data.statuses);
           if (data.sources) setSources(data.sources);
           if (data.projects) setProjects(data.projects);
-          if (data.interests) setInterests(data.interests);
         }
       } catch (e) {
         console.error('Error fetching filters:', e);
@@ -352,7 +350,7 @@ export default function ContactsPage() {
       {/* Filtros de Búsqueda y Segmentación */}
       <div className="bg-white border border-[#cbd6e2] rounded-xl p-5 shadow-sm space-y-4">
         {/* Fila 1: Búsqueda y Filtros Básicos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           {/* Buscador */}
           <div className="space-y-1.5 lg:col-span-2">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Buscar contacto</label>
@@ -402,22 +400,6 @@ export default function ContactsPage() {
               {sources.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-
-          {/* Filtrar por Proyecto */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Proyecto</label>
-            <select 
-              value={project}
-              onChange={(e) => {
-                setProject(e.target.value);
-                setPage(1);
-              }}
-              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
-            >
-              <option value="">Todos los Proyectos</option>
-              {projects.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
         </div>
 
         {/* Fila 2: Filtros Avanzados (Interés y Fecha de Creación) */}
@@ -433,8 +415,10 @@ export default function ContactsPage() {
               }}
               className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
             >
-              <option value="">Todos los Intereses / Anuncios</option>
-              {interests.map(i => <option key={i} value={i}>{i}</option>)}
+              <option value="">Todos los Intereses</option>
+              <option value="FRIO">Frío</option>
+              <option value="INTERESADO">Interesado</option>
+              <option value="VENTA">Venta</option>
             </select>
           </div>
 

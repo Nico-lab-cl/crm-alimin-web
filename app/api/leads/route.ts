@@ -5,11 +5,11 @@ export const dynamic = 'force-dynamic';
 
 // Datos de prueba simulados para desarrollo local sin base de datos activa
 const MOCK_LEADS = [
-  { id: '1', FirstName: 'José', LastName: 'Pérez', Email: 'jose.perez@gmail.com', Phone: '+56 9 8765 4321', Status: 'Nuevo', Source: 'META', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), Lote: 'A-12', Etapa: 'Etapa 1' },
-  { id: '2', FirstName: 'María', LastName: 'López', Email: 'maria.lopez@yahoo.com', Phone: '+56 9 7654 3210', Status: 'Contactado', Source: 'Sitio Web', Project: 'Arena y Sol', CreatedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), Lote: 'B-04', Etapa: 'Etapa 2' },
-  { id: '3', FirstName: 'Carlos', LastName: 'Valenzuela', Email: 'carlos.v@outlook.com', Phone: '+56 9 6543 2109', Status: 'Visita', Source: 'Referido', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 300).toISOString(), Lote: 'C-22', Etapa: 'Etapa 1' },
-  { id: '4', FirstName: 'Francisca', LastName: 'Silva', Email: 'fran.silva@gmail.com', Phone: '+56 9 5432 1098', Status: 'Nuevo', Source: 'META', Project: 'Arena y Sol', CreatedAt: new Date(Date.now() - 1000 * 60 * 1440).toISOString(), Lote: 'A-02', Etapa: 'Etapa 3' },
-  { id: '5', FirstName: 'Andrés', LastName: 'Muñoz', Email: 'andres.munoz@alimin.cl', Phone: '+56 9 4321 0987', Status: 'Contactado', Source: 'META', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 2880).toISOString(), Lote: 'D-15', Etapa: 'Etapa 2' }
+  { id: '1', FirstName: 'José', LastName: 'Pérez', Email: 'jose.perez@gmail.com', Phone: '+56 9 8765 4321', Status: 'Nuevo', Source: 'META', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), Lote: 'A-12', Etapa: 'Etapa 1', Rating: 'FRIO' },
+  { id: '2', FirstName: 'María', LastName: 'López', Email: 'maria.lopez@yahoo.com', Phone: '+56 9 7654 3210', Status: 'Contactado', Source: 'Sitio Web', Project: 'Arena y Sol', CreatedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), Lote: 'B-04', Etapa: 'Etapa 2', Rating: 'INTERESADO' },
+  { id: '3', FirstName: 'Carlos', LastName: 'Valenzuela', Email: 'carlos.v@outlook.com', Phone: '+56 9 6543 2109', Status: 'Visita', Source: 'Referido', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 300).toISOString(), Lote: 'C-22', Etapa: 'Etapa 1', Rating: 'VENTA' },
+  { id: '4', FirstName: 'Francisca', LastName: 'Silva', Email: 'fran.silva@gmail.com', Phone: '+56 9 5432 1098', Status: 'Nuevo', Source: 'META', Project: 'Arena y Sol', CreatedAt: new Date(Date.now() - 1000 * 60 * 1440).toISOString(), Lote: 'A-02', Etapa: 'Etapa 3', Rating: 'FRIO' },
+  { id: '5', FirstName: 'Andrés', LastName: 'Muñoz', Email: 'andres.munoz@alimin.cl', Phone: '+56 9 4321 0987', Status: 'Contactado', Source: 'META', Project: 'Lomas del Mar', CreatedAt: new Date(Date.now() - 1000 * 60 * 2880).toISOString(), Lote: 'D-15', Etapa: 'Etapa 2', Rating: 'INTERESADO' }
 ];
 
 export async function GET(request: Request) {
@@ -76,7 +76,10 @@ export async function GET(request: Request) {
         filtered = filtered.filter(l => new Date(l.CreatedAt).getTime() <= endTime);
       }
       if (interest) {
-        filtered = filtered.filter(l => l.Lote.toLowerCase().includes(interest.toLowerCase()));
+        filtered = filtered.filter(l => {
+          const r = l.Rating || 'FRIO';
+          return r.toLowerCase() === interest.toLowerCase();
+        });
       }
 
       const totalCount = filtered.length;
@@ -168,12 +171,12 @@ export async function GET(request: Request) {
       whereClauses.push(projectFilter);
     }
 
-    // Filtro por Interés
+    // Filtro por Interés (mapeado a la columna Rating / Temperatura en el CRM)
     if (interest) {
-      const interestCol = findCol('interest') || findCol('interes') || findCol('adname') || findCol('AdName');
-      if (interestCol && columns.includes(interestCol.replace(/"/g, ''))) {
+      const ratingCol = findCol('rating') || '"rating"';
+      if (ratingCol && columns.includes(ratingCol.replace(/"/g, ''))) {
         params.push(interest);
-        whereClauses.push(`${interestCol} ILIKE $${params.length}`);
+        whereClauses.push(`${ratingCol} ILIKE $${params.length}`);
       }
     }
 
@@ -263,7 +266,8 @@ export async function POST(request: Request) {
         Project: project || '',
         Lote: lote || '',
         Etapa: etapa || '',
-        CreatedAt: new Date().toISOString()
+        CreatedAt: new Date().toISOString(),
+        Rating: 'FRIO'
       };
       
       // Agregar temporalmente en memoria (para que el cliente lo vea en su sesión local)
