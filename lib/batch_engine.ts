@@ -378,8 +378,8 @@ async function processBatches(
   console.log(`[BatchEngine] Job ${job.id}: Starting ${batches.length} batches of ${job.batchSize} leads (sending: ${leads.length}, skipped: ${job.skippedLeads})`);
 
   for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-    // Check for cancellation
-    if (job.status === 'CANCELLED') {
+    // Check for cancellation (cast to string to prevent TS control flow narrowing to RUNNING)
+    if ((job.status as string) === 'CANCELLED') {
       console.log(`[BatchEngine] Job ${job.id}: Cancelled at batch ${batchIdx + 1}/${batches.length}`);
       job.completedAt = new Date();
       return;
@@ -392,7 +392,7 @@ async function processBatches(
 
     // Process each lead in the batch sequentially
     for (const lead of batch) {
-      if (job.status === 'CANCELLED') break;
+      if ((job.status as string) === 'CANCELLED') break;
 
       try {
         const emailValue = lead.email || lead.Email;
@@ -456,14 +456,14 @@ async function processBatches(
     job.sentBatches = batchIdx + 1;
 
     // Wait between batches (except after the last one)
-    if (batchIdx < batches.length - 1 && job.status === 'RUNNING') {
+    if (batchIdx < batches.length - 1 && (job.status as string) === 'RUNNING') {
       console.log(`[BatchEngine] Job ${job.id}: Waiting ${job.delayMs}ms before next batch...`);
       await new Promise(resolve => setTimeout(resolve, job.delayMs));
     }
   }
 
   // Final status
-  if (job.status === 'RUNNING') {
+  if ((job.status as string) === 'RUNNING') {
     if (job.skippedLeads > 0) {
       job.status = 'DAILY_LIMIT';
     } else {
