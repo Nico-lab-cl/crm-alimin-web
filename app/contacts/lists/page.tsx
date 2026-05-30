@@ -192,11 +192,13 @@ export default function ListsPage() {
           setPreviewLeads([]);
           setPreviewCount(0);
         } else {
-          const res = await fetch(`/api/leads?ids=${ids.join(',')}`);
+          // Evitamos URLs gigantescas (y HTTP 431) recortando a los primeros 100 para la vista previa
+          const previewIds = ids.slice(0, 100);
+          const res = await fetch(`/api/leads?ids=${previewIds.join(',')}`);
           if (res.ok) {
             const data = await res.json();
             setPreviewLeads(data.leads || []);
-            setPreviewCount(data.totalCount || 0);
+            setPreviewCount(ids.length); // Mantenemos el conteo real
           }
         }
       } catch (e) {
@@ -243,16 +245,49 @@ export default function ListsPage() {
     let filtersObj: Segment['filters'] = {};
 
     if (listType === 'static') {
-      // Estática: Guardar instantánea de IDs actuales calificados
-      if (previewLeads.length === 0) {
-        return alert('No hay contactos en la previsualización para crear una lista estática.');
+      // Estática: Obtener TODOS los leads calificados sin límite de previsualización (100)
+      setPreviewLoading(true);
+      try {
+        const params = new URLSearchParams({
+          status: statusFilter,
+          interest: interestFilter,
+          project: projectFilter,
+          activity: activityFilter,
+          search: searchFilter,
+          utmSource: utmSourceFilter,
+          utmMedium: utmMediumFilter,
+          utmCampaign: utmCampaignFilter,
+          startDate: startDateFilter,
+          endDate: endDateFilter,
+          limit: '100000' // Límite alto para obtener toda la base de datos calificada
+        });
+
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error('Error al obtener la lista completa de destinatarios.');
+        }
+
+        const data = await res.json();
+        const allLeads = data.leads || [];
+
+        if (allLeads.length === 0) {
+          setPreviewLoading(false);
+          return alert('No hay contactos que califiquen para crear esta lista estática.');
+        }
+
+        const ids = allLeads.map((l: Lead) => l.id);
+        filtersObj = {
+          ids,
+          startDate: startDateFilter || undefined,
+          endDate: endDateFilter || undefined
+        };
+      } catch (err) {
+        setPreviewLoading(false);
+        console.error(err);
+        return alert('Error al resolver todos los leads del segmento: ' + (err instanceof Error ? err.message : 'Error desconocido'));
+      } finally {
+        setPreviewLoading(false);
       }
-      const ids = previewLeads.map(l => l.id);
-      filtersObj = {
-        ids,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined
-      };
     } else {
       // Dinámica: Guardar criterios de filtrado
       filtersObj = {
