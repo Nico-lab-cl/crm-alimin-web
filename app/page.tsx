@@ -38,6 +38,67 @@ interface CampaignLog {
   opened_at: string;
 }
 
+interface Segment {
+  id: string;
+  name: string;
+  type: 'dynamic' | 'static';
+  filters: {
+    status?: string;
+    source?: string;
+    project?: string;
+    interest?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    advancedFilters?: Array<{ column: string; operator: string; value: string }>;
+    activity?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    ids?: string[];
+  };
+  created_at: string;
+}
+
+interface PreviewPayload {
+  filters?: {
+    ids?: string[];
+    status?: string;
+    source?: string;
+    project?: string;
+    interest?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    activity?: string;
+  };
+  advancedFilters?: Array<{ column: string; operator: string; value: string }>;
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+}
+
+interface ExecutePayload {
+  campaignId: string;
+  filters?: {
+    ids?: string[];
+    status?: string;
+    source?: string;
+    project?: string;
+    interest?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    activity?: string;
+  };
+  advancedFilters?: Array<{ column: string; operator: string; value: string }>;
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+}
+
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [logs, setLogs] = useState<CampaignLog[]>([]);
@@ -58,6 +119,10 @@ export default function Dashboard() {
   const [editingAutomation, setEditingAutomation] = useState<Campaign | null>(null);
   const [automationLoading, setAutomationLoading] = useState(false);
   
+  // Segmentos
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [selectedSegmentId, setSelectedSegmentId] = useState('');
+  
   // -- Nuevos Estados para Explorador Avanzado --
   const [schema, setSchema] = useState<{name: string, type: string, label: string}[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState<{column: string, operator: string, value: string}[]>([]);
@@ -76,10 +141,33 @@ export default function Dashboard() {
     const fetchPreview = async () => {
       setPreviewLoading(true);
       try {
-        const res = await fetch('/api/campaigns/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+        let payload: PreviewPayload = {};
+        
+        if (selectedSegmentId) {
+          const seg = segments.find(s => s.id === selectedSegmentId);
+          if (seg) {
+            if (seg.type === 'static') {
+              payload = {
+                filters: { ids: seg.filters.ids }
+              };
+            } else {
+              payload = {
+                filters: { 
+                  status: seg.filters.status || undefined, 
+                  source: seg.filters.source || undefined,
+                  project: seg.filters.project || undefined,
+                  interest: seg.filters.interest || undefined,
+                  utmSource: seg.filters.utmSource || undefined,
+                  utmMedium: seg.filters.utmMedium || undefined,
+                  utmCampaign: seg.filters.utmCampaign || undefined,
+                  activity: seg.filters.activity || undefined
+                },
+                advancedFilters: seg.filters.advancedFilters || []
+              };
+            }
+          }
+        } else {
+          payload = { 
             filters: { 
               status: selectedStatus || undefined, 
               source: selectedSource || undefined,
@@ -90,7 +178,13 @@ export default function Dashboard() {
               start: dateRange.start || undefined,
               end: dateRange.end || undefined
             }
-          })
+          };
+        }
+
+        const res = await fetch('/api/campaigns/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
         if (res.ok) {
           const data = await res.json();
@@ -104,17 +198,19 @@ export default function Dashboard() {
       }
     };
     fetchPreview();
-  }, [selectedStatus, selectedSource, selectedProject, advancedFilters, dateRange]);
+  }, [selectedStatus, selectedSource, selectedProject, advancedFilters, dateRange, selectedSegmentId, segments]);
 
   const fetchData = async () => {
     try {
-      const [cRes, filtersRes, lRes] = await Promise.all([
+      const [cRes, filtersRes, lRes, segmentsRes] = await Promise.all([
         fetch('/api/campaigns'),
         fetch('/api/leads/filters'),
         fetch('/api/campaigns/logs'),
+        fetch('/api/segments')
       ]);
       
       if (cRes.ok) setCampaigns(await cRes.json());
+      if (segmentsRes.ok) setSegments(await segmentsRes.json());
       if (filtersRes.ok) {
          const data = await filtersRes.json();
           if (Array.isArray(data)) {
@@ -140,21 +236,43 @@ export default function Dashboard() {
   const handleExecute = async () => {
     if (!selectedCampaign) return alert('Selecciona una campaña');
     
+    const payload: ExecutePayload = { campaignId: selectedCampaign };
+    
+    if (selectedSegmentId) {
+      const seg = segments.find(s => s.id === selectedSegmentId);
+      if (seg) {
+        if (seg.type === 'static') {
+          payload.filters = { ids: seg.filters.ids };
+        } else {
+          payload.filters = {
+            status: seg.filters.status || undefined, 
+            source: seg.filters.source || undefined,
+            project: seg.filters.project || undefined,
+            interest: seg.filters.interest || undefined,
+            utmSource: seg.filters.utmSource || undefined,
+            utmMedium: seg.filters.utmMedium || undefined,
+            utmCampaign: seg.filters.utmCampaign || undefined,
+            activity: seg.filters.activity || undefined
+          };
+          payload.advancedFilters = seg.filters.advancedFilters || [];
+        }
+      }
+    } else {
+      payload.filters = { 
+        status: selectedStatus || undefined,
+        source: selectedSource || undefined,
+        project: selectedProject || undefined
+      };
+      payload.advancedFilters = advancedFilters;
+      payload.dateRange = dateRange;
+    }
+
     setLoading(true);
     try {
       const res = await fetch('/api/campaigns/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaignId: selectedCampaign,
-          filters: { 
-            status: selectedStatus || undefined,
-            source: selectedSource || undefined,
-            project: selectedProject || undefined
-          },
-          advancedFilters,
-          dateRange
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -295,7 +413,39 @@ export default function Dashboard() {
             </div>
             
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {/* Selector de Listas / Segmentos Guardados */}
+              <div className="bg-[#eaf0f6]/40 p-4 rounded-xl border border-[#cbd6e2]/60 grid grid-cols-1 md:grid-cols-2 gap-4 items-center shadow-sm">
+                <div className="space-y-0.5">
+                  <label className="text-xs font-bold text-[#2d544c] uppercase tracking-wider block">Cargar Lista / Segmento Guardado</label>
+                  <p className="text-[11px] text-[#516f90]">Elige una audiencia dinámica o estática pre-construida para automatizar el envío.</p>
+                </div>
+                <div>
+                  <select
+                    className="w-full bg-white border-[#cbd6e2] border rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-sm font-bold text-[#2d544c]"
+                    value={selectedSegmentId}
+                    onChange={(e) => setSelectedSegmentId(e.target.value)}
+                  >
+                    <option value="">-- Usar Filtros Manuales --</option>
+                    {segments.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.type === 'static' ? 'Estática' : 'Dinámica'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedSegmentId && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-2.5 items-start text-xs text-amber-800 font-medium">
+                  <Zap className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Lista de Audiencia Activa:</strong> Los filtros manuales inferiores han sido deshabilitados. Para modificarlos de forma manual, selecciona <em>&quot;-- Usar Filtros Manuales --&quot;</em> en el selector superior.
+                  </p>
+                </div>
+              )}
+
+              <div className={`transition-all duration-300 ${selectedSegmentId ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-[#516f90]">1. Seleccionar Campaña</label>
                   <select 
@@ -459,6 +609,7 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+              </div> {/* Fin de filtros manuales deshabilitados */}
 
               {/* Preview Box con Selector de Columnas */}
               <div className="bg-white border border-[#cbd6e2] rounded-xl shadow-sm overflow-hidden">

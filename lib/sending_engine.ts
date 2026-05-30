@@ -20,26 +20,115 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const campaign = campaignRes.rows[0];
 
   // 2. Construir Query Dinámica de Leads
-  const whereClauses = ['email IS NOT NULL AND email != \'\''];
-  const params: (string | number | Date)[] = [];
+  let columns: string[] = [];
+  try {
+    const schemaRes = await queryMain(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'Lead'
+    `);
+    columns = schemaRes.rows.map(r => r.column_name);
+  } catch (e) {
+    console.warn('Error descubriendo esquema en sending engine:', e);
+  }
 
-  // Filtros Básicos
-  if (leadFilters?.status) {
-    params.push(leadFilters.status);
-    whereClauses.push(`"Status" ILIKE $${params.length}`);
-  }
-  if (leadFilters?.source) {
-    const srcLower = leadFilters.source.toLowerCase();
-    if (srcLower === 'sitio web' || srcLower === 'web' || srcLower === 'aliminspa.cl') {
-      whereClauses.push(`("Source" ILIKE 'web' OR "Source" ILIKE 'Sitio Web' OR "Source" ILIKE 'Sitio web' OR "Source" ILIKE '%aliminspa%')`);
-    } else {
-      params.push(leadFilters.source);
-      whereClauses.push(`"Source" ILIKE $${params.length}`);
+  const findCol = (name: string) => {
+    const match = columns.find(c => c.toLowerCase() === name.toLowerCase());
+    return match ? `"${match}"` : null;
+  };
+
+  const statusCol = findCol('status') || '"Status"';
+  const sourceCol = findCol('source') || '"Source"';
+  const projectCol = findCol('project') || '"Project"';
+  const ratingCol = findCol('rating') || '"rating"';
+  const utmSourceCol = findCol('utmsource') || '"utmSource"';
+  const utmMediumCol = findCol('utmmedium') || '"utmMedium"';
+  const utmCampaignCol = findCol('utmcampaign') || '"utmCampaign"';
+  const idCol = findCol('id') || '"id"';
+  const createdAtCol = findCol('createdat') || findCol('created_at') || '"createdAt"';
+
+  const whereClauses = ['email IS NOT NULL AND email != \'\''];
+  const params: (string | number | Date | string[])[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filtersAny = leadFilters as any;
+
+  if (filtersAny?.ids && Array.isArray(filtersAny.ids)) {
+    params.push(filtersAny.ids);
+    whereClauses.push(`${idCol} = ANY($${params.length})`);
+  } else {
+    // Filtros Básicos
+    if (leadFilters?.status && columns.includes(statusCol.replace(/"/g, ''))) {
+      params.push(leadFilters.status);
+      whereClauses.push(`${statusCol} ILIKE $${params.length}`);
     }
-  }
-  if (leadFilters?.project) {
-    params.push(leadFilters.project);
-    whereClauses.push(`("Project" ILIKE $${params.length} OR "Source" ILIKE $${params.length})`);
+    if (leadFilters?.source && columns.includes(sourceCol.replace(/"/g, ''))) {
+      const srcLower = leadFilters.source.toLowerCase();
+      if (srcLower === 'sitio web' || srcLower === 'web' || srcLower === 'aliminspa.cl') {
+        whereClauses.push(`(${sourceCol} ILIKE 'web' OR ${sourceCol} ILIKE 'Sitio Web' OR ${sourceCol} ILIKE 'Sitio web' OR ${sourceCol} ILIKE '%aliminspa%')`);
+      } else {
+        params.push(leadFilters.source);
+        whereClauses.push(`${sourceCol} ILIKE $${params.length}`);
+      }
+    }
+    if (leadFilters?.project && columns.includes(projectCol.replace(/"/g, ''))) {
+      params.push(leadFilters.project);
+      whereClauses.push(`(${projectCol} ILIKE $${params.length} OR ${sourceCol} ILIKE $${params.length})`);
+    }
+    if (filtersAny?.interest && columns.includes(ratingCol.replace(/"/g, ''))) {
+      params.push(filtersAny.interest);
+      whereClauses.push(`${ratingCol} ILIKE $${params.length}`);
+    }
+    if (filtersAny?.utmSource && columns.includes(utmSourceCol.replace(/"/g, ''))) {
+      params.push(filtersAny.utmSource);
+      whereClauses.push(`${utmSourceCol} ILIKE $${params.length}`);
+    }
+    if (filtersAny?.utmMedium && columns.includes(utmMediumCol.replace(/"/g, ''))) {
+      params.push(filtersAny.utmMedium);
+      whereClauses.push(`${utmMediumCol} ILIKE $${params.length}`);
+    }
+    if (filtersAny?.utmCampaign && columns.includes(utmCampaignCol.replace(/"/g, ''))) {
+      params.push(filtersAny.utmCampaign);
+      whereClauses.push(`${utmCampaignCol} ILIKE $${params.length}`);
+    }
+    if (filtersAny?.activity) {
+      const act = filtersAny.activity;
+      if (act === 'web_subscription') {
+        const colUtm = findCol('utmsource') || '"utmSource"';
+        const colInt = findCol('interests') || '"interests"';
+        const colSrc = findCol('source') || '"Source"';
+        let clauses = `(${colSrc} ILIKE 'web' OR ${colSrc} ILIKE '%aliminspa%')`;
+        if (columns.includes(colUtm.replace(/"/g, ''))) clauses += ` OR ${colUtm} IS NOT NULL`;
+        if (columns.includes(colInt.replace(/"/g, ''))) clauses += ` OR ${colInt} IS NOT NULL`;
+        whereClauses.push(`(${clauses})`);
+      } else if (act === 'meta_conversion') {
+        const colForm = findCol('formid') || '"formId"';
+        const colAd = findCol('adname') || '"adName"';
+        const clauses: string[] = [];
+        if (columns.includes(colForm.replace(/"/g, ''))) clauses.push(`${colForm} IS NOT NULL`);
+        if (columns.includes(colAd.replace(/"/g, ''))) clauses.push(`${colAd} IS NOT NULL`);
+        if (clauses.length > 0) {
+          whereClauses.push(`(${clauses.join(' OR ')})`);
+        }
+      } else if (act === 'visit') {
+        const colVis = findCol('visited') || '"visited"';
+        const colVisProj = findCol('visitproject') || '"visitProject"';
+        const colVisDate = findCol('visitdate') || '"visitDate"';
+        const clauses: string[] = [];
+        if (columns.includes(colVis.replace(/"/g, ''))) clauses.push(`${colVis} = true`);
+        if (columns.includes(colVisProj.replace(/"/g, ''))) clauses.push(`${colVisProj} IS NOT NULL`);
+        if (columns.includes(colVisDate.replace(/"/g, ''))) clauses.push(`${colVisDate} IS NOT NULL`);
+        if (clauses.length > 0) {
+          whereClauses.push(`(${clauses.join(' OR ')})`);
+        }
+      } else if (act === 'reservation') {
+        const colStat = findCol('status') || '"Status"';
+        const colSign = findCol('signingstatus') || '"signingStatus"';
+        let clauses = `${colStat} ILIKE 'Reservado'`;
+        if (columns.includes(colSign.replace(/"/g, ''))) clauses += ` OR ${colSign} IS NOT NULL`;
+        whereClauses.push(`(${clauses})`);
+      }
+    }
   }
 
   // Filtros Avanzados
@@ -69,15 +158,15 @@ export async function executeCampaign(options: SendCampaingOptions) {
   }
 
   // Filtro de Fecha
-  if (dateRange?.start) {
+  if (dateRange?.start && columns.includes(createdAtCol.replace(/"/g, ''))) {
     params.push(new Date(dateRange.start));
-    whereClauses.push(`"createdAt" >= $${params.length}`);
+    whereClauses.push(`${createdAtCol} >= $${params.length}`);
   }
-  if (dateRange?.end) {
-    const endDate = new Date(dateRange.end);
-    endDate.setHours(23, 59, 59, 999);
-    params.push(endDate);
-    whereClauses.push(`"createdAt" <= $${params.length}`);
+  if (dateRange?.end && columns.includes(createdAtCol.replace(/"/g, ''))) {
+    const endDateVal = new Date(dateRange.end);
+    endDateVal.setHours(23, 59, 59, 999);
+    params.push(endDateVal);
+    whereClauses.push(`${createdAtCol} <= $${params.length}`);
   }
 
   const whereString = whereClauses.join(' AND ');
@@ -86,7 +175,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
     SELECT DISTINCT ON (email) id, email 
     FROM "Lead" 
     WHERE ${whereString} 
-    ORDER BY email, "createdAt" DESC
+    ORDER BY email, ${columns.includes(createdAtCol.replace(/"/g, '')) ? createdAtCol : '1'} DESC
   `;
 
   const leadsRes = await queryMain(leadQuery, params);

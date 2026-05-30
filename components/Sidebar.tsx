@@ -14,7 +14,15 @@ import Image from 'next/image';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Contactos', href: '/contacts', icon: Users },
+  { 
+    name: 'Contactos', 
+    href: '/contacts', 
+    icon: Users,
+    subItems: [
+      { name: 'Base de Datos', href: '/contacts' },
+      { name: 'Listas y Segmentos', href: '/contacts/lists' }
+    ]
+  },
   { name: 'Email Marketing', href: '/campaigns', icon: Mail },
   { name: 'Métricas', href: '/metrics', icon: BarChart3 },
   { name: 'Configuración', href: '/settings', icon: Settings },
@@ -41,12 +49,52 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
+          const isParentActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
+          
+          if (item.subItems) {
+            return (
+              <div key={item.href} className="space-y-1">
+                <div
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
+                    isParentActive 
+                    ? 'bg-[#eaf0f6] text-[#2d544c] font-semibold' 
+                    : 'text-[#33475b] hover:bg-[#f5f8fa] hover:text-[#2d544c]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={`w-5 h-5 ${isParentActive ? 'text-[#2d544c]' : 'text-[#516f90] group-hover:text-[#2d544c]'}`} />
+                    <span>{item.name}</span>
+                  </div>
+                </div>
+                {/* Render sub-items */}
+                <div className="pl-9 space-y-1 pt-0.5">
+                  {item.subItems.map((sub) => {
+                    const isSubActive = pathname === sub.href;
+                    return (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className={`block px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                          isSubActive
+                          ? 'text-[#2d544c] bg-white border border-[#cbd6e2] shadow-sm'
+                          : 'text-[#516f90] hover:text-[#2d544c] hover:bg-[#f5f8fa]'
+                        }`}
+                      >
+                        {sub.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
+              className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group relative ${
                 isActive 
                 ? 'bg-[#eaf0f6] text-[#2d544c] font-semibold' 
                 : 'text-[#33475b] hover:bg-[#f5f8fa] hover:text-[#2d544c]'

@@ -29,6 +29,9 @@ export async function GET() {
         sources: ['META', 'Sitio Web', 'Referido', 'Manual'],
         projects: ['Lomas del Mar', 'Arena y Sol'],
         interests: ['FRIO', 'INTERESADO', 'VENTA'],
+        utmSources: ['facebook', 'instagram', 'google', 'email', 'organic'],
+        utmMediums: ['cpc', 'social', 'email', 'organic'],
+        utmCampaigns: ['cyber-alimin', 'black-friday', 'lomas-anuncios'],
         schema: []
       });
     }
@@ -37,10 +40,16 @@ export async function GET() {
 
     const sourceCol = findCol('source');
     const projectCol = findCol('project');
+    const utmSourceCol = findCol('utmsource');
+    const utmMediumCol = findCol('utmmedium');
+    const utmCampaignCol = findCol('utmcampaign');
 
     let sources: string[] = [];
     let projects: string[] = [];
     let interests: string[] = [];
+    let utmSources: string[] = [];
+    let utmMediums: string[] = [];
+    let utmCampaigns: string[] = [];
 
     // Fuentes dinámicas
     if (sourceCol) {
@@ -87,6 +96,31 @@ export async function GET() {
     if (!projects.includes('Lomas del Mar')) projects.push('Lomas del Mar');
     if (!projects.includes('Arena y Sol')) projects.push('Arena y Sol');
 
+    // UTMs dinámicas
+    if (utmSourceCol) {
+      try {
+        const res = await queryMain(`SELECT DISTINCT "${utmSourceCol}" FROM "Lead" WHERE "${utmSourceCol}" IS NOT NULL AND "${utmSourceCol}" != '' ORDER BY "${utmSourceCol}" ASC`);
+        utmSources = res.rows.map((r: Record<string, string>) => r[utmSourceCol]);
+      } catch (e) { console.error(e); }
+    }
+    if (utmMediumCol) {
+      try {
+        const res = await queryMain(`SELECT DISTINCT "${utmMediumCol}" FROM "Lead" WHERE "${utmMediumCol}" IS NOT NULL AND "${utmMediumCol}" != '' ORDER BY "${utmMediumCol}" ASC`);
+        utmMediums = res.rows.map((r: Record<string, string>) => r[utmMediumCol]);
+      } catch (e) { console.error(e); }
+    }
+    if (utmCampaignCol) {
+      try {
+        const res = await queryMain(`SELECT DISTINCT "${utmCampaignCol}" FROM "Lead" WHERE "${utmCampaignCol}" IS NOT NULL AND "${utmCampaignCol}" != '' ORDER BY "${utmCampaignCol}" ASC`);
+        utmCampaigns = res.rows.map((r: Record<string, string>) => r[utmCampaignCol]);
+      } catch (e) { console.error(e); }
+    }
+
+    // Fallbacks si las UTMs están vacías en DB
+    if (utmSources.length === 0) utmSources = ['facebook', 'instagram', 'google', 'email', 'organic'];
+    if (utmMediums.length === 0) utmMediums = ['cpc', 'social', 'email', 'organic'];
+    if (utmCampaigns.length === 0) utmCampaigns = ['cyber-alimin', 'black-friday', 'lomas-anuncios'];
+
     // Intereses del lead unificados (Frío, Interesado, Venta)
     interests = ['FRIO', 'INTERESADO', 'VENTA'];
 
@@ -130,6 +164,9 @@ export async function GET() {
       sources,
       projects,
       interests,
+      utmSources,
+      utmMediums,
+      utmCampaigns,
       schema
     });
   } catch (error) {
@@ -139,6 +176,9 @@ export async function GET() {
       sources: ['META', 'Sitio Web', 'Referido', 'Manual'], 
       projects: ['Lomas del Mar', 'Arena y Sol'], 
       interests: ['FRIO', 'INTERESADO', 'VENTA'],
+      utmSources: ['facebook', 'instagram', 'google', 'email', 'organic'],
+      utmMediums: ['cpc', 'social', 'email', 'organic'],
+      utmCampaigns: ['cyber-alimin', 'black-friday', 'lomas-anuncios'],
       schema: [] 
     });
   }

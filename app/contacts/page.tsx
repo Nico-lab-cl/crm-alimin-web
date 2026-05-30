@@ -30,6 +30,12 @@ interface Lead {
   [key: string]: any; // Permite mapear dinámicamente cualquier esquema de columnas
 }
 
+interface Advisor {
+  id: string;
+  name: string;
+  email?: string;
+}
+
 export default function ContactsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -50,6 +56,7 @@ export default function ContactsPage() {
   const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita', 'Reservado']);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [advisors, setAdvisors] = useState<Advisor[]>([]);
 
   // Estado para la vista de detalle estilo HubSpot
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -110,7 +117,7 @@ export default function ContactsPage() {
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const secondsTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cargar filtros iniciales
+  // Cargar filtros y asesores iniciales
   useEffect(() => {
     const fetchFilters = async () => {
       try {
@@ -125,7 +132,21 @@ export default function ContactsPage() {
         console.error('Error fetching filters:', e);
       }
     };
+
+    const fetchAdvisors = async () => {
+      try {
+        const res = await fetch('/api/advisors');
+        if (res.ok) {
+          const data = await res.json();
+          setAdvisors(data.advisors || []);
+        }
+      } catch (e) {
+        console.error('Error fetching advisors:', e);
+      }
+    };
+
     fetchFilters();
+    fetchAdvisors();
   }, []);
 
   // Cargar leads cada vez que cambien filtros o página
@@ -571,8 +592,7 @@ export default function ContactsPage() {
                   <th className="px-6 py-4">Teléfono</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4">Origen</th>
-                  <th className="px-6 py-4">Proyecto</th>
-                  <th className="px-6 py-4">Lote / Etapa</th>
+                  <th className="px-6 py-4">Asesor</th>
                   <th className="px-6 py-4">F. Ingreso</th>
                 </tr>
               </thead>
@@ -598,16 +618,8 @@ export default function ContactsPage() {
                         {getLeadSource(lead)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#33475b] font-medium">
-                      {getLeadProject(lead)}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-[#516f90]">
-                      {getLeadLote(lead) || getLeadEtapa(lead) ? (
-                        <div className="space-y-0.5">
-                          {getLeadLote(lead) && <p className="font-bold">Lote: <span className="font-medium">{getLeadLote(lead)}</span></p>}
-                          {getLeadEtapa(lead) && <p className="text-[10px]">Etapa: {getLeadEtapa(lead)}</p>}
-                        </div>
-                      ) : '-'}
+                    <td className="px-6 py-4 text-sm text-[#516f90] font-semibold">
+                      {lead.AdvisorName || lead.advisorName || lead.assignedTo?.name || 'No Asignado'}
                     </td>
                     <td className="px-6 py-4 text-xs text-[#516f90] whitespace-nowrap">
                       {getLeadDate(lead) ? (
@@ -951,6 +963,28 @@ export default function ContactsPage() {
                         <option value="FRIO">Frío ❄️</option>
                         <option value="INTERESADO">Interesado 🔥</option>
                         <option value="VENTA">Venta 💰</option>
+                      </select>
+                    </div>
+
+                    {/* Asesor Asignado */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Asesor Asignado</label>
+                      <select 
+                        value={selectedLead.assignedToId || selectedLead.assignedTo?.id || selectedLead.assignedtoid || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const advisor = advisors.find(a => a.id === val);
+                          handleUpdateLead(selectedLead.id, { 
+                            assignedToId: val || null,
+                            AdvisorName: advisor ? advisor.name : 'No Asignado'
+                          });
+                        }}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none font-bold text-slate-700"
+                      >
+                        <option value="">No Asignado</option>
+                        {advisors.map(adv => (
+                          <option key={adv.id} value={adv.id}>{adv.name}</option>
+                        ))}
                       </select>
                     </div>
                   </div>

@@ -78,6 +78,29 @@ export async function GET() {
       results.push("Column 'created_at' already exists in campaign_logs.");
     }
 
+    // 5. Check if 'segments' table exists
+    const checkSegmentsTable = await queryMarketing(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_name = 'segments'
+    `);
+
+    if (checkSegmentsTable.rows.length === 0) {
+      await queryMarketing(`
+        CREATE TABLE segments (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          filters JSONB NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      results.push("Created 'segments' table.");
+    } else {
+      results.push("'segments' table already exists.");
+    }
+
     return NextResponse.json({
       success: true,
       message: "Database schema update check completed.",
