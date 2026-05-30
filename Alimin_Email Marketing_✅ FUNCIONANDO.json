@@ -1,0 +1,78 @@
+{
+  "name": "Alimin|Email Marketing|✅ FUNCIONANDO",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Webhook",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "sendTo": "=={{ $json.body.email }}",
+        "subject": "=={{ $json.body.subject }}",
+        "message": "=={{ $json.body.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "135ea5be-e9b5-4502-8e4e-bd266e32d690",
+      "name": "Send a message",
+      "webhookId": "d1cc1aa0-64d1-47a6-bb13-53608c32fe33",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OmLpyGtcbPqYaE8r",
+          "name": "bienesraices@aliminspa.cl"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "5689fcbc-c3bd-45ac-bd16-a1830668803d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e88b42a5e011f39a6920cb8fcbced8eb6ca6be5a13db9dc945e745822e35ac5"
+  },
+  "id": "xfb7e9BiUGjCwoIg",
+  "tags": [
+    {
+      "updatedAt": "2026-01-24T17:16:43.490Z",
+      "createdAt": "2026-01-24T17:16:43.490Z",
+      "id": "2BzKuztLUNtPN0dg",
+      "name": "alimin"
+    }
+  ]
+}

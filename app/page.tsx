@@ -14,7 +14,13 @@ import {
   Settings,
   Calendar,
   Trash2,
-  ListFilter
+  ListFilter,
+  Loader2,
+  XCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Layers
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -101,6 +107,26 @@ interface ExecutePayload {
     start?: string;
     end?: string;
   };
+  batchSize?: number;
+  delayMs?: number;
+}
+
+interface BatchJobStatus {
+  id: string;
+  campaignId: string;
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  totalLeads: number;
+  processedLeads: number;
+  failedLeads: number;
+  sentBatches: number;
+  totalBatches: number;
+  batchSize: number;
+  delayMs: number;
+  currentBatchIndex: number;
+  startedAt: string;
+  completedAt: string | null;
+  progress: number;
+  errors: string[];
 }
 
 export default function Dashboard() {
@@ -134,12 +160,44 @@ export default function Dashboard() {
   const [visibleColumns, setVisibleColumns] = useState<string[]>(['Email', 'FirstName', 'Status', 'Source', 'CreatedAt']);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // -- Batch Execution States --
+  const [batchSize, setBatchSize] = useState(50);
+  const [batchDelay, setBatchDelay] = useState(5);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<BatchJobStatus | null>(null);
+  const [showBatchConfig, setShowBatchConfig] = useState(false);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchLogs, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll job status when there's an active job
+  useEffect(() => {
+    if (!activeJobId) return;
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/campaigns/execute/status?jobId=${activeJobId}`);
+        if (res.ok) {
+          const data: BatchJobStatus = await res.json();
+          setJobStatus(data);
+          
+          // Stop polling when job is done
+          if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
+            setLoading(false);
+            fetchLogs();
+          }
+        }
+      } catch (err) {
+        console.error('Error polling job status:', err);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [activeJobId]);
 
   useEffect(() => {
     const fetchPreview = async () => {
@@ -242,7 +300,14 @@ export default function Dashboard() {
   const handleExecute = async () => {
     if (!selectedCampaign) return alert('Selecciona una campaña');
     
-    const payload: ExecutePayload = { campaignId: selectedCampaign };
+    const confirmMsg = `¿Iniciar envío masivo?\n\n• Lote: ${batchSize} leads por batch\n• Espera: ${batchDelay}s entre lotes\n• Audiencia: ${previewCount || 0} leads\n\n¿Continuar?`;
+    if (!confirm(confirmMsg)) return;
+
+    const payload: ExecutePayload = { 
+      campaignId: selectedCampaign,
+      batchSize,
+      delayMs: batchDelay * 1000,
+    };
     
     if (selectedSegmentId) {
       const seg = segments.find(s => s.id === selectedSegmentId);
@@ -276,6 +341,7 @@ export default function Dashboard() {
     }
 
     setLoading(true);
+    setJobStatus(null);
     try {
       const res = await fetch('/api/campaigns/execute', {
         method: 'POST',
@@ -284,13 +350,50 @@ export default function Dashboard() {
       });
 
       const data = await res.json();
-      alert(data.message + (data.leads_processed ? ` (${data.leads_processed} leads)` : ''));
-      fetchLogs();
+      if (data.jobId) {
+        setActiveJobId(data.jobId);
+        setJobStatus({
+          id: data.jobId,
+          campaignId: selectedCampaign,
+          status: 'QUEUED',
+          totalLeads: data.totalLeads,
+          processedLeads: 0,
+          failedLeads: 0,
+          sentBatches: 0,
+          totalBatches: Math.ceil(data.totalLeads / batchSize),
+          batchSize,
+          delayMs: batchDelay * 1000,
+          currentBatchIndex: 0,
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          progress: 0,
+          errors: [],
+        });
+      } else {
+        alert(data.message);
+        setLoading(false);
+      }
     } catch {
       alert('Error ejecutando campaña');
-    } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelJob = async () => {
+    if (!activeJobId) return;
+    if (!confirm('¿Cancelar el envío masivo en curso?')) return;
+    
+    try {
+      await fetch(`/api/campaigns/execute/status?jobId=${activeJobId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error cancelling job:', err);
+    }
+  };
+
+  const handleCloseJobTracker = () => {
+    setActiveJobId(null);
+    setJobStatus(null);
+    setLoading(false);
   };
 
   const handleSendTest = async () => {
@@ -691,13 +794,103 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Batch Config */}
+              <div className="bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl overflow-hidden">
+                <button 
+                  onClick={() => setShowBatchConfig(!showBatchConfig)}
+                  className="w-full px-5 py-3 flex items-center justify-between text-sm font-bold text-[#2d544c] hover:bg-[#eaf0f6] transition-all"
+                >
+                  <span className="flex items-center gap-2">
+                    <Layers className="w-4 h-4" />
+                    Configuración de Envío por Lotes
+                  </span>
+                  <span className="text-xs text-[#516f90] font-medium">
+                    {batchSize} leads × {batchDelay}s delay
+                  </span>
+                </button>
+                
+                {showBatchConfig && (
+                  <div className="px-5 pb-5 pt-2 space-y-4 border-t border-[#cbd6e2] animate-in fade-in duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Leads por Lote</label>
+                        <select
+                          className="w-full bg-white border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                          value={batchSize}
+                          onChange={(e) => setBatchSize(Number(e.target.value))}
+                        >
+                          <option value={10}>10 leads (muy conservador)</option>
+                          <option value={25}>25 leads (conservador)</option>
+                          <option value={50}>50 leads (recomendado)</option>
+                          <option value={100}>100 leads (moderado)</option>
+                          <option value={200}>200 leads (agresivo)</option>
+                          <option value={500}>500 leads (máximo)</option>
+                        </select>
+                        <p className="text-[10px] text-[#516f90]">Cuántos leads se envían a n8n antes de hacer una pausa.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Pausa entre Lotes</label>
+                        <select
+                          className="w-full bg-white border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                          value={batchDelay}
+                          onChange={(e) => setBatchDelay(Number(e.target.value))}
+                        >
+                          <option value={2}>2 segundos</option>
+                          <option value={5}>5 segundos (recomendado)</option>
+                          <option value={10}>10 segundos</option>
+                          <option value={30}>30 segundos</option>
+                          <option value={60}>1 minuto</option>
+                          <option value={120}>2 minutos</option>
+                          <option value={300}>5 minutos</option>
+                          <option value={600}>10 minutos</option>
+                        </select>
+                        <p className="text-[10px] text-[#516f90]">Tiempo de espera entre cada lote para no sobrecargar el servidor.</p>
+                      </div>
+                    </div>
+                    
+                    {previewCount && previewCount > 0 && (
+                      <div className="bg-white border border-[#cbd6e2] rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#2d544c] mb-2">
+                          <Clock className="w-3.5 h-3.5" />
+                          Estimación de Tiempo
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <p className="text-2xl font-bold text-[#33475b]">{Math.ceil(previewCount / batchSize)}</p>
+                            <p className="text-[10px] text-[#516f90] font-medium">LOTES TOTALES</p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-[#33475b]">
+                              {Math.ceil((Math.ceil(previewCount / batchSize) - 1) * batchDelay / 60)}m
+                            </p>
+                            <p className="text-[10px] text-[#516f90] font-medium">TIEMPO ESTIMADO</p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-[#33475b]">{previewCount}</p>
+                            <p className="text-[10px] text-[#516f90] font-medium">LEADS TOTALES</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 font-medium flex gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                      <div>
+                        <strong>Gmail Workspace:</strong> Límite de ~2,000 emails/día por cuenta. 
+                        Si tu lista excede este límite, los emails adicionales fallarán y quedarán marcados para reenvío.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button 
                 onClick={handleExecute}
                 disabled={loading || !selectedCampaign || previewCount === 0 || previewCount === null}
                 className="w-full bg-[#2d544c] hover:bg-[#1f3a35] text-white py-4 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
               >
-                {loading ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                {loading ? 'Procesando Envíos...' : 'Iniciar Envío Masivo'}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {loading ? 'Enviando en Lotes...' : `Iniciar Envío Masivo (${previewCount || 0} leads)`}
               </button>
             </div>
           </section>
@@ -890,6 +1083,117 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Job Progress Overlay */}
+      {jobStatus && (
+        <div className="fixed bottom-6 right-6 w-[420px] bg-white border border-[#cbd6e2] rounded-2xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className={`px-5 py-3 flex items-center justify-between ${
+            jobStatus.status === 'COMPLETED' ? 'bg-green-50 border-b border-green-200' :
+            jobStatus.status === 'FAILED' ? 'bg-red-50 border-b border-red-200' :
+            jobStatus.status === 'CANCELLED' ? 'bg-amber-50 border-b border-amber-200' :
+            'bg-[#eaf0f6] border-b border-[#cbd6e2]'
+          }`}>
+            <div className="flex items-center gap-2">
+              {jobStatus.status === 'RUNNING' && <Loader2 className="w-4 h-4 animate-spin text-[#2d544c]" />}
+              {jobStatus.status === 'QUEUED' && <Clock className="w-4 h-4 text-[#516f90]" />}
+              {jobStatus.status === 'COMPLETED' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+              {jobStatus.status === 'FAILED' && <XCircle className="w-4 h-4 text-red-600" />}
+              {jobStatus.status === 'CANCELLED' && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+              <span className="text-sm font-bold text-[#33475b]">
+                {jobStatus.status === 'RUNNING' ? 'Envío en Progreso' :
+                 jobStatus.status === 'QUEUED' ? 'Preparando Envío...' :
+                 jobStatus.status === 'COMPLETED' ? 'Envío Completado' :
+                 jobStatus.status === 'FAILED' ? 'Envío Fallido' :
+                 'Envío Cancelado'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {(jobStatus.status === 'RUNNING' || jobStatus.status === 'QUEUED') && (
+                <button
+                  onClick={handleCancelJob}
+                  className="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-all"
+                >
+                  Cancelar
+                </button>
+              )}
+              {(jobStatus.status === 'COMPLETED' || jobStatus.status === 'FAILED' || jobStatus.status === 'CANCELLED') && (
+                <button
+                  onClick={handleCloseJobTracker}
+                  className="text-[#516f90] hover:text-[#33475b] p-1 rounded hover:bg-white transition-all"
+                >
+                  <Plus className="w-4 h-4 rotate-45" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="px-5 pt-4 pb-2">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="font-bold text-[#33475b]">{jobStatus.progress}%</span>
+              <span className="text-[#516f90] font-medium">
+                {jobStatus.processedLeads} / {jobStatus.totalLeads} leads
+              </span>
+            </div>
+            <div className="w-full bg-[#eaf0f6] rounded-full h-3 overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  jobStatus.status === 'COMPLETED' ? 'bg-green-500' :
+                  jobStatus.status === 'FAILED' ? 'bg-red-500' :
+                  jobStatus.status === 'CANCELLED' ? 'bg-amber-500' :
+                  'bg-[#2d544c]'
+                }`}
+                style={{ width: `${jobStatus.progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="px-5 py-3 grid grid-cols-4 gap-3">
+            <div className="text-center">
+              <p className="text-lg font-bold text-[#33475b]">{jobStatus.sentBatches}</p>
+              <p className="text-[9px] text-[#516f90] font-bold uppercase">Lotes</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-[#33475b]">{jobStatus.totalBatches}</p>
+              <p className="text-[9px] text-[#516f90] font-bold uppercase">Total</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-green-600">{jobStatus.processedLeads - jobStatus.failedLeads}</p>
+              <p className="text-[9px] text-[#516f90] font-bold uppercase">Exitosos</p>
+            </div>
+            <div className="text-center">
+              <p className={`text-lg font-bold ${jobStatus.failedLeads > 0 ? 'text-red-600' : 'text-[#33475b]'}`}>{jobStatus.failedLeads}</p>
+              <p className="text-[9px] text-[#516f90] font-bold uppercase">Fallidos</p>
+            </div>
+          </div>
+
+          {/* Errors */}
+          {jobStatus.errors.length > 0 && (
+            <div className="px-5 pb-3">
+              <details className="text-xs">
+                <summary className="text-red-600 font-bold cursor-pointer hover:text-red-800">Ver errores ({jobStatus.errors.length})</summary>
+                <div className="mt-2 space-y-1 max-h-[100px] overflow-y-auto bg-red-50 rounded-lg p-2">
+                  {jobStatus.errors.map((err, i) => (
+                    <p key={i} className="text-red-700 text-[10px] font-mono">{err}</p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+
+          {/* Elapsed time */}
+          {jobStatus.status === 'RUNNING' && (
+            <div className="px-5 pb-3 flex items-center gap-1.5 text-[10px] text-[#516f90] font-medium">
+              <Clock className="w-3 h-3" />
+              Batch {jobStatus.currentBatchIndex}/{jobStatus.totalBatches} • 
+              {jobStatus.batchSize} leads/lote • 
+              {jobStatus.delayMs / 1000}s pausa
+            </div>
+          )}
         </div>
       )}
     </div>
