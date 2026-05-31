@@ -67,29 +67,63 @@ export default function CampaignMetricsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filtros locales
+  // Paginación y Filtros de Logs (servidor)
   const [searchEmail, setSearchEmail] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [filterType, setFilterType] = useState<'all' | 'real' | 'test'>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [logsStartDate, setLogsStartDate] = useState<string>('');
+  const [logsEndDate, setLogsEndDate] = useState<string>('');
+  
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
+  const [logsPerPage] = useState<number>(50);
 
-  const fetchMetrics = useCallback(async (campaignId: string = '') => {
+  // Debounce para la búsqueda de email
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchEmail);
+      setCurrentPage(1);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [searchEmail]);
+
+  const fetchMetrics = useCallback(async (
+    campaignId: string = selectedId, 
+    pageVal: number = currentPage,
+    searchVal: string = debouncedSearch,
+    typeVal: string = filterType,
+    statusVal: string = filterStatus,
+    startVal: string = logsStartDate,
+    endVal: string = logsEndDate
+  ) => {
+    if (!campaignId) return;
     setLoading(true);
     setError(null);
     try {
-      const url = campaignId 
-        ? `/api/campaigns/metrics?campaignId=${campaignId}`
-        : '/api/campaigns/metrics';
-        
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        campaignId,
+        page: pageVal.toString(),
+        limit: logsPerPage.toString(),
+        search: searchVal,
+        type: typeVal,
+        status: statusVal,
+        startDate: startVal,
+        endDate: endVal
+      });
+      
+      const res = await fetch(`/api/campaigns/metrics?${params.toString()}`);
       if (!res.ok) throw new Error('Error al obtener las métricas de la campaña');
       
       const data = await res.json();
       if (data.success) {
-        setCampaigns(data.campaigns || []);
-        setSelectedId(data.selectedCampaignId || '');
+        if (campaigns.length === 0) {
+          setCampaigns(data.campaigns || []);
+        }
         setRealStats(data.real || { sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
         setTestStats(data.test || { sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
         setLogs(data.logs || []);
+        setTotalLogsCount(data.totalLogsCount || 0);
       } else {
         throw new Error(data.message || 'Error desconocido');
       }
@@ -99,16 +133,45 @@ export default function CampaignMetricsPage() {
     } finally {
       setLoading(false);
     }
+  }, [selectedId, currentPage, debouncedSearch, filterType, filterStatus, logsStartDate, logsEndDate, logsPerPage, campaigns.length]);
+
+  // Carga inicial
+  useEffect(() => {
+    const fetchInitial = async () => {
+      try {
+        const res = await fetch('/api/campaigns/metrics');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setCampaigns(data.campaigns || []);
+            const defaultId = data.selectedCampaignId || '';
+            setSelectedId(defaultId);
+            setRealStats(data.real || { sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
+            setTestStats(data.test || { sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
+            setLogs(data.logs || []);
+            setTotalLogsCount(data.totalLogsCount || 0);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitial();
   }, []);
 
+  // Reactivamente volver a consultar cuando cambian la página, búsqueda o filtros
   useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
+    if (selectedId) {
+      fetchMetrics();
+    }
+  }, [fetchMetrics, selectedId, currentPage, debouncedSearch, filterType, filterStatus, logsStartDate, logsEndDate]);
 
   const handleCampaignChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const nextId = e.target.value;
     setSelectedId(nextId);
-    fetchMetrics(nextId);
+    setCurrentPage(1);
   };
 
   // Helper para calcular tasas
@@ -116,23 +179,6 @@ export default function CampaignMetricsPage() {
     if (total === 0) return '0.0%';
     return `${((part / total) * 100).toFixed(1)}%`;
   };
-
-  // Filtrar logs localmente
-  const filteredLogs = logs.filter(log => {
-    const matchesEmail = log.email.toLowerCase().includes(searchEmail.toLowerCase());
-    const matchesType = 
-      filterType === 'all' ? true :
-      filterType === 'real' ? !log.is_test : log.is_test;
-      
-    const matchesStatus =
-      filterStatus === 'all' ? true :
-      filterStatus === 'opened' ? (log.opened_at !== null || log.status === 'OPENED') :
-      filterStatus === 'clicked' ? (log.clicks > 0) :
-      filterStatus === 'sent' ? (log.status === 'SENT') :
-      log.status === filterStatus;
-
-    return matchesEmail && matchesType && matchesStatus;
-  });
 
   const selectedCampaign = campaigns.find(c => c.id === selectedId);
 
@@ -314,7 +360,7 @@ export default function CampaignMetricsPage() {
                   <Filter className="w-3.5 h-3.5 text-[#516f90]" />
                   <select
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value as 'all' | 'real' | 'test')}
+                    onChange={(e) => { setFilterType(e.target.value as 'all' | 'real' | 'test'); setCurrentPage(1); }}
                     className="bg-[#f5f8fa] border-[#cbd6e2] border text-xs px-2.5 py-2 rounded-lg font-semibold text-[#33475b] outline-none"
                   >
                     <option value="all">Todos los Tipos</option>
@@ -326,7 +372,7 @@ export default function CampaignMetricsPage() {
                 {/* Filtro de Estado */}
                 <select
                   value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
                   className="bg-[#f5f8fa] border-[#cbd6e2] border text-xs px-2.5 py-2 rounded-lg font-semibold text-[#33475b] outline-none"
                 >
                   <option value="all">Todos los Estados</option>
@@ -334,12 +380,34 @@ export default function CampaignMetricsPage() {
                   <option value="opened">OPENED (Solo Abiertos)</option>
                   <option value="clicked">CLICKED (Con Clics)</option>
                 </select>
+
+                {/* Filtro por Rango de Fechas */}
+                <div className="flex items-center gap-2 border border-[#cbd6e2] rounded-lg px-2.5 py-1.5 bg-[#f5f8fa]">
+                  <Calendar className="w-3.5 h-3.5 text-[#516f90] shrink-0" />
+                  <input
+                    type="date"
+                    value={logsStartDate}
+                    onChange={(e) => { setLogsStartDate(e.target.value); setCurrentPage(1); }}
+                    className="bg-transparent text-xs text-[#33475b] font-semibold outline-none w-28 border-none"
+                    placeholder="Desde"
+                    title="Fecha Envíos Desde"
+                  />
+                  <span className="text-[#cbd6e2] text-xs font-bold">-</span>
+                  <input
+                    type="date"
+                    value={logsEndDate}
+                    onChange={(e) => { setLogsEndDate(e.target.value); setCurrentPage(1); }}
+                    className="bg-transparent text-xs text-[#33475b] font-semibold outline-none w-28 border-none"
+                    placeholder="Hasta"
+                    title="Fecha Envíos Hasta"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Tabla */}
             <div className="overflow-x-auto border border-[#cbd6e2] rounded-xl">
-              {filteredLogs.length === 0 ? (
+              {logs.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 text-xs font-semibold">
                   No se encontraron logs con los filtros aplicados.
                 </div>
@@ -357,7 +425,7 @@ export default function CampaignMetricsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#cbd6e2]/60 text-xs">
-                    {filteredLogs.map((log) => (
+                    {logs.map((log) => (
                       <tr key={log.id} className="hover:bg-[#f5f8fa]/60 transition-all">
                         <td className="px-5 py-3.5 font-semibold text-[#33475b]">
                           {log.email}
@@ -425,6 +493,38 @@ export default function CampaignMetricsPage() {
                 </table>
               )}
             </div>
+
+            {/* Paginación de Logs */}
+            {totalLogsCount > logsPerPage && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-[#cbd6e2]/40 text-xs text-[#516f90] font-medium">
+                <div>
+                  Mostrando <span className="font-bold text-[#33475b]">{(currentPage - 1) * logsPerPage + 1}</span> a{' '}
+                  <span className="font-bold text-[#33475b]">{Math.min(currentPage * logsPerPage, totalLogsCount)}</span> de{' '}
+                  <span className="font-bold text-[#33475b]">{totalLogsCount}</span> registros
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-3.5 py-1.5 border border-[#cbd6e2] bg-white rounded-lg hover:bg-[#f5f8fa] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold shadow-sm"
+                  >
+                    Anterior
+                  </button>
+                  <span className="bg-[#eaf0f6] text-[#2d544c] px-3.5 py-1.5 rounded-lg border border-[#cbd6e2]/40 font-bold shadow-sm">
+                    Página {currentPage} de {Math.ceil(totalLogsCount / logsPerPage)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalLogsCount / logsPerPage)))}
+                    disabled={currentPage === Math.ceil(totalLogsCount / logsPerPage)}
+                    className="px-3.5 py-1.5 border border-[#cbd6e2] bg-white rounded-lg hover:bg-[#f5f8fa] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold shadow-sm"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

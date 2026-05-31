@@ -7,6 +7,16 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get('campaignId') || '';
+    
+    // Filtros y paginación para la lista de logs
+    const search = searchParams.get('search') || '';
+    const type = searchParams.get('type') || 'all'; // all, real, test
+    const status = searchParams.get('status') || 'all'; // all, sent, opened, clicked
+    const startDate = searchParams.get('startDate') || '';
+    const endDate = searchParams.get('endDate') || '';
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const offset = (page - 1) * limit;
 
     // 1. Verificar esquema y conexión de la DB
     let dbConnected = false;
@@ -61,7 +71,7 @@ export async function GET(request: Request) {
 
     // 2. Si no hay DB, retornar métricas simuladas
     if (!dbConnected) {
-      const mockData = getMockCampaignMetrics(campaignId);
+      const mockData = getMockCampaignMetrics(campaignId, search, type, status, startDate, endDate, page, limit);
       return NextResponse.json({
         success: true,
         ...mockData,
@@ -121,14 +131,62 @@ export async function GET(request: Request) {
     `, [selectedCampaignId]);
     const testMetrics = testMetricsRes.rows[0];
 
-    // 6. Obtener logs recientes de la campaña seleccionada (para ver el listado)
+    // 6. Obtener logs filtrados, contados y paginados de la campaña seleccionada
+    const logWhereClauses = ['campaign_id = $1'];
+    const logParams: (string | number | Date)[] = [selectedCampaignId];
+
+    if (search) {
+      logParams.push(`%${search}%`);
+      logWhereClauses.push(`email ILIKE $${logParams.length}`);
+    }
+
+    if (type === 'real') {
+      logWhereClauses.push('is_test = FALSE');
+    } else if (type === 'test') {
+      logWhereClauses.push('is_test = TRUE');
+    }
+
+    if (status === 'sent') {
+      logWhereClauses.push("status = 'SENT'");
+    } else if (status === 'opened') {
+      logWhereClauses.push("(opened_at IS NOT NULL OR status = 'OPENED')");
+    } else if (status === 'clicked') {
+      logWhereClauses.push("(clicks > 0 OR last_clicked_at IS NOT NULL)");
+    }
+
+    if (startDate) {
+      logParams.push(new Date(startDate));
+      logWhereClauses.push(`created_at >= $${logParams.length}`);
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      logParams.push(end);
+      logWhereClauses.push(`created_at <= $${logParams.length}`);
+    }
+
+    const logWhereStr = logWhereClauses.join(' AND ');
+
+    // Conteo total de logs filtrados
+    const countLogsRes = await queryMarketing(`
+      SELECT COUNT(*) as total 
+      FROM campaign_logs 
+      WHERE ${logWhereStr}
+    `, logParams);
+    const totalLogsCount = parseInt(countLogsRes.rows[0].total, 10) || 0;
+
+    // Agregar limit y offset
+    logParams.push(limit, offset);
+    const limitIdx = logParams.length - 1;
+    const offsetIdx = logParams.length;
+
     const logsRes = await queryMarketing(`
-      SELECT id, email, status, sent_at, opened_at, clicks, last_clicked_at, is_test
+      SELECT id, email, status, sent_at, opened_at, clicks, last_clicked_at, is_test, created_at
       FROM campaign_logs
-      WHERE campaign_id = $1
+      WHERE ${logWhereStr}
       ORDER BY created_at DESC
-      LIMIT 100
-    `, [selectedCampaignId]);
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, logParams);
     const detailedLogs = logsRes.rows;
 
     return NextResponse.json({
@@ -148,6 +206,9 @@ export async function GET(request: Request) {
         clicksCount: parseInt(testMetrics.total_clicks_count, 10) || 0
       },
       logs: detailedLogs,
+      totalLogsCount,
+      page,
+      limit,
       isMock: false
     });
 
@@ -161,7 +222,16 @@ export async function GET(request: Request) {
 }
 
 // Generador de datos simulados
-function getMockCampaignMetrics(campaignId: string) {
+function getMockCampaignMetrics(
+  campaignId: string,
+  search: string,
+  type: string,
+  status: string,
+  startDate: string,
+  endDate: string,
+  page: number,
+  limit: number
+) {
   const mockCampaigns = [
     { id: 'camp-1', title: 'CyberDay', subject: 'Cyberday Alimin: asegura tu terreno cerca del mar', created_at: '2026-05-27T10:00:00Z' },
     { id: 'camp-2', title: 'Lomas campaña dos', subject: 'Conoce Lomas del Mar, sus valores y detalles', created_at: '2026-05-15T10:00:00Z' },
@@ -204,11 +274,47 @@ function getMockCampaignMetrics(campaignId: string) {
     { id: 'log-5', email: 'test.user@aliminspa.cl', status: 'TEST', sent_at: new Date(baseDate.getTime() - 1000 * 60 * 120).toISOString(), opened_at: null, clicks: 0, last_clicked_at: null, is_test: true }
   ];
 
+  let filteredMock = [...mockLogs];
+  
+  if (search) {
+    filteredMock = filteredMock.filter(l => l.email.toLowerCase().includes(search.toLowerCase()));
+  }
+  if (type === 'real') {
+    filteredMock = filteredMock.filter(l => !l.is_test);
+  } else if (type === 'test') {
+    filteredMock = filteredMock.filter(l => l.is_test);
+  }
+  if (status === 'sent') {
+    filteredMock = filteredMock.filter(l => l.status === 'SENT');
+  } else if (status === 'opened') {
+    filteredMock = filteredMock.filter(l => l.status === 'OPENED' || l.opened_at !== null);
+  } else if (status === 'clicked') {
+    filteredMock = filteredMock.filter(l => l.clicks > 0);
+  }
+
+  if (startDate) {
+    const start = new Date(startDate).getTime();
+    filteredMock = filteredMock.filter(l => new Date(l.sent_at).getTime() >= start);
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    const endTime = end.getTime();
+    filteredMock = filteredMock.filter(l => new Date(l.sent_at).getTime() <= endTime);
+  }
+
+  const totalLogsCount = filteredMock.length;
+  const offset = (page - 1) * limit;
+  const paginatedLogs = filteredMock.slice(offset, offset + limit);
+
   return {
     campaigns: mockCampaigns,
     selectedCampaignId: selectedId,
     real,
     test,
-    logs: mockLogs
+    logs: paginatedLogs,
+    totalLogsCount,
+    page,
+    limit
   };
 }
