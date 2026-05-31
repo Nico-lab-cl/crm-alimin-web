@@ -48,6 +48,21 @@ export default function CampaignMetricsPage() {
   const [realStats, setRealStats] = useState<StatGroup>({ sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
   const [testStats, setTestStats] = useState<StatGroup>({ sent: 0, opened: 0, clicked: 0, clicksCount: 0 });
   const [logs, setLogs] = useState<CampaignLog[]>([]);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '-';
+    if (!mounted) return '...';
+    try {
+      return new Date(dateStr).toLocaleString();
+    } catch {
+      return '-';
+    }
+  };
   
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +215,7 @@ export default function CampaignMetricsPage() {
                 </div>
                 <p className="text-xs text-[#516f90] flex items-center gap-1.5 pt-0.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  Creado el {new Date(selectedCampaign.created_at).toLocaleString()}
+                  Creado el {formatDate(selectedCampaign.created_at)}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-[#516f90] font-semibold bg-white px-3 py-1.5 rounded-lg border border-[#cbd6e2]/40 shadow-sm">
@@ -377,7 +392,7 @@ export default function CampaignMetricsPage() {
                           {log.sent_at ? (
                             <div className="flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5" />
-                              {new Date(log.sent_at).toLocaleString()}
+                              {formatDate(log.sent_at)}
                             </div>
                           ) : '-'}
                         </td>
@@ -385,7 +400,7 @@ export default function CampaignMetricsPage() {
                           {log.opened_at ? (
                             <div className="flex items-center gap-1 text-green-600 font-medium">
                               <Eye className="w-3.5 h-3.5 text-green-600" />
-                              {new Date(log.opened_at).toLocaleString()}
+                              {formatDate(log.opened_at)}
                             </div>
                           ) : '-'}
                         </td>
@@ -400,7 +415,7 @@ export default function CampaignMetricsPage() {
                           {log.last_clicked_at ? (
                             <div className="flex items-center gap-1 text-amber-600">
                               <ExternalLink className="w-3.5 h-3.5" />
-                              {new Date(log.last_clicked_at).toLocaleString()}
+                              {formatDate(log.last_clicked_at)}
                             </div>
                           ) : '-'}
                         </td>

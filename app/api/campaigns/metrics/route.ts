@@ -20,6 +20,41 @@ export async function GET(request: Request) {
       `);
       tables = tableCheck.rows.map(r => r.table_name.toLowerCase());
       dbConnected = tables.includes('campaign_logs') && tables.includes('campaigns');
+      
+      if (dbConnected) {
+        // Asegurar que las columnas requeridas existan en campaign_logs
+        const columnsCheck = await queryMarketing(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'campaign_logs'
+        `);
+        const columns = columnsCheck.rows.map(r => r.column_name.toLowerCase());
+        
+        if (!columns.includes('clicks')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN clicks INTEGER DEFAULT 0');
+          console.log('Added missing "clicks" column to campaign_logs table dynamically.');
+        }
+        if (!columns.includes('last_clicked_at')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN last_clicked_at TIMESTAMP WITH TIME ZONE');
+          console.log('Added missing "last_clicked_at" column to campaign_logs table dynamically.');
+        }
+        if (!columns.includes('is_test')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN is_test BOOLEAN DEFAULT FALSE');
+          console.log('Added missing "is_test" column to campaign_logs table dynamically.');
+        }
+        if (!columns.includes('opened_at')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN opened_at TIMESTAMP WITH TIME ZONE');
+          console.log('Added missing "opened_at" column to campaign_logs table dynamically.');
+        }
+        if (!columns.includes('sent_at')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN sent_at TIMESTAMP WITH TIME ZONE');
+          console.log('Added missing "sent_at" column to campaign_logs table dynamically.');
+        }
+        if (!columns.includes('last_callback_at')) {
+          await queryMarketing('ALTER TABLE campaign_logs ADD COLUMN last_callback_at TIMESTAMP WITH TIME ZONE');
+          console.log('Added missing "last_callback_at" column to campaign_logs table dynamically.');
+        }
+      }
     } catch (e) {
       console.warn('DB check failed in campaign metrics endpoint, running in offline/mock mode:', (e as Error).message);
     }

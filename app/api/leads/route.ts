@@ -285,6 +285,7 @@ export async function GET(request: Request) {
       }
 
       // Filtro por rango de fechas de creación
+      console.log('GET /api/leads: Filtering by date:', { startDate, endDate, rawCreatedAtCol, createdAtCol });
       if (startDate && rawCreatedAtCol) {
         params.push(new Date(startDate));
         whereClauses.push(`${createdAtCol} >= $${params.length}`);
@@ -298,6 +299,7 @@ export async function GET(request: Request) {
     }
 
     const whereStr = whereClauses.join(' AND ');
+    console.log('GET /api/leads: database query debug:', { whereStr, params, columns });
 
     // Consultar el conteo total
     const countRes = await queryMain(`SELECT COUNT(*) as total FROM "Lead" WHERE ${whereStr}`, params);
