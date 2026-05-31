@@ -100,11 +100,12 @@ export async function GET(
         for (const log of campaignLogsRes.rows) {
           // Evento de Envío
           const dateSent = log.sent_at || log.cl_created_at;
+          const isTest = log.status === 'TEST';
           if (dateSent) {
             eventsList.push({
               id: `email-sent-${log.id}`,
               type: 'EMAIL_SENT',
-              title: 'Correo Enviado',
+              title: isTest ? 'Correo de Prueba Enviado' : 'Correo Enviado',
               description: `Campaña: "${log.campaign_title || 'Sin Título'}" | Asunto: "${log.campaign_subject || 'Sin Asunto'}"`,
               date: new Date(dateSent).toISOString(),
               details: { campaign_id: log.campaign_id }

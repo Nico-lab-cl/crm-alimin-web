@@ -34,6 +34,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(lead_id)) {
+      return new NextResponse(
+        JSON.stringify({ success: false, message: 'lead_id no es un UUID válido, ignorando registro de actividad.' }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
     const query = `
       INSERT INTO lead_activities (lead_id, event_type, page_url, page_title, details)
       VALUES ($1, $2, $3, $4, $5)

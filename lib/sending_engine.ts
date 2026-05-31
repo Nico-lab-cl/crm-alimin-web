@@ -248,10 +248,33 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 
+  // Buscar si existe un lead real con ese correo en la base de datos principal
+  let leadId = '00000000-0000-0000-0000-000000000000'; // UUID dummy válido por defecto
+  try {
+    const schemaRes = await queryMain(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'Lead'
+    `);
+    const cols = schemaRes.rows.map((r: { column_name: string }) => r.column_name);
+    const emailCol = cols.find(c => c.toLowerCase() === 'email') || 'Email';
+    const idCol = cols.find(c => c.toLowerCase() === 'id') || 'id';
+
+    const leadRes = await queryMain(
+      `SELECT "${idCol}" as id FROM "Lead" WHERE "${emailCol}" ILIKE $1 LIMIT 1`,
+      [targetEmail]
+    );
+    if (leadRes.rows.length > 0) {
+      leadId = leadRes.rows[0].id;
+    }
+  } catch (err) {
+    console.warn('Error al buscar lead por email para campaña de prueba:', err);
+  }
+
   const logRes = await queryMarketing(
     `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
      VALUES ($1, $2, $3, 'TEST') RETURNING id`,
-    [campaignId, 'test-id', targetEmail]
+    [campaignId, leadId, targetEmail]
   );
   const logId = logRes.rows[0].id;
 
