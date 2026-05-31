@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMarketing } from '@/lib/db';
+import { queryMarketing, queryMain } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +60,32 @@ export async function POST(request: Request) {
       page_title || '',
       JSON.stringify(details || {}),
     ]);
+
+    // Buscar detalles del lead en MAIN_DB de forma insensible a la capitalización de columnas
+    let name = '';
+    let email = '';
+    try {
+      const leadRes = await queryMain('SELECT * FROM "Lead" WHERE id = $1', [lead_id]);
+      if (leadRes.rows.length > 0) {
+        const row = leadRes.rows[0];
+        const first = row.FirstName || row.firstname || row.first_name || '';
+        const last = row.LastName || row.lastname || row.last_name || '';
+        name = `${first} ${last}`.trim();
+        email = row.Email || row.email || '';
+      }
+    } catch (err) {
+      console.warn('Error fetching lead name in track activity:', err);
+    }
+
+    const displayName = name || email || 'Un contacto';
+    const titleMsg = 'Visita a la Web';
+    const messageMsg = `${displayName} visitó la página "${page_title || 'Inicio'}" (${page_url || ''})`;
+
+    // Registrar la notificación
+    await queryMarketing(`
+      INSERT INTO notifications (lead_id, email, event_type, title, message)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [lead_id, email, 'PAGE_VISIT', titleMsg, messageMsg]);
 
     return new NextResponse(
       JSON.stringify({ success: true, activity_id: res.rows[0].id }),

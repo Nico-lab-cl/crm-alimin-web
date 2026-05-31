@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { queryMain } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // 1. Descubrimiento dinámico del esquema (Todas las columnas) para saber la capitalización exacta

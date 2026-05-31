@@ -226,9 +226,33 @@ export async function GET() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      results.push("Created 'lead_activities' table.");
     } else {
       results.push("'lead_activities' table already exists.");
+    }
+
+    // 7b. Check if 'notifications' table exists
+    const checkNotificationsTable = await queryMarketing(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_name = 'notifications'
+    `);
+
+    if (checkNotificationsTable.rows.length === 0) {
+      await queryMarketing(`
+        CREATE TABLE notifications (
+          id SERIAL PRIMARY KEY,
+          lead_id UUID,
+          email VARCHAR(255),
+          event_type VARCHAR(100) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          read BOOLEAN DEFAULT FALSE
+        )
+      `);
+      results.push("Created 'notifications' table.");
+    } else {
+      results.push("'notifications' table already exists.");
     }
 
     // 8. Debug info for Lead table columns and date range counts
