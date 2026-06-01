@@ -8,7 +8,8 @@ import {
   Mail, 
   Settings, 
   Home,
-  ChevronRight
+  ChevronRight,
+  Globe
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -32,6 +33,7 @@ const navItems = [
       { name: 'Métricas de Campañas', href: '/campaigns/metrics' }
     ]
   },
+  { name: 'Mapeo Web', href: '/mapeo-web', icon: Globe },
   { name: 'Métricas', href: '/metrics', icon: BarChart3 },
   { name: 'Configuración', href: '/settings', icon: Settings },
 ];

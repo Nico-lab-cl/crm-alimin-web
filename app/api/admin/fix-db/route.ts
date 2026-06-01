@@ -218,7 +218,8 @@ export async function GET() {
       await queryMarketing(`
         CREATE TABLE lead_activities (
           id SERIAL PRIMARY KEY,
-          lead_id UUID NOT NULL,
+          lead_id UUID,
+          anonymous_id VARCHAR(255),
           event_type VARCHAR(100) NOT NULL,
           page_url TEXT,
           page_title VARCHAR(255),
@@ -226,8 +227,35 @@ export async function GET() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      results.push("Created 'lead_activities' table with nullable lead_id and anonymous_id.");
     } else {
       results.push("'lead_activities' table already exists.");
+      // Alter table to drop NOT NULL constraint on lead_id if it exists
+      try {
+        await queryMarketing(`
+          ALTER TABLE lead_activities ALTER COLUMN lead_id DROP NOT NULL
+        `);
+        results.push("Dropped NOT NULL constraint on lead_activities.lead_id.");
+      } catch (err) {
+        console.warn('Could not drop NOT NULL constraint on lead_id:', err);
+      }
+
+      // Add anonymous_id column if not exists
+      const checkAnonCol = await queryMarketing(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'lead_activities' AND column_name = 'anonymous_id'
+      `);
+      if (checkAnonCol.rows.length === 0) {
+        try {
+          await queryMarketing(`
+            ALTER TABLE lead_activities ADD COLUMN anonymous_id VARCHAR(255)
+          `);
+          results.push("Added 'anonymous_id' column to lead_activities.");
+        } catch (err) {
+          console.warn('Could not add anonymous_id to lead_activities:', err);
+        }
+      }
     }
 
     // 7b. Check if 'notifications' table exists
@@ -242,6 +270,7 @@ export async function GET() {
         CREATE TABLE notifications (
           id SERIAL PRIMARY KEY,
           lead_id UUID,
+          anonymous_id VARCHAR(255),
           email VARCHAR(255),
           event_type VARCHAR(100) NOT NULL,
           title VARCHAR(255) NOT NULL,
@@ -253,6 +282,22 @@ export async function GET() {
       results.push("Created 'notifications' table.");
     } else {
       results.push("'notifications' table already exists.");
+      // Add anonymous_id column if not exists in notifications
+      const checkNotifAnonCol = await queryMarketing(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'notifications' AND column_name = 'anonymous_id'
+      `);
+      if (checkNotifAnonCol.rows.length === 0) {
+        try {
+          await queryMarketing(`
+            ALTER TABLE notifications ADD COLUMN anonymous_id VARCHAR(255)
+          `);
+          results.push("Added 'anonymous_id' column to notifications.");
+        } catch (err) {
+          console.warn('Could not add anonymous_id to notifications:', err);
+        }
+      }
     }
 
     // 8. Debug info for Lead table columns and date range counts
