@@ -101,10 +101,50 @@ export function optimizeHtmlForDarkMode(html: string): string {
     return `<body${bodyAttrs}><div class="gmail-blend-screen"><div class="gmail-blend-difference">${bodyContent}</div></div></body>`;
   });
 
-  // 4. Aplicar el Hack de Degradado de forma automática a todos los estilos en línea de fondos
-  const bgStyleRegex = /background-color:\s*([^;'"\s]+)/gi;
-  processedHtml = processedHtml.replace(bgStyleRegex, (match, color) => {
-    return `${match}; background-image: linear-gradient(${color}, ${color})`;
+  // 4. Encontrar estilos inline de color y añadirles text-shadow y data-ogsc (Capa 2 de seguridad)
+  // Esto asegura que incluso si Gmail ignora el blend mode, el color del texto permanezca legible
+  const colorRegex = /<([a-zA-Z0-9]+)\b([^>]*style=["']([^"']*color:\s*([^;'"\s>]+)[^"']*)["'][^>]*)>/gi;
+  processedHtml = processedHtml.replace(colorRegex, (match, tagName, tagAttrs, styleContent, colorVal) => {
+    if (tagAttrs.includes('data-ogsc=')) {
+      return match;
+    }
+
+    const cleanColor = colorVal.trim().replace(/['"]/g, '');
+    
+    // Solo aplicar a colores claros (blanco, amarillos, grises claros)
+    const isLightColor = /#(ffffff|fff|fefefe|fffffe|cccccc|eeeeee|e0e0e0|f7b500|ffcc00|ffff00|ffcc33)/i.test(cleanColor) || 
+                         /rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)/i.test(cleanColor);
+                         
+    if (!isLightColor) {
+      return match;
+    }
+
+    // Añadir text-shadow al estilo inline actual
+    const styleTrimmed = styleContent.trim().replace(/;+$/, '');
+    const updatedStyle = styleContent.includes('text-shadow') 
+      ? styleContent 
+      : `${styleTrimmed}; text-shadow: 0px 0px 1px ${cleanColor};`;
+
+    // Reconstruir atributos del tag
+    const updatedAttrs = tagAttrs.replace(styleContent, updatedStyle);
+    return `<${tagName}${updatedAttrs} data-ogsc="color: ${cleanColor} !important;">`;
+  });
+
+  // 5. Encontrar estilos inline de background-color y añadirles data-ogsb y degradados
+  const bgRegex = /<([a-zA-Z0-9]+)\b([^>]*style=["']([^"']*background-color:\s*([^;'"\s>]+)[^"']*)["'][^>]*)>/gi;
+  processedHtml = processedHtml.replace(bgRegex, (match, tagName, tagAttrs, styleContent, colorVal) => {
+    if (tagAttrs.includes('data-ogsb=')) {
+      return match;
+    }
+
+    const cleanColor = colorVal.trim().replace(/['"]/g, '');
+    const styleTrimmed = styleContent.trim().replace(/;+$/, '');
+    const updatedStyle = styleContent.includes('background-image')
+      ? styleContent
+      : `${styleTrimmed}; background-image: linear-gradient(${cleanColor}, ${cleanColor});`;
+      
+    const updatedAttrs = tagAttrs.replace(styleContent, updatedStyle);
+    return `<${tagName}${updatedAttrs} data-ogsb="background-color: ${cleanColor} !important;">`;
   });
 
   return processedHtml;
