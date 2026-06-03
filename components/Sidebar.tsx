@@ -21,7 +21,8 @@ const navItems = [
     icon: Users,
     subItems: [
       { name: 'Base de Datos', href: '/contacts' },
-      { name: 'Listas y Segmentos', href: '/contacts/lists' }
+      { name: 'Listas y Segmentos', href: '/contacts/lists' },
+      { name: 'WhatsApp Evolution 💬', href: '/contacts/whatsapp' }
     ]
   },
   { 
