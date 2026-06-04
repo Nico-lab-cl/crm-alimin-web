@@ -397,7 +397,7 @@ async function main() {
   console.log('\n--- Consolidation Summary ---');
   console.log(`Total Consolidated Leads: ${consolidatedLeads.length}`);
   
-  const endpoint = 'https://marketing.aliminlomasdelmar.com/api/webhooks/migrate-and-import';
+  const endpoint = 'https://marketing.aliminlomasdelmar.com/api/webhooks/bulk-insert';
   const token = 'chris.2026';
 
   console.log('\nStep 1: Running migrations and advisor setup on production database...');
@@ -447,7 +447,7 @@ async function main() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          action: 'import',
+          action: 'insert',
           leads: chunk,
           fields
         })
@@ -471,7 +471,7 @@ async function main() {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            action: 'import',
+            action: 'insert',
             leads: chunk,
             fields
           })
