@@ -77,33 +77,84 @@ export async function POST(request: Request) {
       const dbCols = new Set(colRes.rows.map((r: any) => r.column_name));
       const validFields = fields.filter((f: string) => dbCols.has(f));
 
-      const valuePlaceholders: string[] = [];
-      const params: any[] = [];
-      let idx = 1;
+      // Split leads: those with email vs those without
+      const withEmail = leads.filter((l: any) => l.email && l.email.trim() !== '');
+      const withoutEmail = leads.filter((l: any) => !l.email || l.email.trim() === '');
 
-      for (const lead of leads) {
-        const ph: string[] = [];
-        validFields.forEach((field: string) => {
-          ph.push(`$${idx++}`);
-          let val = lead[field];
-          if (val === undefined || val === '') val = null;
-          if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
-            val = val || false;
-          }
-          if (field === 'status' && !val) val = 'Nuevo';
-          params.push(val);
-        });
-        valuePlaceholders.push(`(${ph.join(', ')})`);
+      let totalInserted = 0;
+
+      // 1) Leads WITH email: upsert via ON CONFLICT (email)
+      if (withEmail.length > 0) {
+        const vp1: string[] = [];
+        const p1: any[] = [];
+        let idx1 = 1;
+
+        for (const lead of withEmail) {
+          const ph: string[] = [];
+          validFields.forEach((field: string) => {
+            ph.push(`$${idx1++}`);
+            let val = lead[field];
+            if (val === undefined || val === '') val = null;
+            if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
+              val = val || false;
+            }
+            if (field === 'status' && !val) val = 'Nuevo';
+            p1.push(val);
+          });
+          vp1.push(`(${ph.join(', ')})`);
+        }
+
+        // Build update clauses for upsert (skip id, email, createdAt)
+        const updateClauses = validFields
+          .filter((f: string) => f !== 'id' && f !== 'email' && f !== 'createdAt')
+          .map((f: string) => `"${f}" = COALESCE(EXCLUDED."${f}", "Lead"."${f}")`);
+
+        const q1 = `
+          INSERT INTO "Lead" (${validFields.map((f: string) => `"${f}"`).join(', ')})
+          VALUES ${vp1.join(', ')}
+          ON CONFLICT (email) DO UPDATE SET ${updateClauses.join(', ')}
+        `;
+        const r1 = await queryMain(q1, p1);
+        totalInserted += r1.rowCount || withEmail.length;
       }
 
-      const query = `
-        INSERT INTO "Lead" (${validFields.map((f: string) => `"${f}"`).join(', ')})
-        VALUES ${valuePlaceholders.join(', ')}
-        ON CONFLICT (id) DO NOTHING
-      `;
+      // 2) Leads WITHOUT email: simple insert (no conflict possible on email NULL)
+      if (withoutEmail.length > 0) {
+        const vp2: string[] = [];
+        const p2: any[] = [];
+        let idx2 = 1;
 
-      const result = await queryMain(query, params);
-      return NextResponse.json({ success: true, sent: leads.length, inserted: result.rowCount });
+        for (const lead of withoutEmail) {
+          const ph: string[] = [];
+          validFields.forEach((field: string) => {
+            ph.push(`$${idx2++}`);
+            let val = lead[field];
+            if (val === undefined || val === '') val = null;
+            if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
+              val = val || false;
+            }
+            if (field === 'status' && !val) val = 'Nuevo';
+            p2.push(val);
+          });
+          vp2.push(`(${ph.join(', ')})`);
+        }
+
+        const q2 = `
+          INSERT INTO "Lead" (${validFields.map((f: string) => `"${f}"`).join(', ')})
+          VALUES ${vp2.join(', ')}
+          ON CONFLICT (id) DO NOTHING
+        `;
+        const r2 = await queryMain(q2, p2);
+        totalInserted += r2.rowCount || 0;
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        sent: leads.length, 
+        withEmail: withEmail.length, 
+        withoutEmail: withoutEmail.length, 
+        inserted: totalInserted 
+      });
     }
 
     if (action === 'clean_tags') {
