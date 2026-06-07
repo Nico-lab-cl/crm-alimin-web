@@ -22,6 +22,9 @@ export async function GET(request: Request) {
     const utmMedium = searchParams.get('utmMedium') || '';
     const utmCampaign = searchParams.get('utmCampaign') || '';
     const activity = searchParams.get('activity') || '';
+    const formId = searchParams.get('formId') || '';
+    const adId = searchParams.get('adId') || '';
+    const adName = searchParams.get('adName') || '';
     const ids = searchParams.get('ids') || ''; // Lista de IDs separada por comas (Listas Estáticas)
 
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -106,6 +109,15 @@ export async function GET(request: Request) {
         }
         if (utmCampaign) {
           filtered = filtered.filter(l => (l.utmCampaign || l.utm_campaign || '').toLowerCase() === utmCampaign.toLowerCase());
+        }
+        if (formId) {
+          filtered = filtered.filter(l => (l.formId || l.form_id || '').toLowerCase() === formId.toLowerCase());
+        }
+        if (adId) {
+          filtered = filtered.filter(l => (l.adId || l.ad_id || '').toLowerCase() === adId.toLowerCase());
+        }
+        if (adName) {
+          filtered = filtered.filter(l => (l.adName || l.ad_name || '').toLowerCase().includes(adName.toLowerCase()));
         }
         if (activity) {
           filtered = filtered.filter(l => {
@@ -254,6 +266,33 @@ export async function GET(request: Request) {
         const col = findCol('utmcampaign') || '"utmCampaign"';
         if (columns.includes(col.replace(/"/g, ''))) {
           params.push(utmCampaign);
+          whereClauses.push(`${col} ILIKE $${params.length}`);
+        }
+      }
+
+      // Filtro por ID de Formulario (Meta Form ID)
+      if (formId) {
+        const col = findCol('formid') || '"formId"';
+        if (columns.includes(col.replace(/"/g, ''))) {
+          params.push(formId);
+          whereClauses.push(`${col} = $${params.length}`);
+        }
+      }
+
+      // Filtro por ID de Anuncio (Meta Ad ID)
+      if (adId) {
+        const col = findCol('adid') || '"adId"';
+        if (columns.includes(col.replace(/"/g, ''))) {
+          params.push(adId);
+          whereClauses.push(`${col} = $${params.length}`);
+        }
+      }
+
+      // Filtro por Nombre del Anuncio (Meta Ad Name)
+      if (adName) {
+        const col = findCol('adname') || '"adName"';
+        if (columns.includes(col.replace(/"/g, ''))) {
+          params.push(`%${adName}%`);
           whereClauses.push(`${col} ILIKE $${params.length}`);
         }
       }

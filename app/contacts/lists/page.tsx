@@ -30,6 +30,9 @@ interface Segment {
     utmSource?: string;
     utmMedium?: string;
     utmCampaign?: string;
+    formId?: string;
+    adId?: string;
+    adName?: string;
     ids?: string[];
   };
   created_at: string;
@@ -74,6 +77,11 @@ export default function ListsPage() {
   const [utmSourceFilter, setUtmSourceFilter] = useState('');
   const [utmMediumFilter, setUtmMediumFilter] = useState('');
   const [utmCampaignFilter, setUtmCampaignFilter] = useState('');
+
+  // Meta Filters
+  const [formIdFilter, setFormIdFilter] = useState('');
+  const [adIdFilter, setAdIdFilter] = useState('');
+  const [adNameFilter, setAdNameFilter] = useState('');
 
   // UTM Metadata from API
   const [utmSources, setUtmSources] = useState<string[]>([]);
@@ -140,6 +148,9 @@ export default function ListsPage() {
         utmCampaign: utmCampaignFilter,
         startDate: startDateFilter,
         endDate: endDateFilter,
+        formId: formIdFilter,
+        adId: adIdFilter,
+        adName: adNameFilter,
         limit: '100' // preview limit
       });
 
@@ -164,7 +175,10 @@ export default function ListsPage() {
     utmMediumFilter, 
     utmCampaignFilter,
     startDateFilter,
-    endDateFilter
+    endDateFilter,
+    formIdFilter,
+    adIdFilter,
+    adNameFilter
   ]);
 
   useEffect(() => {
@@ -216,6 +230,9 @@ export default function ListsPage() {
       setUtmSourceFilter(segment.filters.utmSource || '');
       setUtmMediumFilter(segment.filters.utmMedium || '');
       setUtmCampaignFilter(segment.filters.utmCampaign || '');
+      setFormIdFilter(segment.filters.formId || '');
+      setAdIdFilter(segment.filters.adId || '');
+      setAdNameFilter(segment.filters.adName || '');
     }
   };
 
@@ -232,6 +249,9 @@ export default function ListsPage() {
     setUtmSourceFilter('');
     setUtmMediumFilter('');
     setUtmCampaignFilter('');
+    setFormIdFilter('');
+    setAdIdFilter('');
+    setAdNameFilter('');
     setStartDateFilter('');
     setEndDateFilter('');
     fetchPreview();
@@ -259,6 +279,9 @@ export default function ListsPage() {
           utmCampaign: utmCampaignFilter,
           startDate: startDateFilter,
           endDate: endDateFilter,
+          formId: formIdFilter,
+          adId: adIdFilter,
+          adName: adNameFilter,
           limit: '100000' // Límite alto para obtener toda la base de datos calificada
         });
 
@@ -299,6 +322,9 @@ export default function ListsPage() {
         utmSource: utmSourceFilter || undefined,
         utmMedium: utmMediumFilter || undefined,
         utmCampaign: utmCampaignFilter || undefined,
+        formId: formIdFilter || undefined,
+        adId: adIdFilter || undefined,
+        adName: adNameFilter || undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined
       };
@@ -379,6 +405,9 @@ export default function ListsPage() {
       badges.push(`Actividad: ${actLabels[filters.activity] || filters.activity}`);
     }
     if (filters.utmSource) badges.push(`UTM Source: ${filters.utmSource}`);
+    if (filters.formId) badges.push(`Formulario Meta: ${filters.formId}`);
+    if (filters.adId) badges.push(`ID Anuncio Meta: ${filters.adId}`);
+    if (filters.adName) badges.push(`Anuncio Meta: ${filters.adName}`);
     if (filters.startDate) badges.push(`Desde: ${new Date(filters.startDate).toLocaleDateString('es-CL', { timeZone: 'UTC' })}`);
     if (filters.endDate) badges.push(`Hasta: ${new Date(filters.endDate).toLocaleDateString('es-CL', { timeZone: 'UTC' })}`);
 
@@ -710,6 +739,48 @@ export default function ListsPage() {
                         <option value="">Todos los UTM Campaigns</option>
                         {utmCampaigns.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fila: Propiedades de Meta Ads */}
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-[#516f90] uppercase tracking-wider block">Propiedades de Meta Ads</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-[#516f90]">ID de Formulario (Meta Form ID)</span>
+                      <input 
+                        type="text" 
+                        placeholder="Ej: 4410004195897067"
+                        value={formIdFilter}
+                        onChange={(e) => setFormIdFilter(e.target.value)}
+                        disabled={selectedSegment?.type === 'static'}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-[#2d544c]/20 outline-none focus:bg-white transition-all text-[#33475b]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-[#516f90]">ID de Anuncio (Meta Ad ID)</span>
+                      <input 
+                        type="text" 
+                        placeholder="Ej: 1202078546301"
+                        value={adIdFilter}
+                        onChange={(e) => setAdIdFilter(e.target.value)}
+                        disabled={selectedSegment?.type === 'static'}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-[#2d544c]/20 outline-none focus:bg-white transition-all text-[#33475b]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-[#516f90]">Nombre del Anuncio (Meta Ad Name)</span>
+                      <input 
+                        type="text" 
+                        placeholder="Ej: Lomas Campaña FB"
+                        value={adNameFilter}
+                        onChange={(e) => setAdNameFilter(e.target.value)}
+                        disabled={selectedSegment?.type === 'static'}
+                        className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-[#2d544c]/20 outline-none focus:bg-white transition-all text-[#33475b]"
+                      />
                     </div>
                   </div>
                 </div>

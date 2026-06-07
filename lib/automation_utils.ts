@@ -54,6 +54,9 @@ export function buildSegmentWhereClause(filters: any, columns: string[]) {
     utmSource,
     utmMedium,
     utmCampaign,
+    formId,
+    adId,
+    adName,
     ids
   } = filters;
 
@@ -134,6 +137,21 @@ export function buildSegmentWhereClause(filters: any, columns: string[]) {
     if (utmCampaign && columns.includes((findCol('utmcampaign') || '"utmCampaign"').replace(/"/g, ''))) {
       params.push(utmCampaign);
       whereClauses.push(`${findCol('utmcampaign') || '"utmCampaign"'} ILIKE $${params.length}`);
+    }
+
+    if (formId && columns.includes((findCol('formid') || '"formId"').replace(/"/g, ''))) {
+      params.push(formId);
+      whereClauses.push(`${findCol('formid') || '"formId"'} = $${params.length}`);
+    }
+
+    if (adId && columns.includes((findCol('adid') || '"adId"').replace(/"/g, ''))) {
+      params.push(adId);
+      whereClauses.push(`${findCol('adid') || '"adId"'} = $${params.length}`);
+    }
+
+    if (adName && columns.includes((findCol('adname') || '"adName"').replace(/"/g, ''))) {
+      params.push(`%${adName}%`);
+      whereClauses.push(`${findCol('adname') || '"adName"'} ILIKE $${params.length}`);
     }
 
     if (activity) {
