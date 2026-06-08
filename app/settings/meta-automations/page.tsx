@@ -57,6 +57,9 @@ export default function MetaAutomationsPage() {
   const [testName, setTestName] = useState('Juan Test Segmento');
   const [testPhone, setTestPhone] = useState('+56999999999');
   const [testPie, setTestPie] = useState('5.500.000 CLP');
+  const [testFormId, setTestFormId] = useState('');
+  const [testAdName, setTestAdName] = useState('');
+  const [testAdId, setTestAdId] = useState('');
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
@@ -243,6 +246,13 @@ export default function MetaAutomationsPage() {
 
   const handleOpenTestModal = (rule: AutomationRule) => {
     setTestRule(rule);
+    setTestFormId(rule.form_id || '798890826611593');
+    setTestAdName('Test Ad Campaign');
+    setTestAdId('1202078546301');
+    setTestEmail('test_lead@alimin.cl');
+    setTestName('Juan Test Segmento');
+    setTestPhone('+56999999999');
+    setTestPie('5.500.000 CLP');
     setIsTestModalOpen(true);
   };
 
@@ -257,8 +267,9 @@ export default function MetaAutomationsPage() {
       email: testEmail,
       name: testName,
       phone: testPhone,
-      formid: testRule.form_id || 'test-form',
-      adname: 'Test Ad Campaign',
+      formid: testFormId || 'test-form',
+      adname: testAdName,
+      adid: testAdId,
       pie: testPie
     };
 
@@ -456,15 +467,13 @@ export default function MetaAutomationsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2.5">
-                          {rule.form_id && (
-                            <button 
-                              onClick={() => handleOpenTestModal(rule)}
-                              className="p-1.5 border border-[#cbd6e2] hover:border-[#2d544c] hover:bg-[#eaf0f6] text-[#516f90] hover:text-[#2d544c] rounded-lg transition-all"
-                              title="Probar automatización antigua"
-                            >
-                              <Play className="w-4 h-4 fill-current" />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleOpenTestModal(rule)}
+                            className="p-1.5 border border-[#cbd6e2] hover:border-[#2d544c] hover:bg-[#eaf0f6] text-[#516f90] hover:text-[#2d544c] rounded-lg transition-all"
+                            title="Probar automatización"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                          </button>
                           <button 
                             onClick={() => handleOpenEditModal(rule)}
                             className="p-1.5 border border-[#cbd6e2] hover:border-[#2d544c] text-[#516f90] hover:text-[#2d544c] rounded-lg transition-all"
@@ -722,43 +731,85 @@ export default function MetaAutomationsPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[480px] overflow-y-auto">
               <p className="text-xs text-[#516f90]">
-                Esto simulará un lead proveniente de Meta con el FormID antiguo de la regla: <strong>{testRule.form_id}</strong>.
+                Simulará un lead proveniente de Meta. {testRule.segment_id ? 'Se evaluarán los filtros del segmento asociado.' : `FormID de la regla: ${testRule.form_id}`}
               </p>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-[#516f90] uppercase block">Email de prueba</label>
-                <input 
-                  type="email" 
-                  className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[10px] font-bold text-[#516f90] uppercase block">Email de prueba</label>
+                  <input 
+                    type="email" 
+                    className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-[#516f90] uppercase block">Nombre</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                    value={testName}
+                    onChange={(e) => setTestName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-[#516f90] uppercase block">Teléfono</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-[#516f90] uppercase block">Nombre de prueba</label>
-                <input 
-                  type="text" 
-                  className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
-                  value={testName}
-                  onChange={(e) => setTestName(e.target.value)}
-                />
+              {/* Separator */}
+              <div className="border-t border-dashed border-[#cbd6e2] pt-3">
+                <p className="text-[10px] font-bold text-[#2d544c] uppercase tracking-wider mb-2">📱 Propiedades de Meta Ads</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-[10px] font-bold text-[#516f90] uppercase block">Form ID (ID de Formulario)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: 798890826611593"
+                      className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] font-mono focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                      value={testFormId}
+                      onChange={(e) => setTestFormId(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-[#516f90] uppercase block">Ad Name (Nombre Anuncio)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: Campaña Lomas"
+                      className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                      value={testAdName}
+                      onChange={(e) => setTestAdName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-[#516f90] uppercase block">Ad ID (ID Anuncio)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: 1202078546301"
+                      className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] font-mono focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
+                      value={testAdId}
+                      onChange={(e) => setTestAdId(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
 
+              {/* Pie */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-[#516f90] uppercase block">Teléfono de prueba</label>
-                <input 
-                  type="text" 
-                  className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-[#516f90] uppercase block">Pie de prueba</label>
+                <label className="text-[10px] font-bold text-[#516f90] uppercase block">Pie (Monto Enganche)</label>
                 <input 
                   type="text" 
                   className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-3 py-2 text-xs text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none"
@@ -782,7 +833,7 @@ export default function MetaAutomationsPage() {
                   className="flex-1 px-4 py-2.5 bg-[#2d544c] hover:bg-[#1f3a35] text-white rounded-xl font-bold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {testing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {testing ? 'Procesando...' : 'Iniciar Test'}
+                  {testing ? 'Procesando...' : '▶ Enviar Prueba'}
                 </button>
               </div>
             </div>

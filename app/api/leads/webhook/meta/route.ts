@@ -6,13 +6,14 @@ import { checkLeadMatchesSegment, dispatchLeadToWebhook } from '@/lib/automation
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, name, phone, formid, adname, adName, pie, monto_pie, montoDePie, downpayment } = body;
+    const { email, name, phone, formid, adname, adName, adid, adId, pie, monto_pie, montoDePie, downpayment } = body;
 
     if (!email || !formid) {
       return NextResponse.json({ message: 'Email y FormID son requeridos' }, { status: 400 });
     }
 
     const resolvedAdName = adname || adName || '';
+    const resolvedAdId = adid || adId || '';
     const resolvedPie = pie || monto_pie || montoDePie || downpayment || '';
 
     // 1. Descubrir esquema de columnas en la tabla "Lead" de MAIN_DB
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     const sourceCol = findCol('source') || '"source"';
     const formIdCol = findCol('formid') || '"formid"';
     const adNameCol = findCol('adname') || '"adname"';
+    const adIdCol = findCol('adid') || '"adId"';
     const pieCol = findCol('pie') || '"pie"';
 
     const insertCols = [emailCol, nameCol, phoneCol, sourceCol, formIdCol];
@@ -47,6 +49,10 @@ export async function POST(request: Request) {
     if (resolvedAdName && columns.includes(adNameCol.replace(/"/g, ''))) {
       insertCols.push(adNameCol);
       insertVals.push(resolvedAdName);
+    }
+    if (resolvedAdId && columns.includes(adIdCol.replace(/"/g, ''))) {
+      insertCols.push(adIdCol);
+      insertVals.push(resolvedAdId);
     }
     if (resolvedPie && columns.includes(pieCol.replace(/"/g, ''))) {
       insertCols.push(pieCol);
@@ -120,6 +126,7 @@ export async function POST(request: Request) {
                   phone: phone || '',
                   formid,
                   adname: resolvedAdName,
+                  adid: resolvedAdId,
                   pie: resolvedPie,
                   source: 'META',
                   created_at: new Date().toISOString()

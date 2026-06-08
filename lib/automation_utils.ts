@@ -317,6 +317,7 @@ export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any
       phone: lead.phone || '',
       formid: lead.formid || '',
       adname: lead.adname || '',
+      adid: lead.adid || '',
       pie: lead.pie || '',
       source: lead.source || 'META',
       created_at: lead.created_at || new Date().toISOString()
