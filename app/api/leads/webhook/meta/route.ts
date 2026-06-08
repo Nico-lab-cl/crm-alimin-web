@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { queryMarketing, queryMain } from '@/lib/db';
 import { optimizeHtmlForDarkMode } from '@/lib/email_utils';
 import { checkLeadMatchesSegment, dispatchLeadToWebhook } from '@/lib/automation_utils';
@@ -34,17 +35,39 @@ export async function POST(request: Request) {
       return match ? `"${match}"` : null;
     };
 
+    const idCol = findCol('id') || '"id"';
     const emailCol = findCol('email') || '"email"';
-    const nameCol = findCol('name') || findCol('firstname') || '"name"';
+    const firstNameCol = findCol('firstname') || findCol('name') || '"firstName"';
+    const lastNameCol = findCol('lastname');
     const phoneCol = findCol('phone') || '"phone"';
     const sourceCol = findCol('source') || '"source"';
-    const formIdCol = findCol('formid') || '"formid"';
-    const adNameCol = findCol('adname') || '"adname"';
+    const formIdColCamel = findCol('formid') || '"formId"';
+    const adNameCol = findCol('adname') || '"adName"';
     const adIdCol = findCol('adid') || '"adId"';
     const pieCol = findCol('pie') || '"pie"';
+    const createdAtCol = findCol('createdat') || findCol('created_at');
+    const updatedAtCol = findCol('updatedat') || findCol('updated_at');
 
-    const insertCols = [emailCol, nameCol, phoneCol, sourceCol, formIdCol];
-    const insertVals: (string | number | Date)[] = [email, name || '', phone || '', 'META', formid];
+    // Generate a UUID for the new lead
+    const newId = randomUUID();
+
+    // Split the name into firstName / lastName if the table has both columns
+    let firstNameVal = name || '';
+    let lastNameVal = '';
+    if (lastNameCol && name) {
+      const parts = name.trim().split(/\s+/);
+      firstNameVal = parts[0] || '';
+      lastNameVal = parts.slice(1).join(' ');
+    }
+
+    const insertCols = [idCol, emailCol, firstNameCol, phoneCol, sourceCol, formIdColCamel];
+    const insertVals: (string | number | Date)[] = [newId, email, firstNameVal, phone || '', 'META', formid];
+
+    // Add lastName if the column exists
+    if (lastNameCol && columns.includes(lastNameCol.replace(/"/g, ''))) {
+      insertCols.push(lastNameCol);
+      insertVals.push(lastNameVal);
+    }
 
     if (resolvedAdName && columns.includes(adNameCol.replace(/"/g, ''))) {
       insertCols.push(adNameCol);
@@ -58,10 +81,20 @@ export async function POST(request: Request) {
       insertCols.push(pieCol);
       insertVals.push(resolvedPie);
     }
+    // Add timestamps
+    const now = new Date();
+    if (createdAtCol && columns.includes(createdAtCol.replace(/"/g, ''))) {
+      insertCols.push(createdAtCol);
+      insertVals.push(now);
+    }
+    if (updatedAtCol && columns.includes(updatedAtCol.replace(/"/g, ''))) {
+      insertCols.push(updatedAtCol);
+      insertVals.push(now);
+    }
 
     const valuePlaceholders = insertVals.map((_, i) => `$${i + 1}`).join(', ');
     const updateSets = insertCols
-      .filter(col => col !== emailCol)
+      .filter(col => col !== emailCol && col !== idCol) // Don't update id or email on conflict
       .map(col => {
         const rawCol = col.replace(/"/g, '');
         if (rawCol === 'pie') {
@@ -76,14 +109,15 @@ export async function POST(request: Request) {
       VALUES (${valuePlaceholders})
       ON CONFLICT (${emailCol}) DO UPDATE 
       SET ${updateSets}
+      RETURNING "id"
     `;
 
-    await queryMain(insertQuery, insertVals);
+    const insertResult = await queryMain(insertQuery, insertVals);
+    const actualLeadId = insertResult.rows[0]?.id;
 
     // === NUEVA AUTOMATIZACIÓN CONFIGURABLE (WEBHOOK ESPECIAL) ===
     try {
-      const leadIdRes = await queryMain('SELECT id FROM "Lead" WHERE email = $1 LIMIT 1', [email]);
-      const leadId = leadIdRes.rows[0]?.id;
+      const leadId = actualLeadId || (await queryMain('SELECT id FROM "Lead" WHERE email = $1 LIMIT 1', [email])).rows[0]?.id;
 
       if (leadId) {
         const activeRulesRes = await queryMarketing(`
