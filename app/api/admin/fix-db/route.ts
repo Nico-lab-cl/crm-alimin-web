@@ -347,6 +347,22 @@ export async function GET() {
       } catch (err) {
         console.warn('Could not drop NOT NULL constraint on form_id:', err);
       }
+
+      // Ensure webhook_url column exists
+      const checkWebhookUrlCol = await queryMarketing(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'meta_automations' AND column_name = 'webhook_url'
+      `);
+      if (checkWebhookUrlCol.rows.length === 0) {
+        await queryMarketing(`
+          ALTER TABLE meta_automations 
+          ADD COLUMN webhook_url VARCHAR(1000)
+        `);
+        results.push("Added 'webhook_url' column to 'meta_automations'.");
+      } else {
+        results.push("'webhook_url' column already exists in 'meta_automations'.");
+      }
     }
 
     // 8. Debug info for Lead table columns and date range counts

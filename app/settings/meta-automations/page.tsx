@@ -24,6 +24,7 @@ interface AutomationRule {
   name: string;
   form_id?: string;
   segment_id?: string;
+  webhook_url?: string;
   campaign_ids: string[] | string;
   active: boolean;
   created_at: string;
@@ -43,6 +44,7 @@ export default function MetaAutomationsPage() {
   const [ruleName, setRuleName] = useState('');
   const [formId, setFormId] = useState('');
   const [segmentId, setSegmentId] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [ruleActive, setRuleActive] = useState(true);
   const [campaignSearch, setCampaignSearch] = useState('');
@@ -94,6 +96,7 @@ export default function MetaAutomationsPage() {
     setRuleName('');
     setFormId('');
     setSegmentId('');
+    setWebhookUrl('https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8');
     setSelectedCampaignIds([]);
     setRuleActive(true);
     setCampaignSearch('');
@@ -105,6 +108,7 @@ export default function MetaAutomationsPage() {
     setRuleName(rule.name);
     setFormId(rule.form_id || '');
     setSegmentId(rule.segment_id || '');
+    setWebhookUrl(rule.webhook_url || 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8');
     
     let ids: string[] = [];
     try {
@@ -137,6 +141,7 @@ export default function MetaAutomationsPage() {
       name: ruleName,
       form_id: formId || null,
       segment_id: segmentId || null,
+      webhook_url: webhookUrl || null,
       campaign_ids: selectedCampaignIds,
       active: ruleActive
     };
@@ -422,6 +427,9 @@ export default function MetaAutomationsPage() {
                             📱 FormID: {rule.form_id}
                           </code>
                         )}
+                        <p className="text-[10px] text-[#516f90] mt-1.5 font-mono max-w-[240px] truncate" title={rule.webhook_url || 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8'}>
+                          🔗 {rule.webhook_url ? rule.webhook_url : 'Webhook por Defecto'}
+                        </p>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -575,8 +583,23 @@ export default function MetaAutomationsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Webhook URL Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider block">
+                  Webhook URL de Destino
+                </label>
+                <input 
+                  type="url" 
+                  required
+                  placeholder="https://n8n.aliminlomasdelmar.com/webhook/..."
+                  className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-xl px-4 py-2.5 text-[#33475b] focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-xs font-mono font-medium transition-all"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                />
                 <p className="text-[10px] text-[#516f90]">
-                  Cualquier lead que califique con las reglas de esta lista (ahora y en el futuro) gatillará esta automatización.
+                  Dirección URL del webhook donde se despachará el JSON estructurado (Lead + Campañas).
                 </p>
               </div>
 

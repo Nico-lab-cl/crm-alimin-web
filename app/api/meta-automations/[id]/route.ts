@@ -15,7 +15,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const id = params.id;
     const body = await request.json();
-    const { name, form_id, segment_id, campaign_ids, active } = body;
+    const { name, form_id, segment_id, campaign_ids, active, webhook_url } = body;
 
     if (!name || (!form_id && !segment_id)) {
       return NextResponse.json(
@@ -40,21 +40,22 @@ export async function PUT(request: Request, { params }: RouteParams) {
     // 2. Perform the update
     const query = `
       UPDATE meta_automations
-      SET name = $1, form_id = $2, segment_id = $3, campaign_ids = $4, active = $5, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      SET name = $1, form_id = $2, segment_id = $3, campaign_ids = $4, active = $5, webhook_url = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
       RETURNING *
     `;
-    const queryParams = [name, form_id || null, segment_id || null, campaignIdsJson, isActive, id];
+    const queryParams = [name, form_id || null, segment_id || null, campaignIdsJson, isActive, webhook_url || null, id];
 
     const result = await queryMarketing(query, queryParams);
     const updatedRule = result.rows[0];
 
-    // 3. Trigger immediate dispatch if newly activated, segment changed or campaigns changed
+    // 3. Trigger immediate dispatch if newly activated, segment changed, campaigns changed or webhook changed
     const wasActivated = !oldRule.active && isActive;
     const segmentChanged = oldRule.segment_id !== segment_id;
     const campaignsChanged = JSON.stringify(oldRule.campaign_ids) !== campaignIdsJson;
+    const webhookUrlChanged = oldRule.webhook_url !== webhook_url;
 
-    if (isActive && (wasActivated || segmentChanged || campaignsChanged) && segment_id) {
+    if (isActive && (wasActivated || segmentChanged || campaignsChanged || webhookUrlChanged) && segment_id) {
       dispatchExistingLeads(updatedRule).catch(err => {
         console.error('[API meta-automations PUT] Failed to trigger background dispatch:', err);
       });

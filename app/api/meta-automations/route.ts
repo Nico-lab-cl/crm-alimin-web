@@ -25,7 +25,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, form_id, segment_id, campaign_ids, active } = body;
+    const { name, form_id, segment_id, campaign_ids, active, webhook_url } = body;
 
     if (!name || (!form_id && !segment_id)) {
       return NextResponse.json(
@@ -38,11 +38,11 @@ export async function POST(request: Request) {
     const isActive = active !== undefined ? active : true;
 
     const query = `
-      INSERT INTO meta_automations (name, form_id, segment_id, campaign_ids, active)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO meta_automations (name, form_id, segment_id, campaign_ids, active, webhook_url)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
-    const params = [name, form_id || null, segment_id || null, campaignIdsJson, isActive];
+    const params = [name, form_id || null, segment_id || null, campaignIdsJson, isActive, webhook_url || null];
 
     const result = await queryMarketing(query, params);
     const newRule = result.rows[0];

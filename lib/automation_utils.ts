@@ -303,7 +303,7 @@ export async function checkLeadMatchesSegment(leadId: string, segmentId: string)
 
 // Dispatches a single lead + campaigns to the special webhook and logs a notification
 export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any[]) {
-  const specialWebhookUrl = 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8';
+  const specialWebhookUrl = rule.webhook_url || 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8';
 
   const first = lead.firstname || lead.FirstName || '';
   const last = lead.lastname || lead.LastName || '';

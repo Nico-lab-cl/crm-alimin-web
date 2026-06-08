@@ -65,6 +65,7 @@ async function runMigration() {
           name VARCHAR(255) NOT NULL,
           form_id VARCHAR(255),
           segment_id VARCHAR(255),
+          webhook_url VARCHAR(1000),
           campaign_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
           active BOOLEAN DEFAULT TRUE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -76,6 +77,12 @@ async function runMigration() {
       await client.query(`
         ALTER TABLE meta_automations 
         ADD COLUMN IF NOT EXISTS segment_id VARCHAR(255)
+      `);
+
+      // Add webhook_url column if not exists
+      await client.query(`
+        ALTER TABLE meta_automations 
+        ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(1000)
       `);
 
       // 3. Drop NOT NULL constraint on form_id
