@@ -31,6 +31,7 @@ const navItems = [
     icon: Mail,
     subItems: [
       { name: 'Campañas', href: '/campaigns' },
+      { name: 'Reglas de Automatización', href: '/settings/meta-automations' },
       { name: 'Métricas de Campañas', href: '/campaigns/metrics' }
     ]
   },
@@ -60,7 +61,9 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isParentActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
+          const isParentActive = item.href === '/settings'
+            ? pathname === '/settings'
+            : (pathname === item.href || (item.subItems && (pathname.startsWith(item.href) || item.subItems.some(sub => pathname === sub.href))));
           
           if (item.subItems) {
             return (
