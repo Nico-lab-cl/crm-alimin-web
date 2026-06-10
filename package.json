@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@types/pg": "^8.18.0",
+    "@types/qrcode": "^1.5.6",
     "grapesjs": "^0.22.14",
     "grapesjs-mjml": "^1.0.8",
     "grapesjs-preset-webpage": "^1.0.3",
@@ -17,6 +18,7 @@
     "mjml-browser": "^4.18.0",
     "next": "14.2.23",
     "pg": "^8.20.0",
+    "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
     "react-email-editor": "^1.7.11"
