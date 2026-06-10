@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
 
   // Permitir acceso a las rutas de tracking y webhooks sin autenticación
   if (
+    pathname.startsWith('/q/') ||
     pathname.startsWith('/api/track') ||
     pathname.startsWith('/api/webhooks') ||
     pathname.startsWith('/api/leads/webhook') ||
