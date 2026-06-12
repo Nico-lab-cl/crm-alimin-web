@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
+import { ensureSchema } from '@/app/api/signatures/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export async function GET(
   const { id } = params;
 
   try {
+    await ensureSchema();
     // 1. Verificar si la firma existe
     const sigCheck = await queryMarketing(
       'SELECT name FROM email_signatures WHERE id = $1',

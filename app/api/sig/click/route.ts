@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
+import { ensureSchema } from '@/app/api/signatures/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,8 @@ function parseUserAgent(ua: string) {
 }
 
 export async function GET(request: Request) {
+  await ensureSchema();
+  
   const { searchParams } = new URL(request.url);
   const sigId = searchParams.get('sid');
   const element = searchParams.get('el') || 'unknown';

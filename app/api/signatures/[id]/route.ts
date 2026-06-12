@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
+import { ensureSchema } from '@/app/api/signatures/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export async function GET(
   const { id } = params;
 
   try {
+    await ensureSchema();
     const result = await queryMarketing(`
       SELECT 
         s.id, 
@@ -53,6 +55,7 @@ export async function PUT(
   const { id } = params;
 
   try {
+    await ensureSchema();
     const body = await request.json();
     const { name, personal_info, contact_info, social_links, styling, html_content, is_active } = body;
 
@@ -111,6 +114,7 @@ export async function DELETE(
   const { id } = params;
 
   try {
+    await ensureSchema();
     const result = await queryMarketing(
       'DELETE FROM email_signatures WHERE id = $1 RETURNING id',
       [id]
