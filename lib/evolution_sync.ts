@@ -251,9 +251,9 @@ function getAdvisorNameFromInstance(instanceName: string): string {
   
   const lower = instanceName.toLowerCase();
   
-  if (lower.includes('marcela')) return 'Marcela Espinoza';
-  if (lower.includes('orlando')) return 'Orlando Castillo';
-  if (lower.includes('barbara')) return 'Barbara'; // Asesor Bárbara
+  if (lower.includes('marcela')) return 'Marcela Escobar';
+  if (lower.includes('orlando')) return 'Orlando Costa';
+  if (lower.includes('barbara')) return 'Barbara Arias';
   if (lower.includes('claudia')) return 'Claudia Riquelme';
   
   // Si no hace match, capitalizar el nombre de la instancia
@@ -348,25 +348,46 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
     const uniqueJids = Array.from(new Set(res.rows.map(r => r.remote_jid)));
     const jidToLeadIdMap = new Map<string, string>();
 
-    // Buscar en la DB del CRM
+    // Buscar si ya existe una vinculación en los mensajes locales
+    if (uniqueJids.length > 0) {
+      try {
+        const localMappings = await queryMarketing(`
+          SELECT DISTINCT remote_jid, lead_id 
+          FROM whatsapp_messages 
+          WHERE remote_jid = ANY($1) AND lead_id IS NOT NULL
+        `, [uniqueJids]);
+
+        for (const row of localMappings.rows) {
+          jidToLeadIdMap.set(row.remote_jid, row.lead_id);
+        }
+      } catch (e) {
+        console.warn('Error reading local JID mappings:', e);
+      }
+    }
+
+    // Para los JIDs que no tienen mapeo en whatsapp_messages, buscar en la DB del CRM
     for (const remoteJid of uniqueJids) {
-      // Limpiar JID para obtener solo dígitos
+      if (jidToLeadIdMap.has(remoteJid)) continue;
+
       const phoneDigits = remoteJid.split('@')[0].replace(/\D/g, '');
       if (phoneDigits) {
-        // Ejecutar búsqueda por teléfono limpia
-        // Busca si el teléfono del lead termina con el número de WhatsApp (para ignorar código de país opcional)
-        // O si el número de WhatsApp contiene el teléfono limpio.
-        const matchRes = await queryMain(`
-          SELECT id FROM "Lead" 
-          WHERE "phone" IS NOT NULL AND (
-            REGEXP_REPLACE("phone", '[^0-9]', '', 'g') = $1
-            OR $1 LIKE '%' || REGEXP_REPLACE("phone", '[^0-9]', '', 'g')
-          )
-          LIMIT 1
-        `, [phoneDigits]);
+        try {
+          const matchRes = await queryMain(`
+            SELECT id FROM "Lead" 
+            WHERE "phone" IS NOT NULL 
+              AND LENGTH(REGEXP_REPLACE("phone", '[^0-9]', '', 'g')) >= 7
+              AND (
+                REGEXP_REPLACE("phone", '[^0-9]', '', 'g') = $1
+                OR $1 LIKE '%' || REGEXP_REPLACE("phone", '[^0-9]', '', 'g')
+              )
+            LIMIT 1
+          `, [phoneDigits]);
 
-        if (matchRes.rows.length > 0) {
-          jidToLeadIdMap.set(remoteJid, matchRes.rows[0].id);
+          if (matchRes.rows.length > 0) {
+            jidToLeadIdMap.set(remoteJid, matchRes.rows[0].id);
+          }
+        } catch (e) {
+          console.warn(`Error querying lead for phone ${phoneDigits}:`, e);
         }
       }
     }
@@ -443,10 +464,12 @@ export async function retroactiveLinkLeads() {
         // Buscar un lead con este teléfono limpio en la DB principal
         const matchRes = await queryMain(`
           SELECT id FROM "Lead" 
-          WHERE "phone" IS NOT NULL AND (
-            REGEXP_REPLACE("phone", '[^0-9]', '', 'g') = $1
-            OR $1 LIKE '%' || REGEXP_REPLACE("phone", '[^0-9]', '', 'g')
-          )
+          WHERE "phone" IS NOT NULL 
+            AND LENGTH(REGEXP_REPLACE("phone", '[^0-9]', '', 'g')) >= 7
+            AND (
+              REGEXP_REPLACE("phone", '[^0-9]', '', 'g') = $1
+              OR $1 LIKE '%' || REGEXP_REPLACE("phone", '[^0-9]', '', 'g')
+            )
           LIMIT 1
         `, [phoneDigits]);
 

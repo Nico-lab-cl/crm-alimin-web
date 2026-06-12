@@ -72,14 +72,16 @@ export async function GET() {
       let leadName = null;
       let email = null;
       let leadPhone = null;
+      let leadAdvisorName = null;
       const phone = chat.remote_jid.split('@')[0].replace(/\D/g, '');
 
       if (chat.lead_id) {
         try {
           const leadRes = await queryMain(`
-            SELECT * 
-            FROM "Lead" 
-            WHERE id = $1
+            SELECT l.*, u.name as "assignedAdvisor"
+            FROM "Lead" l
+            LEFT JOIN "User" u ON l."assignedToId" = u.id
+            WHERE l.id = $1
           `, [chat.lead_id]);
 
           if (leadRes.rows.length > 0) {
@@ -89,6 +91,7 @@ export async function GET() {
             leadName = `${first} ${last}`.trim();
             email = row.email || row.Email || null;
             leadPhone = row.phone || row.Phone || null;
+            leadAdvisorName = row.assignedAdvisor || null;
           }
         } catch (e) {
           console.warn(`Error al consultar datos de Lead para ID ${chat.lead_id}:`, (e as Error).message);
@@ -108,7 +111,7 @@ export async function GET() {
         body: chat.body,
         timestamp: chat.timestamp,
         from_me: chat.from_me,
-        advisor_name: chat.advisor_name,
+        advisor_name: leadAdvisorName || chat.advisor_name || 'WhatsApp Sistema',
         is_crm_contact: !!chat.lead_id
       });
     }
@@ -126,6 +129,30 @@ export async function GET() {
     console.error('Error in GET /api/contacts/whatsapp/chats:', error);
     return NextResponse.json(
       { success: false, message: 'Error interno al listar chats', error: (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { remote_jid, lead_id } = await request.json();
+
+    if (!remote_jid || !lead_id) {
+      return NextResponse.json({ success: false, message: 'Falta JID o ID del Lead' }, { status: 400 });
+    }
+
+    await queryMarketing(`
+      UPDATE whatsapp_messages 
+      SET lead_id = $1 
+      WHERE remote_jid = $2
+    `, [lead_id, remote_jid]);
+
+    return NextResponse.json({ success: true, message: 'Conversación vinculada correctamente' });
+  } catch (error) {
+    console.error('Error in POST /api/contacts/whatsapp/chats:', error);
+    return NextResponse.json(
+      { success: false, message: 'Error al vincular conversación', error: (error as Error).message },
       { status: 500 }
     );
   }

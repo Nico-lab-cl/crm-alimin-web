@@ -74,6 +74,7 @@ export default function WhatsAppInboxPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [advisors, setAdvisors] = useState<Array<{ id: string; name: string }>>([]);
 
   // Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -87,7 +88,22 @@ export default function WhatsAppInboxPage() {
     status: 'Nuevo',
     source: 'WhatsApp',
     project: '',
+    phone: '',
   });
+
+  const handleOpenCreateModal = () => {
+    if (!selectedChat) return;
+    setCreateFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      status: 'Nuevo',
+      source: 'WhatsApp',
+      project: '',
+      phone: `+${selectedChat.phone}`
+    });
+    setIsCreateModalOpen(true);
+  };
   const [createLoading, setCreateLoading] = useState(false);
 
   // Búsqueda para Vincular Contacto
@@ -128,6 +144,22 @@ export default function WhatsAppInboxPage() {
     } finally {
       if (showSpinner) setLoadingMessages(false);
     }
+  }, []);
+
+  // Cargar asesores al iniciar
+  useEffect(() => {
+    async function loadAdvisors() {
+      try {
+        const res = await fetch('/api/advisors');
+        if (res.ok) {
+          const data = await res.json();
+          setAdvisors(data.advisors || []);
+        }
+      } catch (e) {
+        console.error('Error loading advisors:', e);
+      }
+    }
+    loadAdvisors();
   }, []);
 
   // Cargar chats al iniciar
@@ -211,22 +243,31 @@ export default function WhatsAppInboxPage() {
       const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...createFormData,
-          phone: `+${selectedChat.phone}`
-        })
+        body: JSON.stringify(createFormData)
       });
 
       if (res.ok) {
         const data = await res.json();
+
+        // Vincular el JID al lead recién creado
+        await fetch('/api/contacts/whatsapp/chats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            remote_jid: selectedChat.remote_jid,
+            lead_id: data.lead.id
+          })
+        });
+
         alert('Contacto creado y chat vinculado con éxito.');
         setIsCreateModalOpen(false);
         // Actualizar chat activo y lista
         const updatedChat = { 
           ...selectedChat, 
           lead_id: data.lead.id,
-          lead_name: `${data.lead.FirstName || ''} ${data.lead.LastName || ''}`.trim() || selectedChat.lead_name,
-          email: data.lead.Email || null,
+          lead_name: `${data.lead.FirstName || data.lead.firstName || ''} ${data.lead.LastName || data.lead.lastName || ''}`.trim() || selectedChat.lead_name,
+          email: data.lead.Email || data.lead.email || null,
+          phone: createFormData.phone.replace(/\D/g, '') || selectedChat.phone,
           is_crm_contact: true
         };
         setSelectedChat(updatedChat);
@@ -246,29 +287,39 @@ export default function WhatsAppInboxPage() {
   // Vincular a lead existente
   const handleLinkLead = async (leadId: string) => {
     if (!selectedChat) return;
-    if (!confirm('¿Estás seguro de vincular este chat de WhatsApp a este contacto? El teléfono del contacto se actualizará con el número de este chat.')) return;
+    if (!confirm('¿Estás seguro de vincular este chat de WhatsApp a este contacto?')) return;
     
     setLinkLoading(true);
     try {
-      // Actualizar el teléfono del lead existente al teléfono del chat
-      const res = await fetch(`/api/leads/${leadId}`, {
-        method: 'PATCH',
+      // Vincular el JID al lead en la tabla whatsapp_messages
+      const res = await fetch('/api/contacts/whatsapp/chats', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: `+${selectedChat.phone}`
+          remote_jid: selectedChat.remote_jid,
+          lead_id: leadId
         })
       });
 
       if (res.ok) {
-        const data = await res.json();
         alert('WhatsApp vinculado con éxito.');
         setIsLinkModalOpen(false);
+
+        // Obtener datos actualizados del lead para mostrar el nombre real en el chat
+        const leadRes = await fetch(`/api/leads/${leadId}`);
+        let leadData = null;
+        if (leadRes.ok) {
+          const data = await leadRes.json();
+          leadData = data.lead;
+        }
+
         // Actualizar chat activo y lista
         const updatedChat = { 
           ...selectedChat, 
-          lead_id: data.lead.id,
-          lead_name: `${data.lead.FirstName || ''} ${data.lead.LastName || ''}`.trim() || selectedChat.lead_name,
-          email: data.lead.Email || null,
+          lead_id: leadId,
+          lead_name: leadData ? `${leadData.FirstName || leadData.firstName || ''} ${leadData.LastName || leadData.lastName || ''}`.trim() : selectedChat.lead_name,
+          email: leadData ? (leadData.Email || leadData.email || null) : null,
+          phone: leadData ? (leadData.Phone || leadData.phone || selectedChat.phone).replace(/\D/g, '') : selectedChat.phone,
           is_crm_contact: true
         };
         setSelectedChat(updatedChat);
@@ -285,8 +336,11 @@ export default function WhatsAppInboxPage() {
     }
   };
 
-  // Obtener lista única de asesores presentes en los chats
-  const advisorsList = Array.from(new Set(chats.map(c => c.advisor_name).filter(Boolean)));
+  // Obtener lista única de asesores presentes en los chats y en el CRM
+  const advisorsList = Array.from(new Set([
+    ...advisors.map(a => a.name),
+    ...chats.map(c => c.advisor_name).filter(Boolean)
+  ]));
 
   // Filtrar conversaciones de la izquierda
   const filteredChats = chats.filter(c => {
@@ -484,6 +538,12 @@ export default function WhatsAppInboxPage() {
                         </span>
                       </div>
                       
+                      {/* Teléfono */}
+                      <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                        <Phone className="w-2.5 h-2.5 text-[#516f90]" />
+                        <span>+{c.phone}</span>
+                      </div>
+                      
                       {/* Estado CRM / Badge */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
@@ -553,7 +613,7 @@ export default function WhatsAppInboxPage() {
                   {!selectedChat.is_crm_contact && (
                     <>
                       <button
-                        onClick={() => setIsCreateModalOpen(true)}
+                        onClick={handleOpenCreateModal}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2d544c] hover:bg-[#1f3a35] text-white text-xs font-bold rounded-lg transition-all shadow-sm"
                         title="Crear un nuevo contacto en el CRM con este teléfono"
                       >
@@ -678,10 +738,14 @@ export default function WhatsAppInboxPage() {
             {/* Modal Form */}
             <form onSubmit={handleCreateContactSubmit} className="p-5 space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Número de Teléfono (Prellenado)</label>
-                <div className="py-2 px-3 bg-slate-100 border border-slate-200 rounded text-xs text-slate-600 font-bold font-mono">
-                  +{selectedChat.phone}
-                </div>
+                <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Número de Teléfono</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={createFormData.phone}
+                  onChange={(e) => setCreateFormData({ ...createFormData, phone: e.target.value })}
+                  className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-xs text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none font-bold font-mono"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

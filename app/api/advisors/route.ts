@@ -10,7 +10,7 @@ export async function GET() {
 
     try {
       // Intentar obtener usuarios de la tabla "User" de la base de datos principal
-      const res = await queryMain('SELECT id, name, email FROM "User" ORDER BY name ASC');
+      const res = await queryMain('SELECT id, name FROM "User" ORDER BY name ASC');
       advisors = res.rows;
       dbConnected = true;
     } catch (e) {

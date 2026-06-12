@@ -46,37 +46,45 @@ export async function GET(
       });
     }
 
-    // 2. Obtener los datos del lead en el CRM (principalmente el teléfono)
+    // 2. Obtener los datos del lead en el CRM (teléfono y JID guardado localmente si existe)
     let phone = '';
     let jid = '';
     
     try {
+      // Intentar encontrar el remote_jid existente de los mensajes locales para este lead
+      const jidRes = await queryMarketing('SELECT remote_jid FROM whatsapp_messages WHERE lead_id = $1 LIMIT 1', [id]);
+      if (jidRes.rows.length > 0) {
+        jid = jidRes.rows[0].remote_jid;
+      }
+
       const leadRes = await queryMain('SELECT * FROM "Lead" WHERE id = $1', [id]);
       if (leadRes.rows.length > 0) {
         const lead = leadRes.rows[0];
         phone = lead.Phone || lead.phone || '';
+        
+        if (!jid && phone) {
+          const cleanPhone = phone.replace(/\D/g, '');
+          if (cleanPhone) {
+            // En WhatsApp los JIDs individuales terminan en @s.whatsapp.net
+            jid = `${cleanPhone}@s.whatsapp.net`;
+          }
+        }
       }
     } catch (e) {
-      console.warn(`[WhatsApp API] No se pudo obtener el teléfono del lead ${id}:`, (e as Error).message);
+      console.warn(`[WhatsApp API] No se pudo obtener el teléfono o JID del lead ${id}:`, (e as Error).message);
     }
 
-    // 2. Si el lead tiene teléfono, intentar sincronizar de forma incremental para este JID
-    if (phone) {
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone) {
-        // En WhatsApp los JIDs individuales terminan en @s.whatsapp.net
-        jid = `${cleanPhone}@s.whatsapp.net`;
-        
-        try {
-          console.log(`[WhatsApp API] Sincronizando por demanda para JID: ${jid}...`);
-          // Sincronizar mensajes de este JID
-          // Buscamos hacia atrás hasta 30 días para asegurarnos de traer chats si es el primer acceso,
-          // pero el motor es incremental (si ya hay mensajes, solo descarga lo nuevo).
-          await syncEvolutionChats(jid, 720); // 720 horas = 30 días
-        } catch (e) {
-          // Si el VPS o la DB externa no está disponible, informamos en consola pero no fallamos la petición
-          console.warn(`[WhatsApp API] Falló la conexión/sync con Evolution DB. Mostrando datos offline del CRM:`, (e as Error).message);
-        }
+    // 2. Intentar sincronizar de forma incremental para este JID
+    if (jid) {
+      try {
+        console.log(`[WhatsApp API] Sincronizando por demanda para JID: ${jid}...`);
+        // Sincronizar mensajes de este JID
+        // Buscamos hacia atrás hasta 30 días para asegurarnos de traer chats si es el primer acceso,
+        // pero el motor es incremental (si ya hay mensajes, solo descarga lo nuevo).
+        await syncEvolutionChats(jid, 720); // 720 horas = 30 días
+      } catch (e) {
+        // Si el VPS o la DB externa no está disponible, informamos en consola pero no fallamos la petición
+        console.warn(`[WhatsApp API] Falló la conexión/sync con Evolution DB. Mostrando datos offline del CRM:`, (e as Error).message);
       }
     }
 
