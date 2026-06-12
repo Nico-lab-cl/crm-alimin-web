@@ -268,22 +268,37 @@ async function getAdvisorInstancesMap(pool: Pool): Promise<Map<string, string>> 
 }
 
 /**
- * Vincula un nombre de instancia de WhatsApp con el nombre del asesor en el CRM de forma inteligente.
+ * Normaliza cualquier variante de nombre de asesor al formato oficial.
  */
-function getAdvisorNameFromInstance(instanceName: string): string {
-  if (!instanceName) return 'WhatsApp Sistema';
+export function normalizeAdvisorName(name: string | null): string {
+  if (!name) return 'WhatsApp Sistema';
   
-  const lower = instanceName.toLowerCase();
+  const lower = name.toLowerCase().trim();
   
   if (lower.includes('marcela')) return 'Marcela Escobar';
   if (lower.includes('orlando')) return 'Orlando Costa';
   if (lower.includes('barbara')) return 'Barbara Arias';
   if (lower.includes('claudia')) return 'Claudia Riquelme';
   
-  // Si no hace match, capitalizar el nombre de la instancia
-  return instanceName.charAt(0).toUpperCase() + instanceName.slice(1);
+  // Si es un string vacío o sistema
+  if (lower === '' || lower.includes('sistema')) return 'WhatsApp Sistema';
+  
+  // Si no hace match, capitalizar la primera letra
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+/**
+ * Vincula un nombre de instancia de WhatsApp con el nombre del asesor en el CRM de forma inteligente.
+ */
+function getAdvisorNameFromInstance(instanceName: string): string {
+  return normalizeAdvisorName(instanceName);
+}
+
+/**
+ * Realiza la sincronización de mensajes de WhatsApp desde Evolution API hacia el CRM.
+ * @param jid Opcional. Si se pasa, solo sincroniza los mensajes de este JID/contacto específico.
+ * @param hoursBack Opcional. Rango de tiempo hacia atrás a sincronizar.
+ */
 /**
  * Realiza la sincronización de mensajes de WhatsApp desde Evolution API hacia el CRM.
  * @param jid Opcional. Si se pasa, solo sincroniza los mensajes de este JID/contacto específico.
@@ -317,171 +332,189 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
     const instancesMap = await getAdvisorInstancesMap(pool);
     console.log('✓ Instancias encontradas en Evolution API:', Array.from(instancesMap.entries()));
 
-    // 3. Determinar punto de inicio (sincronización incremental)
-    let sinceTimestamp: Date | null = null;
-    
-    if (hoursBack) {
+    const isBigIntType = await checkIsBigIntColumn(client, schema.tableName, schema.timestampCol);
+    let totalSynced = 0;
+
+    // Caso 1: Sincronización de un contacto (JID) específico por demanda
+    if (jid) {
+      let sinceTimestamp: Date | null = null;
       let lastMsgForJid: Date | null = null;
-      if (jid) {
-        // Optimización: si ya tenemos mensajes locales para este jid, sincronizamos solo desde el último
-        const lastLocalRes = await queryMarketing(`
-          SELECT timestamp FROM whatsapp_messages 
-          WHERE remote_jid = $1 OR remote_jid = $2
-          ORDER BY timestamp DESC LIMIT 1
-        `, [jid, jid.replace('@s.whatsapp.net', '@lid')]);
-        
-        if (lastLocalRes.rows.length > 0) {
-          lastMsgForJid = new Date(lastLocalRes.rows[0].timestamp);
-        }
+      
+      const lastLocalRes = await queryMarketing(`
+        SELECT timestamp FROM whatsapp_messages 
+        WHERE remote_jid = $1 OR remote_jid = $2
+        ORDER BY timestamp DESC LIMIT 1
+      `, [jid, jid.replace('@s.whatsapp.net', '@lid')]);
+      
+      if (lastLocalRes.rows.length > 0) {
+        lastMsgForJid = new Date(lastLocalRes.rows[0].timestamp);
       }
 
       if (lastMsgForJid) {
         // Sincronizar desde el último mensaje local menos 1 hora por seguridad
         sinceTimestamp = new Date(lastMsgForJid.getTime() - 60 * 60 * 1000);
-      } else {
+      } else if (hoursBack) {
         sinceTimestamp = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
       }
-    } else {
-      // Buscar la fecha del último mensaje sincronizado en nuestro CRM
-      const lastMsgRes = await queryMarketing(`
-        SELECT timestamp FROM whatsapp_messages 
-        ORDER BY timestamp DESC LIMIT 1
-      `);
-      if (lastMsgRes.rows.length > 0) {
-        sinceTimestamp = new Date(lastMsgRes.rows[0].timestamp);
-      }
-    }
 
-    // 4. Construir consulta en Evolution DB
-    const selectClauses = ['1=1'];
-    const queryParams: unknown[] = [];
+      const selectClauses = ['1=1'];
+      const queryParams: unknown[] = [];
 
-    if (jid) {
       queryParams.push(jid);
       if (schema.hasKeyCol) {
         selectClauses.push(`("key"->>'remoteJid' = $${queryParams.length} OR "key"->>'remoteJidAlt' = $${queryParams.length})`);
       } else {
         selectClauses.push(`${escapeIdentifier(schema.jidCol)} = $${queryParams.length}`);
       }
-    }
 
-    if (sinceTimestamp) {
-      queryParams.push(sinceTimestamp);
-      // Para bases de datos donde timestampCol sea BigInt (Unix seconds), convertimos el Date a segundos
-      const isBigIntType = await checkIsBigIntColumn(client, schema.tableName, schema.timestampCol);
-      if (isBigIntType) {
-        const secs = Math.floor(sinceTimestamp.getTime() / 1000);
-        queryParams[queryParams.length - 1] = secs;
-        selectClauses.push(`${escapeIdentifier(schema.timestampCol)} > $${queryParams.length}`);
-      } else {
-        selectClauses.push(`${escapeIdentifier(schema.timestampCol)} > $${queryParams.length}`);
-      }
-    }
-
-    // Limitar para evitar cargas masivas gigantescas por solicitud
-    const limit = jid ? 500 : 2000;
-    const queryText = `
-      SELECT 
-        ${escapeIdentifier(schema.idCol)} as id,
-        ${escapeIdentifier(schema.jidCol)} as remote_jid,
-        ${escapeIdentifier(schema.fromMeCol)} as from_me,
-        ${escapeIdentifier(schema.contentCol)} as content,
-        ${escapeIdentifier(schema.timestampCol)} as raw_timestamp,
-        ${escapeIdentifier(schema.instanceCol)} as instance_id,
-        ${schema.pushNameCol ? escapeIdentifier(schema.pushNameCol) : 'NULL'} as push_name
-      FROM "${schema.tableName}"
-      WHERE ${selectClauses.join(' AND ')}
-      ORDER BY ${escapeIdentifier(schema.timestampCol)} DESC
-      LIMIT ${limit}
-    `;
-
-    console.log(`Ejecutando consulta en Evolution DB: ${queryText} con parámetros ${queryParams}`);
-    const res = await client.query(queryText, queryParams);
-    console.log(`Se encontraron ${res.rows.length} mensajes para sincronizar.`);
-
-    if (res.rows.length === 0) {
-      return { syncedCount: 0 };
-    }
-
-    // Reversar las filas para que se procesen/inserten en orden cronológico (ASC)
-    const rows = [...res.rows].reverse();
-
-    // 5. Mapear JIDs a Lead IDs del CRM
-    // Para hacerlo rápido, primero extraemos todos los JIDs únicos de los mensajes recuperados
-    const uniqueJids = Array.from(new Set(rows.map(r => r.remote_jid)));
-    const jidToLeadIdMap = new Map<string, string>();
-
-    // Buscar si ya existe una vinculación en los mensajes locales
-    if (uniqueJids.length > 0) {
-      try {
-        const localMappings = await queryMarketing(`
-          SELECT DISTINCT remote_jid, lead_id 
-          FROM whatsapp_messages 
-          WHERE remote_jid = ANY($1) AND lead_id IS NOT NULL
-        `, [uniqueJids]);
-
-        for (const row of localMappings.rows) {
-          jidToLeadIdMap.set(row.remote_jid, row.lead_id);
+      if (sinceTimestamp) {
+        queryParams.push(sinceTimestamp);
+        if (isBigIntType) {
+          const secs = Math.floor(sinceTimestamp.getTime() / 1000);
+          queryParams[queryParams.length - 1] = secs;
         }
-      } catch (e) {
-        console.warn('Error reading local JID mappings:', e);
+        selectClauses.push(`${escapeIdentifier(schema.timestampCol)} > $${queryParams.length}`);
       }
-    }
 
-    // Para los JIDs que no tienen mapeo en whatsapp_messages, buscar en la DB del CRM de forma masiva
-    const unmappedJids = uniqueJids.filter(jid => !jidToLeadIdMap.has(jid));
-    if (unmappedJids.length > 0) {
-      try {
-        const leadsRes = await queryMain(`
-          SELECT id, phone FROM "Lead" 
-          WHERE phone IS NOT NULL 
-            AND LENGTH(REGEXP_REPLACE(phone, '[^0-9]', '', 'g')) >= 7
-        `);
+      const queryText = `
+        SELECT 
+          ${escapeIdentifier(schema.idCol)} as id,
+          ${escapeIdentifier(schema.jidCol)} as remote_jid,
+          ${escapeIdentifier(schema.fromMeCol)} as from_me,
+          ${escapeIdentifier(schema.contentCol)} as content,
+          ${escapeIdentifier(schema.timestampCol)} as raw_timestamp,
+          ${escapeIdentifier(schema.instanceCol)} as instance_id,
+          ${schema.pushNameCol ? escapeIdentifier(schema.pushNameCol) : 'NULL'} as push_name
+        FROM "${schema.tableName}"
+        WHERE ${selectClauses.join(' AND ')}
+        ORDER BY ${escapeIdentifier(schema.timestampCol)} DESC
+        LIMIT 500
+      `;
 
-        for (const lead of leadsRes.rows) {
-          const cleanLeadPhone = lead.phone.replace(/\D/g, '');
-          for (const jid of unmappedJids) {
-            if (jidToLeadIdMap.has(jid)) continue;
-            
-            const jidPhone = jid.split('@')[0].replace(/\D/g, '');
-            if (cleanLeadPhone && jidPhone && (cleanLeadPhone === jidPhone || jidPhone.endsWith(cleanLeadPhone))) {
-              jidToLeadIdMap.set(jid, lead.id);
-            }
+      console.log(`[Sync JID ${jid}] Ejecutando consulta en Evolution DB: ${queryText} con parámetros ${queryParams}`);
+      const res = await client.query(queryText, queryParams);
+      console.log(`[Sync JID ${jid}] Se encontraron ${res.rows.length} mensajes.`);
+
+      if (res.rows.length > 0) {
+        totalSynced = await processAndInsertMessages(res.rows, instancesMap);
+      }
+    } 
+    // Caso 2: Sincronización general (sin JID). Iteramos por cada instancia para evitar hambruna.
+    else if (instancesMap.size > 0) {
+      for (const [instanceId, instanceName] of instancesMap.entries()) {
+        let sinceTimestamp: Date | null = null;
+        
+        if (hoursBack) {
+          sinceTimestamp = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+        } else {
+          // Buscar el último mensaje de esta instancia en nuestra DB local
+          const lastMsgRes = await queryMarketing(`
+            SELECT timestamp FROM whatsapp_messages 
+            WHERE instance_id = $1
+            ORDER BY timestamp DESC LIMIT 1
+          `, [instanceId]);
+          
+          if (lastMsgRes.rows.length > 0) {
+            sinceTimestamp = new Date(lastMsgRes.rows[0].timestamp);
+          } else {
+            // Si nunca se ha sincronizado esta instancia, por defecto sincronizamos los últimos 30 días
+            sinceTimestamp = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
           }
         }
-      } catch (e) {
-        console.warn('Error in batch lead matching during sync:', e);
+
+        const selectClauses = ['1=1'];
+        const queryParams: unknown[] = [];
+
+        queryParams.push(instanceId);
+        selectClauses.push(`${escapeIdentifier(schema.instanceCol)} = $${queryParams.length}`);
+
+        if (sinceTimestamp) {
+          queryParams.push(sinceTimestamp);
+          if (isBigIntType) {
+            const secs = Math.floor(sinceTimestamp.getTime() / 1000);
+            queryParams[queryParams.length - 1] = secs;
+          }
+          selectClauses.push(`${escapeIdentifier(schema.timestampCol)} > $${queryParams.length}`);
+        }
+
+        // Límite de 1000 mensajes por instancia para no saturar
+        const queryText = `
+          SELECT 
+            ${escapeIdentifier(schema.idCol)} as id,
+            ${escapeIdentifier(schema.jidCol)} as remote_jid,
+            ${escapeIdentifier(schema.fromMeCol)} as from_me,
+            ${escapeIdentifier(schema.contentCol)} as content,
+            ${escapeIdentifier(schema.timestampCol)} as raw_timestamp,
+            ${escapeIdentifier(schema.instanceCol)} as instance_id,
+            ${schema.pushNameCol ? escapeIdentifier(schema.pushNameCol) : 'NULL'} as push_name
+          FROM "${schema.tableName}"
+          WHERE ${selectClauses.join(' AND ')}
+          ORDER BY ${escapeIdentifier(schema.timestampCol)} DESC
+          LIMIT 1000
+        `;
+
+        console.log(`[Sync Instance ${instanceName}] Consultando Evolution DB: ${queryText} con parámetros ${queryParams}`);
+        const res = await client.query(queryText, queryParams);
+        console.log(`[Sync Instance ${instanceName}] Se encontraron ${res.rows.length} mensajes.`);
+
+        if (res.rows.length > 0) {
+          const syncedCount = await processAndInsertMessages(res.rows, instancesMap);
+          totalSynced += syncedCount;
+        }
+      }
+    } 
+    // Caso 3: Fallback global si no hay mapa de instancias
+    else {
+      let sinceTimestamp: Date | null = null;
+      if (hoursBack) {
+        sinceTimestamp = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+      } else {
+        const lastMsgRes = await queryMarketing(`
+          SELECT timestamp FROM whatsapp_messages 
+          ORDER BY timestamp DESC LIMIT 1
+        `);
+        if (lastMsgRes.rows.length > 0) {
+          sinceTimestamp = new Date(lastMsgRes.rows[0].timestamp);
+        }
+      }
+
+      const selectClauses = ['1=1'];
+      const queryParams: unknown[] = [];
+
+      if (sinceTimestamp) {
+        queryParams.push(sinceTimestamp);
+        if (isBigIntType) {
+          const secs = Math.floor(sinceTimestamp.getTime() / 1000);
+          queryParams[queryParams.length - 1] = secs;
+        }
+        selectClauses.push(`${escapeIdentifier(schema.timestampCol)} > $${queryParams.length}`);
+      }
+
+      const queryText = `
+        SELECT 
+          ${escapeIdentifier(schema.idCol)} as id,
+          ${escapeIdentifier(schema.jidCol)} as remote_jid,
+          ${escapeIdentifier(schema.fromMeCol)} as from_me,
+          ${escapeIdentifier(schema.contentCol)} as content,
+          ${escapeIdentifier(schema.timestampCol)} as raw_timestamp,
+          ${escapeIdentifier(schema.instanceCol)} as instance_id,
+          ${schema.pushNameCol ? escapeIdentifier(schema.pushNameCol) : 'NULL'} as push_name
+        FROM "${schema.tableName}"
+        WHERE ${selectClauses.join(' AND ')}
+        ORDER BY ${escapeIdentifier(schema.timestampCol)} DESC
+        LIMIT 2000
+      `;
+
+      console.log(`[Sync Fallback Global] Consultando Evolution DB: ${queryText}`);
+      const res = await client.query(queryText, queryParams);
+      console.log(`[Sync Fallback Global] Se encontraron ${res.rows.length} mensajes.`);
+
+      if (res.rows.length > 0) {
+        totalSynced = await processAndInsertMessages(res.rows, instancesMap);
       }
     }
 
-    // 6. Insertar los mensajes en el CRM
-    let insertedCount = 0;
-    for (const row of rows) {
-      const messageId = row.id;
-      const leadId = jidToLeadIdMap.get(row.remote_jid) || null;
-      const fromMe = Boolean(row.from_me);
-      const body = extractMessageBody(row.content);
-      const timestamp = parseEvolutionTimestamp(row.raw_timestamp);
-      const instanceId = row.instance_id;
-      
-      const instanceName = instancesMap.get(instanceId) || instanceId;
-      const advisorName = getAdvisorNameFromInstance(instanceName);
-
-      try {
-        await queryMarketing(`
-          INSERT INTO whatsapp_messages 
-            (message_id, lead_id, remote_jid, from_me, body, timestamp, instance_id, advisor_name, push_name)
-          VALUES 
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          ON CONFLICT (message_id) DO UPDATE SET push_name = EXCLUDED.push_name
-        `, [messageId, leadId, row.remote_jid, fromMe, body, timestamp, instanceId, advisorName, row.push_name]);
-        insertedCount++;
-      } catch (err) {
-        console.error(`Error al insertar mensaje ${messageId}:`, err);
-      }
-    }
-
-    console.log(`Sincronización completada. Se insertaron ${insertedCount} mensajes en la base de datos local.`);
+    console.log(`Sincronización completada. Total insertados: ${totalSynced} mensajes.`);
     
     // Ejecutar migración de LIDs históricos a JIDs reales
     try {
@@ -493,7 +526,7 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
     // Ejecutar vinculación retroactiva para enlazar chats huérfanos con nuevos contactos creados
     await retroactiveLinkLeads();
 
-    return { syncedCount: insertedCount };
+    return { syncedCount: totalSynced };
 
   } catch (error) {
     console.error('Error durante la sincronización de Evolution API:', error);
@@ -501,6 +534,87 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Procesa las filas devueltas por la base de datos de Evolution API, resuelve JID -> Lead ID e inserta.
+ */
+async function processAndInsertMessages(rows: any[], instancesMap: Map<string, string>): Promise<number> {
+  const reversedRows = [...rows].reverse();
+  const uniqueJids = Array.from(new Set(reversedRows.map(r => r.remote_jid)));
+  const jidToLeadIdMap = new Map<string, string>();
+
+  // Buscar si ya existe una vinculación en los mensajes locales
+  if (uniqueJids.length > 0) {
+    try {
+      const localMappings = await queryMarketing(`
+        SELECT DISTINCT remote_jid, lead_id 
+        FROM whatsapp_messages 
+        WHERE remote_jid = ANY($1) AND lead_id IS NOT NULL
+      `, [uniqueJids]);
+
+      for (const row of localMappings.rows) {
+        jidToLeadIdMap.set(row.remote_jid, row.lead_id);
+      }
+    } catch (e) {
+      console.warn('Error reading local JID mappings:', e);
+    }
+  }
+
+  // Para los JIDs que no tienen mapeo, buscar en la DB del CRM
+  const unmappedJids = uniqueJids.filter(jid => !jidToLeadIdMap.has(jid));
+  if (unmappedJids.length > 0) {
+    try {
+      const leadsRes = await queryMain(`
+        SELECT id, phone FROM "Lead" 
+        WHERE phone IS NOT NULL 
+          AND LENGTH(REGEXP_REPLACE(phone, '[^0-9]', '', 'g')) >= 7
+      `);
+
+      for (const lead of leadsRes.rows) {
+        const cleanLeadPhone = lead.phone.replace(/\D/g, '');
+        for (const jid of unmappedJids) {
+          if (jidToLeadIdMap.has(jid)) continue;
+          
+          const jidPhone = jid.split('@')[0].replace(/\D/g, '');
+          if (cleanLeadPhone && jidPhone && (cleanLeadPhone === jidPhone || jidPhone.endsWith(cleanLeadPhone))) {
+            jidToLeadIdMap.set(jid, lead.id);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error in batch lead matching during sync:', e);
+    }
+  }
+
+  // Insertar los mensajes en el CRM
+  let insertedCount = 0;
+  for (const row of reversedRows) {
+    const messageId = row.id;
+    const leadId = jidToLeadIdMap.get(row.remote_jid) || null;
+    const fromMe = Boolean(row.from_me);
+    const body = extractMessageBody(row.content);
+    const timestamp = parseEvolutionTimestamp(row.raw_timestamp);
+    const instanceId = row.instance_id;
+    
+    const instanceName = instancesMap.get(instanceId) || instanceId;
+    const advisorName = getAdvisorNameFromInstance(instanceName);
+
+    try {
+      await queryMarketing(`
+        INSERT INTO whatsapp_messages 
+          (message_id, lead_id, remote_jid, from_me, body, timestamp, instance_id, advisor_name, push_name)
+        VALUES 
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (message_id) DO UPDATE SET push_name = EXCLUDED.push_name
+      `, [messageId, leadId, row.remote_jid, fromMe, body, timestamp, instanceId, advisorName, row.push_name]);
+      insertedCount++;
+    } catch (err) {
+      console.error(`Error al insertar mensaje ${messageId}:`, err);
+    }
+  }
+
+  return insertedCount;
 }
 
 /**

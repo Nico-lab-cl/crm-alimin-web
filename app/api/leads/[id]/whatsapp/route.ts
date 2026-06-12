@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMain, queryMarketing } from '@/lib/db';
-import { syncEvolutionChats } from '@/lib/evolution_sync';
+import { syncEvolutionChats, normalizeAdvisorName } from '@/lib/evolution_sync';
 
 interface WhatsappMessage {
   id: number;
@@ -108,9 +107,14 @@ export async function GET(
       messages = [];
     }
 
+    const normalizedMessages = messages.map(m => ({
+      ...m,
+      advisor_name: normalizeAdvisorName(m.advisor_name)
+    }));
+
     return NextResponse.json({
       success: true,
-      messages,
+      messages: normalizedMessages,
       phone,
       jid
     });

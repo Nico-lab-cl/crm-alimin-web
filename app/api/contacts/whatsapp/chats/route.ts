@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMain, queryMarketing } from '@/lib/db';
-import { syncEvolutionChats, getEvolutionAdvisors } from '@/lib/evolution_sync';
+import { syncEvolutionChats, getEvolutionAdvisors, normalizeAdvisorName } from '@/lib/evolution_sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,7 +120,7 @@ export async function GET() {
         body: chat.body,
         timestamp: chat.timestamp,
         from_me: chat.from_me,
-        advisor_name: leadAdvisorName || chat.advisor_name || 'WhatsApp Sistema',
+        advisor_name: normalizeAdvisorName(leadAdvisorName || chat.advisor_name),
         is_crm_contact: !!chat.lead_id
       });
     }
