@@ -29,7 +29,6 @@ interface SignatureConfig {
   };
   contact_info: {
     email: string;
-    phone: string;
     mobile: string;
     website: string;
     address: string;
@@ -40,6 +39,7 @@ interface SignatureConfig {
     facebook: string;
     linkedin: string;
     youtube: string;
+    tiktok: string;
   };
   styling: {
     template_id: string; // 'modern_border' | 'two_column' | 'minimalist'
@@ -66,7 +66,6 @@ const DEFAULT_CONFIG: SignatureConfig = {
   },
   contact_info: {
     email: 'omar.costa@aliminspa.cl',
-    phone: '+56 2 2123 4587',
     mobile: '+56 9 9876 5432',
     website: 'https://aliminspa.cl',
     address: 'Av. Las Condes 1234, Oficina 501, Santiago',
@@ -77,6 +76,7 @@ const DEFAULT_CONFIG: SignatureConfig = {
     facebook: 'https://facebook.com/alimin.lomasdelmar',
     linkedin: 'https://linkedin.com/company/alimin',
     youtube: '',
+    tiktok: '',
   },
   styling: {
     template_id: 'modern_border',
@@ -94,14 +94,14 @@ const SOCIAL_ICONS = {
   facebook: 'https://cdn-icons-png.flaticon.com/32/733/733547.png',
   linkedin: 'https://cdn-icons-png.flaticon.com/32/3536/3536505.png',
   youtube: 'https://cdn-icons-png.flaticon.com/32/3938/3938026.png',
+  tiktok: 'https://cdn-icons-png.flaticon.com/32/3046/3046121.png',
 };
 
 // CDN URLs para iconos de contacto (sobrios y elegantes)
 const CONTACT_ICONS = {
-  phone: 'https://cdn-icons-png.flaticon.com/32/455/455705.png',      // Teléfono fijo
-  mobile: 'https://cdn-icons-png.flaticon.com/32/3105/3105826.png',   // Teléfono móvil
+  mobile: 'https://cdn-icons-png.flaticon.com/32/186/186239.png',   // Teléfono móvil
   email: 'https://cdn-icons-png.flaticon.com/32/646/646094.png',       // Sobre/Email
-  website: 'https://cdn-icons-png.flaticon.com/32/2069/2069259.png',   // Globo/Web
+  website: 'https://cdn-icons-png.flaticon.com/32/1006/1006771.png',   // Globo/Web
   address: 'https://cdn-icons-png.flaticon.com/32/2838/2838912.png'    // Pin mapa
 };
 
@@ -145,8 +145,6 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       finalUrl = `https://wa.me/${rawUrl.replace(/[^0-9]/g, '')}`;
     } else if (element === 'email' && !rawUrl.startsWith('mailto:')) {
       finalUrl = `mailto:${rawUrl}`;
-    } else if (element === 'phone' && !rawUrl.startsWith('tel:')) {
-      finalUrl = `tel:${rawUrl.replace(/\s+/g, '')}`;
     } else if (element === 'mobile' && !rawUrl.startsWith('tel:')) {
       finalUrl = `tel:${rawUrl.replace(/\s+/g, '')}`;
     }
@@ -195,13 +193,6 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
          </span>`
       : '';
 
-    const phoneHtml = contact_info.phone 
-      ? `<span style="white-space: nowrap; vertical-align: middle;">
-          <img src="${CONTACT_ICONS.phone}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
-          <a href="${getLink('phone', contact_info.phone)}" style="color: ${text}; text-decoration: none; vertical-align: middle;">${contact_info.phone}</a>
-         </span>`
-      : '';
-
     const mobileHtml = contact_info.mobile 
       ? `<span style="white-space: nowrap; vertical-align: middle;">
           <img src="${CONTACT_ICONS.mobile}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
@@ -217,7 +208,7 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       : '';
 
     // Líneas de contactos agrupadas horizontalmente
-    const contactsLine1 = [phoneHtml, mobileHtml].filter(Boolean).join('<span style="color: #cbd6e2; margin: 0 8px;">|</span>');
+    const contactsLine1 = [mobileHtml].filter(Boolean).join('<span style="color: #cbd6e2; margin: 0 8px;">|</span>');
     const contactsLine2 = [emailHtml, websiteHtml].filter(Boolean).join('<span style="color: #cbd6e2; margin: 0 8px;">|</span>');
 
     // Redes Sociales
@@ -457,7 +448,6 @@ ${personal_info.job_title} | ${personal_info.department}
 ${personal_info.company}
 
 E: ${contact_info.email}
-T: ${contact_info.phone}
 M: ${contact_info.mobile}
 W: ${contact_info.website}
 A: ${contact_info.address}
@@ -668,19 +658,6 @@ A: ${contact_info.address}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">Teléfono Fijo (Oficina)</label>
-                  <input
-                    type="text"
-                    value={config.contact_info.phone}
-                    onChange={(e) => setConfig(prev => ({
-                      ...prev,
-                      contact_info: { ...prev.contact_info, phone: e.target.value }
-                    }))}
-                    placeholder="Ej: +56 2 2123 4567"
-                    className="w-full bg-white border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#2d544c] text-[#33475b]"
-                  />
-                </div>
-                <div>
                   <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">Sitio Web</label>
                   <input
                     type="text"
@@ -760,6 +737,19 @@ A: ${contact_info.address}
                       social_links: { ...prev.social_links, linkedin: e.target.value }
                     }))}
                     placeholder="https://linkedin.com/in/usuario"
+                    className="w-full bg-white border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#2d544c] text-[#33475b]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">TikTok URL</label>
+                  <input
+                    type="text"
+                    value={config.social_links.tiktok}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      social_links: { ...prev.social_links, tiktok: e.target.value }
+                    }))}
+                    placeholder="https://tiktok.com/@usuario"
                     className="w-full bg-white border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#2d544c] text-[#33475b]"
                   />
                 </div>
