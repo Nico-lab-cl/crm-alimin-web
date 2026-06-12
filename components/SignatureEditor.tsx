@@ -96,6 +96,15 @@ const SOCIAL_ICONS = {
   youtube: 'https://cdn-icons-png.flaticon.com/32/3938/3938026.png',
 };
 
+// CDN URLs para iconos de contacto (sobrios y elegantes)
+const CONTACT_ICONS = {
+  phone: 'https://cdn-icons-png.flaticon.com/32/455/455705.png',      // Teléfono fijo
+  mobile: 'https://cdn-icons-png.flaticon.com/32/3105/3105826.png',   // Teléfono móvil
+  email: 'https://cdn-icons-png.flaticon.com/32/646/646094.png',       // Sobre/Email
+  website: 'https://cdn-icons-png.flaticon.com/32/2069/2069259.png',   // Globo/Web
+  address: 'https://cdn-icons-png.flaticon.com/32/2838/2838912.png'    // Pin mapa
+};
+
 export default function SignatureEditor({ initialData }: SignatureEditorProps) {
   const router = useRouter();
   const [config, setConfig] = useState<SignatureConfig>(DEFAULT_CONFIG);
@@ -168,9 +177,9 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
     const secondary = styling.secondary_color;
     const text = styling.text_color;
 
-    // Foto de Perfil (Avatar)
+    // Foto de Perfil (Avatar como rectángulo vertical que toma todo el alto de la firma)
     const avatarHtml = personal_info.avatar_url 
-      ? `<img src="${personal_info.avatar_url}" alt="${personal_info.name}" width="75" height="75" style="width: 75px; height: 75px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd6e2;" />`
+      ? `<img src="${personal_info.avatar_url}" alt="${personal_info.name}" width="95" height="115" style="width: 95px; height: 115px; border-radius: 4px; object-fit: cover; display: block; border: 1px solid #cbd6e2;" />`
       : '';
 
     // Logo de la Empresa
@@ -178,21 +187,33 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       ? `<img src="${personal_info.logo_url}" alt="Logo" height="24" style="height: 24px; max-height: 24px; max-width: 110px; display: block; object-fit: contain; border: 0;" />`
       : '';
 
-    // Enlaces de contacto
+    // Enlaces de contacto con Iconos en lugar de iniciales (T:, M:, E:, W:)
     const emailHtml = contact_info.email 
-      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">E:</span><a href="${getLink('email', contact_info.email)}" style="color: ${text}; text-decoration: none;">${contact_info.email}</a></span>`
+      ? `<span style="white-space: nowrap; vertical-align: middle;">
+          <img src="${CONTACT_ICONS.email}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
+          <a href="${getLink('email', contact_info.email)}" style="color: ${text}; text-decoration: none; vertical-align: middle;">${contact_info.email}</a>
+         </span>`
       : '';
 
     const phoneHtml = contact_info.phone 
-      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">T:</span><a href="${getLink('phone', contact_info.phone)}" style="color: ${text}; text-decoration: none;">${contact_info.phone}</a></span>`
+      ? `<span style="white-space: nowrap; vertical-align: middle;">
+          <img src="${CONTACT_ICONS.phone}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
+          <a href="${getLink('phone', contact_info.phone)}" style="color: ${text}; text-decoration: none; vertical-align: middle;">${contact_info.phone}</a>
+         </span>`
       : '';
 
     const mobileHtml = contact_info.mobile 
-      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">M:</span><a href="${getLink('mobile', contact_info.mobile)}" style="color: ${text}; text-decoration: none;">${contact_info.mobile}</a></span>`
+      ? `<span style="white-space: nowrap; vertical-align: middle;">
+          <img src="${CONTACT_ICONS.mobile}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
+          <a href="${getLink('mobile', contact_info.mobile)}" style="color: ${text}; text-decoration: none; vertical-align: middle;">${contact_info.mobile}</a>
+         </span>`
       : '';
 
     const websiteHtml = contact_info.website 
-      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">W:</span><a href="${getLink('website', contact_info.website)}" style="color: ${primary}; text-decoration: none; font-weight: bold;">${contact_info.website.replace(/^https?:\/\/(www\.)?/, '')}</a></span>`
+      ? `<span style="white-space: nowrap; vertical-align: middle;">
+          <img src="${CONTACT_ICONS.website}" width="12" height="12" style="width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; display: inline-block;" />
+          <a href="${getLink('website', contact_info.website)}" style="color: ${primary}; text-decoration: none; font-weight: bold; vertical-align: middle;">${contact_info.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
+         </span>`
       : '';
 
     // Líneas de contactos agrupadas horizontalmente
@@ -228,7 +249,7 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       return `
         <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 13px; color: ${text}; line-height: 1.35; border-collapse: collapse; text-align: left; background-color: transparent;">
           <tr>
-            <!-- Columna Izquierda: Solo Foto de Perfil -->
+            <!-- Columna Izquierda: Solo Foto de Perfil (Rectángulo que llena el alto) -->
             ${avatarHtml ? `<td style="padding-right: 18px; vertical-align: top; text-align: center;" valign="top" align="center">${avatarHtml}</td>` : ''}
             
             <!-- Línea Divisoria Vertical Fina -->
@@ -249,9 +270,9 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
                 <tr>
                   <td style="padding: 6px 0; border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0;">
                     <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
-                      ${contactsLine1 ? `<tr><td style="padding: 2px 0;">${contactsLine1}</td></tr>` : ''}
-                      ${contactsLine2 ? `<tr><td style="padding: 2px 0;">${contactsLine2}</td></tr>` : ''}
-                      ${contact_info.address ? `<tr><td style="padding: 2px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
+                      ${contactsLine1 ? `<tr><td style="padding: 2px 0; vertical-align: middle;">${contactsLine1}</td></tr>` : ''}
+                      ${contactsLine2 ? `<tr><td style="padding: 2px 0; vertical-align: middle;">${contactsLine2}</td></tr>` : ''}
+                      ${contact_info.address ? `<tr><td style="padding: 2px 0; font-size: 10.5px; color: ${secondary}; vertical-align: middle;"><img src="${CONTACT_ICONS.address}" width="11" height="11" style="width: 11px; height: 11px; margin-right: 5px; vertical-align: middle; display: inline-block;" /><span style="vertical-align: middle;">${contact_info.address}</span></td></tr>` : ''}
                     </table>
                   </td>
                 </tr>
@@ -275,8 +296,8 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       return `
         <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 13px; color: ${text}; line-height: 1.35; border-collapse: collapse; text-align: left;">
           <tr>
-            <!-- Columna Izquierda: Solo Foto de Perfil -->
-            ${avatarHtml ? `<td style="padding-right: 20px; vertical-align: top; text-align: center; width: 75px;" width="75" align="center" valign="top">${avatarHtml}</td>` : ''}
+            <!-- Columna Izquierda: Solo Foto de Perfil (Rectángulo que llena el alto) -->
+            ${avatarHtml ? `<td style="padding-right: 20px; vertical-align: top; text-align: center; width: 95px;" width="95" align="center" valign="top">${avatarHtml}</td>` : ''}
             
             <!-- Columna Derecha: Datos, Redes y Logo -->
             <td style="vertical-align: top; padding-left: 10px;" valign="top">
@@ -291,9 +312,9 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
                 <tr>
                   <td style="padding: 8px 0 0 0; border-top: 1px solid #e2e8f0;">
                     <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
-                      ${contactsLine1 ? `<tr><td style="padding: 1px 0;">${contactsLine1}</td></tr>` : ''}
-                      ${contactsLine2 ? `<tr><td style="padding: 1px 0;">${contactsLine2}</td></tr>` : ''}
-                      ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
+                      ${contactsLine1 ? `<tr><td style="padding: 1px 0; vertical-align: middle;">${contactsLine1}</td></tr>` : ''}
+                      ${contactsLine2 ? `<tr><td style="padding: 1px 0; vertical-align: middle;">${contactsLine2}</td></tr>` : ''}
+                      ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary}; vertical-align: middle;"><img src="${CONTACT_ICONS.address}" width="11" height="11" style="width: 11px; height: 11px; margin-right: 5px; vertical-align: middle; display: inline-block;" /><span style="vertical-align: middle;">${contact_info.address}</span></td></tr>` : ''}
                     </table>
                   </td>
                 </tr>
@@ -340,9 +361,9 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
               <tr>
                 <td style="padding: 6px 0 0 0;">
                   <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
-                    ${contactsLine1 ? `<tr><td style="padding: 1px 0;">${contactsLine1}</td></tr>` : ''}
-                    ${contactsLine2 ? `<tr><td style="padding: 1px 0;">${contactsLine2}</td></tr>` : ''}
-                    ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
+                    ${contactsLine1 ? `<tr><td style="padding: 1px 0; vertical-align: middle;">${contactsLine1}</td></tr>` : ''}
+                    ${contactsLine2 ? `<tr><td style="padding: 1px 0; vertical-align: middle;">${contactsLine2}</td></tr>` : ''}
+                    ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary}; vertical-align: middle;"><img src="${CONTACT_ICONS.address}" width="11" height="11" style="width: 11px; height: 11px; margin-right: 5px; vertical-align: middle; display: inline-block;" /><span style="vertical-align: middle;">${contact_info.address}</span></td></tr>` : ''}
                   </table>
                 </td>
               </tr>
