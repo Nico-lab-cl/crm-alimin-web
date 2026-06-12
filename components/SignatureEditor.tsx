@@ -25,6 +25,7 @@ interface SignatureConfig {
     department: string;
     company: string;
     logo_url: string;
+    avatar_url: string;
   };
   contact_info: {
     email: string;
@@ -56,15 +57,16 @@ interface SignatureEditorProps {
 const DEFAULT_CONFIG: SignatureConfig = {
   name: '',
   personal_info: {
-    name: 'Juan Pérez',
-    job_title: 'Director de Ventas',
-    department: 'Comercial',
-    company: 'Alimin Lomas del Mar',
-    logo_url: 'https://aliminspa.cl/wp-content/uploads/2023/04/Logo-Alimin.png', // Un logo de prueba accesible
+    name: 'Omar Costa',
+    job_title: 'Asesor de Ventas',
+    department: 'Área Comercial',
+    company: 'Alimin Inmobiliaria',
+    logo_url: 'https://aliminspa.cl/wp-content/uploads/2023/04/Logo-Alimin.png', // Logo de Alimin
+    avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150', // Headshot
   },
   contact_info: {
-    email: 'juan.perez@alimin.cl',
-    phone: '+56 2 2123 4567',
+    email: 'omar.costa@aliminspa.cl',
+    phone: '+56 2 2123 4587',
     mobile: '+56 9 9876 5432',
     website: 'https://aliminspa.cl',
     address: 'Av. Las Condes 1234, Oficina 501, Santiago',
@@ -166,58 +168,36 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
     const secondary = styling.secondary_color;
     const text = styling.text_color;
 
-    // Renderizar foto o logo
-    const photoHtml = personal_info.logo_url 
-      ? `<td style="padding-right: 16px; vertical-align: top;" valign="top">
-          <img src="${personal_info.logo_url}" alt="${personal_info.name}" width="90" height="90" style="width: 90px; height: 90px; border-radius: 8px; object-fit: cover; display: block;" />
-         </td>`
+    // Foto de Perfil (Avatar)
+    const avatarHtml = personal_info.avatar_url 
+      ? `<img src="${personal_info.avatar_url}" alt="${personal_info.name}" width="75" height="75" style="width: 75px; height: 75px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd6e2;" />`
       : '';
 
-    // Filas de datos
-    const emailRow = contact_info.email 
-      ? `<tr>
-          <td style="padding: 1px 0; font-size: 12px; color: ${text};">
-            <span style="color: ${primary}; font-weight: bold; margin-right: 4px;">E:</span>
-            <a href="${getLink('email', contact_info.email)}" style="color: ${text}; text-decoration: none;">${contact_info.email}</a>
-          </td>
-         </td>`
+    // Logo de la Empresa
+    const logoHtml = personal_info.logo_url
+      ? `<img src="${personal_info.logo_url}" alt="Logo" height="24" style="height: 24px; max-height: 24px; max-width: 110px; display: block; object-fit: contain; border: 0;" />`
       : '';
 
-    const phoneRow = contact_info.phone 
-      ? `<tr>
-          <td style="padding: 1px 0; font-size: 12px; color: ${text};">
-            <span style="color: ${primary}; font-weight: bold; margin-right: 4px;">T:</span>
-            <a href="${getLink('phone', contact_info.phone)}" style="color: ${text}; text-decoration: none;">${contact_info.phone}</a>
-          </td>
-         </tr>`
+    // Enlaces de contacto
+    const emailHtml = contact_info.email 
+      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">E:</span><a href="${getLink('email', contact_info.email)}" style="color: ${text}; text-decoration: none;">${contact_info.email}</a></span>`
       : '';
 
-    const mobileRow = contact_info.mobile 
-      ? `<tr>
-          <td style="padding: 1px 0; font-size: 12px; color: ${text};">
-            <span style="color: ${primary}; font-weight: bold; margin-right: 4px;">M:</span>
-            <a href="${getLink('mobile', contact_info.mobile)}" style="color: ${text}; text-decoration: none;">${contact_info.mobile}</a>
-          </td>
-         </tr>`
+    const phoneHtml = contact_info.phone 
+      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">T:</span><a href="${getLink('phone', contact_info.phone)}" style="color: ${text}; text-decoration: none;">${contact_info.phone}</a></span>`
       : '';
 
-    const websiteRow = contact_info.website 
-      ? `<tr>
-          <td style="padding: 1px 0; font-size: 12px; color: ${text};">
-            <span style="color: ${primary}; font-weight: bold; margin-right: 4px;">W:</span>
-            <a href="${getLink('website', contact_info.website)}" style="color: ${primary}; text-decoration: none; font-weight: 600;">${contact_info.website.replace(/^https?:\/\//, '')}</a>
-          </td>
-         </tr>`
+    const mobileHtml = contact_info.mobile 
+      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">M:</span><a href="${getLink('mobile', contact_info.mobile)}" style="color: ${text}; text-decoration: none;">${contact_info.mobile}</a></span>`
       : '';
 
-    const addressRow = contact_info.address 
-      ? `<tr>
-          <td style="padding: 1px 0; font-size: 12px; color: ${secondary};">
-            <span style="color: ${primary}; font-weight: bold; margin-right: 4px;">A:</span>
-            <span style="color: ${secondary};">${contact_info.address}</span>
-          </td>
-         </tr>`
+    const websiteHtml = contact_info.website 
+      ? `<span style="white-space: nowrap;"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">W:</span><a href="${getLink('website', contact_info.website)}" style="color: ${primary}; text-decoration: none; font-weight: bold;">${contact_info.website.replace(/^https?:\/\/(www\.)?/, '')}</a></span>`
       : '';
+
+    // Líneas de contactos agrupadas horizontalmente
+    const contactsLine1 = [phoneHtml, mobileHtml].filter(Boolean).join('<span style="color: #cbd6e2; margin: 0 8px;">|</span>');
+    const contactsLine2 = [emailHtml, websiteHtml].filter(Boolean).join('<span style="color: #cbd6e2; margin: 0 8px;">|</span>');
 
     // Redes Sociales
     const socialLinksHtml = Object.entries(social_links)
@@ -225,60 +205,63 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
       .map(([key, url]) => {
         const iconUrl = SOCIAL_ICONS[key as keyof typeof SOCIAL_ICONS];
         return `
-          <a href="${getLink(key, url)}" style="display: inline-block; margin-right: 8px; text-decoration: none;" target="_blank">
-            <img src="${iconUrl}" alt="${key}" width="20" height="20" style="width: 20px; height: 20px; border: 0; display: block;" />
+          <a href="${getLink(key, url)}" style="display: inline-block; margin-right: 6px; text-decoration: none;" target="_blank">
+            <img src="${iconUrl}" alt="${key}" width="18" height="18" style="width: 18px; height: 18px; border: 0; display: block;" />
           </a>
         `;
       }).join('');
 
-    const socialContainerHtml = socialLinksHtml
-      ? `<table cellpadding="0" cellspacing="0" style="margin-top: 12px;">
-          <tr>
-            <td style="padding: 0;">
-              ${socialLinksHtml}
-            </td>
-          </tr>
-         </table>`
-      : '';
-
     // ============================================
-    // PLANTILLA 1: MODERN BORDER (Borde con Acento Lateral)
+    // PLANTILLA 1: PREMIUM EXECUTIVE (Borde de Acento Fino + Foto & Logo)
     // ============================================
     if (styling.template_id === 'modern_border') {
+      const leftPaneContent = `
+        <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+          ${avatarHtml ? `<tr><td style="padding-bottom: 10px;" align="center">${avatarHtml}</td></tr>` : ''}
+          ${logoHtml ? `<tr><td style="padding-top: 4px;" align="center">${logoHtml}</td></tr>` : ''}
+        </table>
+      `;
+
       return `
-        <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 14px; color: ${text}; line-height: 1.4; border-collapse: collapse; background-color: transparent;">
+        <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 13px; color: ${text}; line-height: 1.35; border-collapse: collapse; text-align: left; background-color: transparent;">
           <tr>
-            ${photoHtml}
-            <!-- Línea Divisoria Vertical -->
-            <td style="width: 3px; background-color: ${primary}; padding: 0;" width="3"></td>
-            <!-- Datos Personales y de Contacto -->
-            <td style="padding-left: 16px; vertical-align: top;" valign="top">
-              <table cellpadding="0" cellspacing="0">
+            <!-- Columna Izquierda: Imagenes (Avatar y Logo) -->
+            ${(avatarHtml || logoHtml) ? `<td style="padding-right: 18px; vertical-align: top; text-align: center;" valign="top" align="center">${leftPaneContent}</td>` : ''}
+            
+            <!-- Línea Divisoria Vertical Fina -->
+            <td style="width: 1px; background-color: #e2e8f0; padding: 0;" width="1"></td>
+            
+            <!-- Columna Derecha: Datos -->
+            <td style="padding-left: 18px; vertical-align: top;" valign="top">
+              <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 0;">
-                    <div style="font-size: 16px; font-weight: bold; color: ${primary}; margin: 0 0 2px 0; line-height: 1.2;">${personal_info.name}</div>
-                    <div style="font-size: 12.5px; color: ${secondary}; font-style: italic; margin: 0 0 2px 0;">
+                  <td style="padding: 0 0 4px 0;">
+                    <div style="font-size: 15px; font-weight: bold; color: ${primary}; margin: 0; line-height: 1.2;">${personal_info.name}</div>
+                    <div style="font-size: 11.5px; color: ${secondary}; font-style: italic; margin: 1px 0 2px 0;">
                       ${personal_info.job_title}${personal_info.department ? ` &bull; ${personal_info.department}` : ''}
                     </div>
-                    <div style="font-size: 13px; font-weight: bold; color: ${text}; margin: 0 0 8px 0;">${personal_info.company}</div>
+                    <div style="font-size: 11px; font-weight: bold; color: ${text}; margin: 2px 0 0 0; text-transform: uppercase; letter-spacing: 0.5px;">${personal_info.company}</div>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding: 0;">
-                    <table cellpadding="0" cellspacing="0">
-                      ${emailRow}
-                      ${phoneRow}
-                      ${mobileRow}
-                      ${websiteRow}
-                      ${addressRow}
+                  <td style="padding: 6px 0; border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0;">
+                    <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
+                      ${contactsLine1 ? `<tr><td style="padding: 2px 0;">${contactsLine1}</td></tr>` : ''}
+                      ${contactsLine2 ? `<tr><td style="padding: 2px 0;">${contactsLine2}</td></tr>` : ''}
+                      ${contact_info.address ? `<tr><td style="padding: 2px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
                     </table>
                   </td>
                 </tr>
+                ${socialLinksHtml ? `
                 <tr>
-                  <td style="padding: 0;">
-                    ${socialContainerHtml}
+                  <td style="padding: 8px 0 0 0;">
+                    <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 0;">${socialLinksHtml}</td>
+                      </tr>
+                    </table>
                   </td>
-                </tr>
+                </tr>` : ''}
               </table>
             </td>
           </tr>
@@ -291,7 +274,7 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
     // ============================================
     if (styling.template_id === 'two_column') {
       const socialBlockHtml = socialLinksHtml
-        ? `<table cellpadding="0" cellspacing="0" style="margin-top: 8px; width: 100%;">
+        ? `<table cellpadding="0" cellspacing="0" style="margin-top: 8px; width: 100%; border-collapse: collapse;">
             <tr>
               <td align="center" style="padding: 0; text-align: center;">
                 ${socialLinksHtml}
@@ -300,38 +283,44 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
            </table>`
         : '';
 
-      const photoBlockHtml = personal_info.logo_url 
-        ? `<td style="padding-right: 20px; vertical-align: top; text-align: center; width: 95px;" width="95" align="center" valign="top">
-            <img src="${personal_info.logo_url}" alt="${personal_info.name}" width="85" height="85" style="width: 85px; height: 85px; border-radius: 50%; object-fit: cover; display: block; margin-bottom: 8px; border: 2px solid ${primary};" />
-            ${socialBlockHtml}
-           </td>`
-        : '';
+      const leftPaneContent = `
+        <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+          ${avatarHtml ? `<tr><td style="padding-bottom: 6px;" align="center">${avatarHtml}</td></tr>` : ''}
+          ${socialBlockHtml ? `<tr><td align="center">${socialBlockHtml}</td></tr>` : ''}
+        </table>
+      `;
 
       return `
-        <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 14px; color: ${text}; line-height: 1.4; border-collapse: collapse;">
+        <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 13px; color: ${text}; line-height: 1.35; border-collapse: collapse; text-align: left;">
           <tr>
-            ${photoBlockHtml}
-            <!-- Datos de Contacto -->
+            <!-- Columna Izquierda: Avatar y Redes -->
+            ${(avatarHtml || socialLinksHtml) ? `<td style="padding-right: 20px; vertical-align: top; text-align: center; width: 85px;" width="85" align="center" valign="top">${leftPaneContent}</td>` : ''}
+            
+            <!-- Columna Derecha: Datos -->
             <td style="vertical-align: top; padding-left: 10px;" valign="top">
-              <table cellpadding="0" cellspacing="0">
+              <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 0;">
-                    <div style="font-size: 17px; font-weight: bold; color: ${primary}; margin: 0 0 2px 0;">${personal_info.name}</div>
-                    <div style="font-size: 13px; font-weight: 600; color: ${secondary}; margin: 0 0 4px 0;">${personal_info.job_title}</div>
-                    <div style="font-size: 12px; color: ${text}; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">${personal_info.company}</div>
+                  <td style="padding: 0 0 8px 0;">
+                    <div style="font-size: 16px; font-weight: bold; color: ${primary}; margin: 0 0 1px 0; line-height: 1.2;">${personal_info.name}</div>
+                    <div style="font-size: 12px; font-weight: 600; color: ${secondary}; margin: 0 0 3px 0;">${personal_info.job_title}</div>
+                    <div style="font-size: 11px; color: ${text}; font-weight: bold; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">${personal_info.company}</div>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding: 0; border-top: 1px solid #cbd6e2; padding-top: 8px;">
-                    <table cellpadding="0" cellspacing="0">
-                      ${emailRow}
-                      ${phoneRow}
-                      ${mobileRow}
-                      ${websiteRow}
-                      ${addressRow}
+                  <td style="padding: 8px 0 0 0; border-top: 1px solid #e2e8f0;">
+                    <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
+                      ${contactsLine1 ? `<tr><td style="padding: 1px 0;">${contactsLine1}</td></tr>` : ''}
+                      ${contactsLine2 ? `<tr><td style="padding: 1px 0;">${contactsLine2}</td></tr>` : ''}
+                      ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
                     </table>
                   </td>
                 </tr>
+                ${logoHtml ? `
+                <tr>
+                  <td style="padding-top: 12px;">
+                    ${logoHtml}
+                  </td>
+                </tr>` : ''}
               </table>
             </td>
           </tr>
@@ -340,35 +329,52 @@ export default function SignatureEditor({ initialData }: SignatureEditorProps) {
     }
 
     // ============================================
-    // PLANTILLA 3: MINIMALIST STACKED (Sin foto, Limpio y Apilado)
+    // PLANTILLA 3: MINIMALIST STACKED (Limpio y Apilado)
     // ============================================
+    const leftLogoBlock = logoHtml 
+      ? `<td style="padding-right: 18px; vertical-align: middle; text-align: center;" valign="middle" align="center">
+          ${logoHtml}
+         </td>
+         <td style="width: 1px; background-color: #e2e8f0; padding: 0;" width="1"></td>`
+      : '';
+
     return `
-      <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 14px; color: ${text}; line-height: 1.4; border-collapse: collapse; min-width: 280px;">
+      <table cellpadding="0" cellspacing="0" style="font-family: ${font}, sans-serif; font-size: 13px; color: ${text}; line-height: 1.35; border-collapse: collapse; text-align: left; min-width: 280px;">
         <tr>
-          <td style="padding: 0;">
-            <div style="font-size: 18px; font-weight: bold; color: ${primary}; margin: 0 0 2px 0;">${personal_info.name}</div>
-            <div style="font-size: 13px; color: ${secondary}; margin: 0 0 2px 0;">${personal_info.job_title} | ${personal_info.department}</div>
-            <div style="font-size: 13px; font-weight: bold; color: ${text}; margin: 0 0 6px 0;">${personal_info.company}</div>
-          </td>
-        </tr>
-        <tr>
-          <!-- Línea Separadora Horizontal -->
-          <td style="height: 2px; background-color: ${primary}; padding: 0; font-size: 1px; line-height: 1px;" height="2"></td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0 0 0;">
-            <table cellpadding="0" cellspacing="0">
-              ${emailRow}
-              ${phoneRow}
-              ${mobileRow}
-              ${websiteRow}
-              ${addressRow}
+          ${leftLogoBlock}
+          <td style="${logoHtml ? 'padding-left: 18px;' : 'padding: 0;'} vertical-align: top;" valign="top">
+            <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+              <tr>
+                <td style="padding: 0 0 6px 0;">
+                  <div style="font-size: 16px; font-weight: bold; color: ${primary}; margin: 0 0 1px 0; line-height: 1.2;">${personal_info.name}</div>
+                  <div style="font-size: 11.5px; color: ${secondary}; margin: 0 0 2px 0;">${personal_info.job_title} | ${personal_info.department}</div>
+                  <div style="font-size: 11px; font-weight: bold; color: ${text}; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${personal_info.company}</div>
+                </td>
+              </tr>
+              <tr>
+                <!-- Línea Separadora Horizontal Fina -->
+                <td style="height: 1px; background-color: ${primary}; padding: 0; font-size: 1px; line-height: 1px;" height="1"></td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0 0 0;">
+                  <table cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-size: 11.5px; color: ${text};">
+                    ${contactsLine1 ? `<tr><td style="padding: 1px 0;">${contactsLine1}</td></tr>` : ''}
+                    ${contactsLine2 ? `<tr><td style="padding: 1px 0;">${contactsLine2}</td></tr>` : ''}
+                    ${contact_info.address ? `<tr><td style="padding: 1.5px 0; font-size: 10.5px; color: ${secondary};"><span style="color: ${primary}; font-weight: bold; margin-right: 3px;">A:</span>${contact_info.address}</td></tr>` : ''}
+                  </table>
+                </td>
+              </tr>
+              ${socialLinksHtml ? `
+              <tr>
+                <td style="padding-top: 8px;">
+                  <table cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 0;">${socialLinksHtml}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>` : ''}
             </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: 0;">
-            ${socialContainerHtml}
           </td>
         </tr>
       </table>
@@ -602,7 +608,20 @@ A: ${contact_info.address}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">URL de Foto / Logo</label>
+                  <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">Foto de Perfil (Avatar URL)</label>
+                  <input
+                    type="text"
+                    value={config.personal_info.avatar_url}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      personal_info: { ...prev.personal_info, avatar_url: e.target.value }
+                    }))}
+                    className="w-full bg-white border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#2d544c] text-[#33475b] mb-1"
+                    placeholder="https://ejemplo.com/avatar.jpg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#516f90] uppercase mb-1">Logo de la Empresa (URL)</label>
                   <input
                     type="text"
                     value={config.personal_info.logo_url}
@@ -611,9 +630,9 @@ A: ${contact_info.address}
                       personal_info: { ...prev.personal_info, logo_url: e.target.value }
                     }))}
                     className="w-full bg-white border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#2d544c] text-[#33475b]"
-                    placeholder="https://ejemplo.com/foto.jpg"
+                    placeholder="https://ejemplo.com/logo.png"
                   />
-                  <p className="text-[10px] text-[#516f90] mt-1">Debe ser un enlace público directo a una imagen PNG/JPG hospedada.</p>
+                  <p className="text-[10px] text-[#516f90] mt-1">Usa enlaces públicos directos. Deja en blanco si no deseas mostrarlos.</p>
                 </div>
               </div>
             )}
