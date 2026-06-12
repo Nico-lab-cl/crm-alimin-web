@@ -10,56 +10,12 @@ export async function GET() {
   try {
     const client = await pool.connect();
     try {
-      const tables = await client.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        ORDER BY table_name
-      `);
+      // Query instances
+      const instances = await client.query('SELECT * FROM "Instance"');
       
-      const tablesList = tables.rows.map(r => r.table_name);
-      
-      // Let's also inspect columns of "Contact" if it exists
-      let contactSchema = null;
-      if (tablesList.includes('Contact') || tablesList.includes('contact')) {
-        const tableName = tablesList.includes('Contact') ? 'Contact' : 'contact';
-        const cols = await client.query(`
-          SELECT column_name, data_type 
-          FROM information_schema.columns 
-          WHERE table_name = $1
-        `, [tableName]);
-        
-        const sample = await client.query(`SELECT * FROM "${tableName}" LIMIT 10`);
-        contactSchema = {
-          tableName,
-          columns: cols.rows,
-          sample: sample.rows
-        };
-      }
-      
-      // Also check if there is a table named "Chat" or similar
-      let chatSchema = null;
-      const chatTable = tablesList.find(t => t.toLowerCase() === 'chat');
-      if (chatTable) {
-        const cols = await client.query(`
-          SELECT column_name, data_type 
-          FROM information_schema.columns 
-          WHERE table_name = $1
-        `, [chatTable]);
-        
-        const sample = await client.query(`SELECT * FROM "${chatTable}" LIMIT 10`);
-        chatSchema = {
-          tableName: chatTable,
-          columns: cols.rows,
-          sample: sample.rows
-        };
-      }
-
       return NextResponse.json({
         success: true,
-        tables: tablesList,
-        contactSchema,
-        chatSchema
+        instances: instances.rows
       });
     } finally {
       client.release();
@@ -67,8 +23,7 @@ export async function GET() {
   } catch (err: any) {
     return NextResponse.json({
       success: false,
-      error: err.message,
-      stack: err.stack
+      error: err.message
     }, { status: 500 });
   } finally {
     await pool.end();
