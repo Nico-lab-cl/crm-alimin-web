@@ -1,99 +1,107 @@
 import { NextResponse } from 'next/server';
-import { queryMarketing } from '@/lib/db';
-import { Pool } from 'pg';
+import { queryMain, queryMarketing } from '@/lib/db';
+import { normalizeAdvisorName, getEvolutionAdvisors } from '@/lib/evolution_sync';
 
 export const dynamic = 'force-dynamic';
 
-// URL de la base de datos de Evolution API (N8N)
-const evolutionDbUrl = process.env.EVOLUTION_DB_URL || 'postgres://postgres:c886f4677c481efad228@n8n_evolution-api-db:5432/n8n?sslmode=disable';
-
 export async function GET() {
   try {
-    // 1. Consultar estadísticas de la tabla local whatsapp_messages
-    const advisorStats = await queryMarketing(`
-      SELECT advisor_name, COUNT(*) as count, MAX(timestamp) as last_message
+    // 1. Consultar las conversaciones únicas más recientes
+    const query = `
+      SELECT DISTINCT ON (remote_jid) 
+        id,
+        message_id,
+        lead_id,
+        remote_jid,
+        from_me,
+        body,
+        timestamp,
+        instance_id,
+        advisor_name,
+        push_name
       FROM whatsapp_messages
-      GROUP BY advisor_name
-      ORDER BY count DESC
-    `);
+      ORDER BY remote_jid, timestamp DESC
+    `;
 
-    const instanceStats = await queryMarketing(`
-      SELECT instance_id, COUNT(*) as count, MAX(timestamp) as last_message
-      FROM whatsapp_messages
-      GROUP BY instance_id
-      ORDER BY count DESC
-    `);
+    const res = await queryMarketing(query);
+    const rawChats = res.rows;
 
-    // 2. Consultar instancias en la base de datos de Evolution
-    let evolutionInstances: any[] = [];
-    let evolutionMessageStats: any[] = [];
-    let evolutionPool: Pool | null = null;
-    
-    try {
-      evolutionPool = new Pool({
-        connectionString: evolutionDbUrl,
-        connectionTimeoutMillis: 5000,
+    // 2. Mapear nombres de Leads a los chats vinculados
+    const chatsList = [];
+    const leadIds = rawChats.map((c: any) => c.lead_id).filter(Boolean);
+    const leadMap = new Map<string, any>();
+
+    if (leadIds.length > 0) {
+      try {
+        const leadsRes = await queryMain(`
+          SELECT l.id, l."firstName", l."lastName", l.phone, l.email, u.name as "assignedAdvisor"
+          FROM "Lead" l
+          LEFT JOIN "User" u ON l."assignedToId" = u.id
+          WHERE l.id = ANY($1)
+        `, [leadIds]);
+
+        for (const row of leadsRes.rows) {
+          leadMap.set(row.id, row);
+        }
+      } catch (e) {
+        console.warn('[WhatsApp API Chats] Error al realizar batch query de Leads:', (e as Error).message);
+      }
+    }
+
+    for (const chat of rawChats) {
+      let leadName = null;
+      let email = null;
+      let leadPhone = null;
+      let leadAdvisorName = null;
+      const phone = chat.remote_jid.split('@')[0].replace(/\D/g, '');
+
+      if (chat.lead_id && leadMap.has(chat.lead_id)) {
+        const row = leadMap.get(chat.lead_id);
+        const first = row.firstName || row.FirstName || row.firstname || '';
+        const last = row.lastName || row.LastName || row.lastname || '';
+        leadName = `${first} ${last}`.trim();
+        email = row.email || row.Email || null;
+        leadPhone = row.phone || row.Phone || null;
+        leadAdvisorName = row.assignedAdvisor || null;
+      }
+
+      const displayPhone = leadPhone ? leadPhone.replace(/\D/g, '') : phone;
+
+      chatsList.push({
+        id: chat.id,
+        message_id: chat.message_id,
+        lead_id: chat.lead_id,
+        remote_jid: chat.remote_jid,
+        phone: displayPhone,
+        lead_name: leadName || chat.push_name || `+${phone}`,
+        email,
+        body: chat.body,
+        timestamp: chat.timestamp,
+        from_me: chat.from_me,
+        advisor_name: normalizeAdvisorName(leadAdvisorName || chat.advisor_name),
+        is_crm_contact: !!chat.lead_id
       });
+    }
 
-      const instRes = await evolutionPool.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-          AND (table_name = 'Instance' OR table_name = 'instance')
-      `);
+    // Ordenar cronológicamente (más recientes primero)
+    chatsList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      if (instRes.rows.length > 0) {
-        const tableName = instRes.rows[0].table_name;
-        const instancesRes = await evolutionPool.query(`SELECT * FROM "${tableName}"`);
-        evolutionInstances = instancesRes.rows;
-      }
-
-      // Consultar mensajes en la base de datos de Evolution agrupados por instanceId
-      const msgTableCheck = await evolutionPool.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-          AND (table_name = 'Message' OR table_name = 'message')
-      `);
-
-      if (msgTableCheck.rows.length > 0) {
-        const msgTable = msgTableCheck.rows[0].table_name;
-        
-        // Obtener el nombre de la columna para instanceId
-        const colsRes = await evolutionPool.query(`
-          SELECT column_name FROM information_schema.columns 
-          WHERE table_name = $1 AND table_schema = 'public'
-        `, [msgTable]);
-        const cols = colsRes.rows.map(r => r.column_name);
-        const instanceCol = cols.find(c => ['instanceId', 'instance_id', 'instanceid'].includes(c)) || 'instanceId';
-
-        const msgStatsRes = await evolutionPool.query(`
-          SELECT "${instanceCol}" as instance_id, COUNT(*) as count 
-          FROM "${msgTable}"
-          GROUP BY "${instanceCol}"
-        `);
-        evolutionMessageStats = msgStatsRes.rows;
-      }
-
-    } catch (e: any) {
-      console.error('[Sync All Webhook] Evolution DB Query error:', e.message);
-    } finally {
-      if (evolutionPool) {
-        await evolutionPool.end();
-      }
+    // Obtener lista de asesores directamente de Evolution API (todas las instancias)
+    let advisors: string[] = [];
+    try {
+      advisors = await getEvolutionAdvisors();
+    } catch (e) {
+      console.warn('[WhatsApp API Chats] Error al obtener asesores de Evolution:', (e as Error).message);
+      advisors = Array.from(new Set(chatsList.map(c => c.advisor_name).filter(n => n && n !== 'WhatsApp Sistema')));
     }
 
     return NextResponse.json({
       success: true,
-      local: {
-        advisors: advisorStats.rows,
-        instances: instanceStats.rows
-      },
-      evolution: {
-        instances: evolutionInstances.map(i => ({ id: i.id || i.instanceId, name: i.name || i.instanceName })),
-        messageStats: evolutionMessageStats
-      }
+      chatsCount: chatsList.length,
+      advisors,
+      chats: chatsList
     });
+
   } catch (error: any) {
     console.error('[Sync All Webhook] Error:', error);
     return NextResponse.json({
