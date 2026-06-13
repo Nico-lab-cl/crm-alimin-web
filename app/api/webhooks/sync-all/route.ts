@@ -17,19 +17,32 @@ export async function GET() {
     let matchCount = 0;
     let emptyPhoneCount = 0;
 
-    // 2. Verificar cada vinculación contra el teléfono real del lead en el CRM
+    // 2. Obtener los detalles de todos los leads involucrados en un solo batch query
+    const leadIds = Array.from(new Set(links.map(l => l.lead_id).filter(Boolean)));
+    const leadMap = new Map();
+
+    if (leadIds.length > 0) {
+      try {
+        const leadsRes = await queryMain(`
+          SELECT id, "firstName", "lastName", phone, "assignedToId"
+          FROM "Lead" 
+          WHERE id = ANY($1)
+        `, [leadIds]);
+        for (const row of leadsRes.rows) {
+          leadMap.set(row.id, row);
+        }
+      } catch (e: any) {
+        console.error('Error fetching leads batch:', e.message);
+      }
+    }
+
+    // 3. Verificar cada vinculación contra el mapa cargado en memoria
     for (const link of links) {
       const remoteJid = link.remote_jid;
       const leadId = link.lead_id;
       const jidPhone = remoteJid.split('@')[0].replace(/\D/g, '');
 
-      const leadRes = await queryMain(`
-        SELECT id, "firstName", "lastName", phone, "assignedToId"
-        FROM "Lead" 
-        WHERE id = $1
-      `, [leadId]);
-
-      if (leadRes.rows.length === 0) {
+      if (!leadMap.has(leadId)) {
         mismatches.push({
           remote_jid: remoteJid,
           lead_id: leadId,
@@ -38,7 +51,7 @@ export async function GET() {
         continue;
       }
 
-      const lead = leadRes.rows[0];
+      const lead = leadMap.get(leadId);
       const leadPhone = lead.phone || '';
       const cleanLeadPhone = leadPhone.replace(/\D/g, '');
 
