@@ -625,12 +625,112 @@ async function processAndInsertMessages(rows: any[], instancesMap: Map<string, s
 }
 
 /**
+ * Corrige vinculaciones incorrectas de JID -> Lead ID en la tabla whatsapp_messages.
+ * Esto ocurre si un Lead tenía un teléfono vacío o corto, lo que causaba
+ * que coincidiera erróneamente con cualquier JID durante la sincronización inicial.
+ */
+export async function fixMismatchedWhatsappLeads() {
+  try {
+    console.log('[WhatsApp Sync] Iniciando verificación de vinculaciones JID-Lead...');
+    
+    // 1. Obtener todas las vinculaciones JID -> Lead ID existentes
+    const linksRes = await queryMarketing(`
+      SELECT DISTINCT remote_jid, lead_id 
+      FROM whatsapp_messages 
+      WHERE lead_id IS NOT NULL
+    `);
+    
+    const links = linksRes.rows;
+    if (links.length === 0) {
+      console.log('[WhatsApp Sync] No hay vinculaciones JID-Lead para verificar.');
+      return;
+    }
+
+    // 2. Cargar en memoria todos los leads involucrados
+    const leadIds = Array.from(new Set(links.map(l => l.lead_id).filter(Boolean)));
+    const leadMap = new Map<string, { id: string; phone: string }>();
+
+    if (leadIds.length > 0) {
+      const leadsRes = await queryMain(`
+        SELECT id, phone 
+        FROM "Lead" 
+        WHERE id = ANY($1)
+      `, [leadIds]);
+      
+      for (const row of leadsRes.rows) {
+        leadMap.set(row.id, row);
+      }
+    }
+
+    let unlinkedCount = 0;
+
+    // 3. Verificar cada vinculación
+    for (const link of links) {
+      const remoteJid = link.remote_jid;
+      const leadId = link.lead_id;
+      const jidPhone = remoteJid.split('@')[0].replace(/\D/g, '');
+
+      // Caso A: El lead ya no existe en el CRM
+      if (!leadMap.has(leadId)) {
+        console.log(`[WhatsApp Sync] Desvinculando JID ${remoteJid}: El lead ${leadId} no existe en el CRM.`);
+        await queryMarketing(`
+          UPDATE whatsapp_messages 
+          SET lead_id = NULL 
+          WHERE remote_jid = $1
+        `, [remoteJid]);
+        unlinkedCount++;
+        continue;
+      }
+
+      const lead = leadMap.get(leadId)!;
+      const leadPhone = lead.phone || '';
+      const cleanLeadPhone = leadPhone.replace(/\D/g, '');
+
+      // Caso B: El lead tiene un teléfono vacío o demasiado corto (menor a 7 dígitos)
+      if (!cleanLeadPhone || cleanLeadPhone.length < 7) {
+        console.log(`[WhatsApp Sync] Desvinculando JID ${remoteJid}: El lead ${leadId} tiene un teléfono vacío o muy corto ("${leadPhone}").`);
+        await queryMarketing(`
+          UPDATE whatsapp_messages 
+          SET lead_id = NULL 
+          WHERE remote_jid = $1
+        `, [remoteJid]);
+        unlinkedCount++;
+        continue;
+      }
+
+      // Caso C: Desajuste de teléfono
+      const isMatch = jidPhone === cleanLeadPhone || jidPhone.endsWith(cleanLeadPhone) || cleanLeadPhone.endsWith(jidPhone);
+      if (!isMatch) {
+        console.log(`[WhatsApp Sync] Desvinculando JID ${remoteJid}: Teléfono desajustado. JID: ${jidPhone}, Lead: ${cleanLeadPhone}`);
+        await queryMarketing(`
+          UPDATE whatsapp_messages 
+          SET lead_id = NULL 
+          WHERE remote_jid = $1
+        `, [remoteJid]);
+        unlinkedCount++;
+      }
+    }
+
+    if (unlinkedCount > 0) {
+      console.log(`[WhatsApp Sync] Se desvincularon ${unlinkedCount} chats con relaciones incorrectas.`);
+    } else {
+      console.log('[WhatsApp Sync] Todas las vinculaciones JID-Lead son correctas.');
+    }
+  } catch (error) {
+    console.error('Error al corregir vinculaciones de leads incorrectas:', error);
+  }
+}
+
+/**
  * Vincula retroactivamente los mensajes de WhatsApp que no tienen lead_id asignado (huérfanos).
  * Esto resuelve el caso de clientes nuevos que envían mensajes y posteriormente
  * se registran en el CRM mediante formularios u otros medios.
  */
 export async function retroactiveLinkLeads() {
   try {
+    // Primero, corregir vinculaciones incorrectas
+    await fixMismatchedWhatsappLeads();
+
     // 1. Obtener todos los JIDs de mensajes que no tienen lead_id asignado
     const orphanJidsRes = await queryMarketing(`
       SELECT DISTINCT remote_jid 
