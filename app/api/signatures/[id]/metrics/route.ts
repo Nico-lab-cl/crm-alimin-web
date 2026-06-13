@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
-import { ensureSchema } from '@/app/api/signatures/route';
+import { ensureSchema } from '@/lib/signatures';
 
 export const dynamic = 'force-dynamic';
 
