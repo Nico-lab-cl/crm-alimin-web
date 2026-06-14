@@ -118,9 +118,7 @@ export default function MetaAutomationsPage() {
     setFormId(rule.form_id || '');
     setSegmentId(rule.segment_id || '');
     
-    const currentWebhook = rule.webhook_url === 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8'
-      ? defaultWebhookUrl
-      : (rule.webhook_url || defaultWebhookUrl);
+    const currentWebhook = rule.webhook_url || defaultWebhookUrl;
     setWebhookUrl(currentWebhook);
     
     let ids: string[] = [];
@@ -449,8 +447,8 @@ export default function MetaAutomationsPage() {
                             📱 FormID: {rule.form_id}
                           </code>
                         )}
-                        <p className="text-[10px] text-[#516f90] mt-1.5 font-mono max-w-[240px] truncate" title={rule.webhook_url === 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8' ? defaultWebhookUrl : (rule.webhook_url || defaultWebhookUrl)}>
-                          🔗 {rule.webhook_url && rule.webhook_url !== 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8' ? rule.webhook_url : 'Webhook por Defecto'}
+                        <p className="text-[10px] text-[#516f90] mt-1.5 font-mono max-w-[240px] truncate" title={rule.webhook_url || defaultWebhookUrl}>
+                          🔗 {rule.webhook_url ? rule.webhook_url : 'Webhook por Defecto'}
                         </p>
                       </td>
                       <td className="px-6 py-4">

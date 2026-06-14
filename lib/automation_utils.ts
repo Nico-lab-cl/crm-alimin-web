@@ -305,7 +305,7 @@ export async function checkLeadMatchesSegment(leadId: string, segmentId: string)
 export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any[]) {
   let specialWebhookUrl = rule.webhook_url;
   
-  if (!specialWebhookUrl || specialWebhookUrl === 'https://n8n.aliminlomasdelmar.com/webhook/cf17a03e-fd4c-4355-bc20-e007f73ee2a8') {
+  if (!specialWebhookUrl) {
     specialWebhookUrl = process.env.N8N_WEBHOOK_URL || 'https://n8n.aliminlomasdelmar.com/webhook/451ea8a2-a6d4-4827-9c6f-375ba8adcdd8';
   }
 
