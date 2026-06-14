@@ -121,7 +121,7 @@ export async function GET() {
         body: chat.body,
         timestamp: chat.timestamp,
         from_me: chat.from_me,
-        advisor_name: normalizeAdvisorName(leadAdvisorName || chat.advisor_name),
+        advisor_name: normalizeAdvisorName(chat.advisor_name),
         is_crm_contact: !!chat.lead_id
       });
     }
