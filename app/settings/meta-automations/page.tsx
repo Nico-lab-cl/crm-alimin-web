@@ -283,7 +283,7 @@ export default function MetaAutomationsPage() {
     };
 
     try {
-      const res = await fetch('/api/leads/webhook/meta', {
+      const res = await fetch(`/api/meta-automations/${testRule.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
