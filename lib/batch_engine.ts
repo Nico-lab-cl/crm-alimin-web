@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
 
 // ============================================================
 // Constants
@@ -157,6 +157,11 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
   const firstNameCol = findCol('firstname') || findCol('first_name') || '"FirstName"';
 
   const whereClauses = [`${emailCol} IS NOT NULL AND ${emailCol} != ''`];
+  const emailEnabledCol = findCol('emailEnabled') || '"emailEnabled"';
+  if (columns.includes(emailEnabledCol.replace(/"/g, ''))) {
+    whereClauses.push(`${emailEnabledCol} IS NOT FALSE`);
+  }
+
   const params: (string | number | Date | string[])[] = [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -449,7 +454,8 @@ async function processBatches(
         // Build final HTML with tracking pixel and link click tracking
         const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
         const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
-        const finalHtml = optimizeHtmlForDarkMode(htmlWithTrackedLinks + trackingPixel);
+        const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, lead.id, emailValue, appUrl);
+        const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
 
         // Send to n8n webhook
         const response = await fetch(n8nUrl, {

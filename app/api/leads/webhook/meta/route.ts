@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { queryMarketing, queryMain } from '@/lib/db';
-import { optimizeHtmlForDarkMode } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
 import { checkLeadMatchesSegment, dispatchLeadToWebhook } from '@/lib/automation_utils';
 
 export async function POST(request: Request) {
@@ -210,8 +210,24 @@ export async function POST(request: Request) {
         const n8nUrl = process.env.N8N_WEBHOOK_URL;
         if (!n8nUrl) return;
 
+        // Fetch actual lead details to verify unsubscribe status
+        const leadRes = await queryMain('SELECT id, "emailEnabled" FROM "Lead" WHERE email = $1 LIMIT 1', [email]);
+        const leadRow = leadRes.rows[0];
+        const leadId = leadRow?.id || '';
+        const emailEnabled = leadRow ? leadRow.emailEnabled : true;
+
+        if (emailEnabled === false) {
+          console.log(`[Meta Webhook] Excluyendo envío de correo automatizado a ${email} por desuscripción.`);
+          await queryMarketing(
+            "UPDATE campaign_logs SET status = 'EXCLUDED' WHERE id = $1",
+            [logId]
+          );
+          return;
+        }
+
         const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
-        const finalHtml = optimizeHtmlForDarkMode(campaign.html_content + trackingPixel);
+        const htmlWithUnsubscribe = appendUnsubscribeFooter(campaign.html_content, leadId, email, appUrl);
+        const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
 
         await fetch(n8nUrl, {
           method: 'POST',

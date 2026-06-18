@@ -195,3 +195,32 @@ export function optimizeHtmlForDarkMode(html: string): string {
 
   return processedHtml;
 }
+
+/**
+ * Agrega dinámicamente un footer de desuscripción elegante y responsivo en español,
+ * adaptado a los colores de marca de Alimin Inmobiliaria.
+ */
+export function appendUnsubscribeFooter(html: string, leadId: string, email: string, appUrl: string): string {
+  if (!html) return html;
+  
+  const unsubscribeUrl = `${appUrl}/unsubscribe?id=${leadId}`;
+  const footerHtml = `
+    <!-- START FOOTER UNSUBSCRIBE -->
+    <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #cbd6e2; text-align: center; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; color: #516f90; line-height: 1.6;">
+      <p style="margin: 0 0 6px 0;">Este correo fue enviado a <strong style="color: #33475b;">${email}</strong>.</p>
+      <p style="margin: 0;">
+        Si ya no deseas recibir nuestros correos comerciales, puedes 
+        <a href="${unsubscribeUrl}" style="color: #2bbaef; text-decoration: underline; font-weight: bold;">cancelar tu suscripción aquí</a>.
+      </p>
+      <p style="margin: 8px 0 0 0; font-size: 10px; color: #a3b8cc;">Alimin Inmobiliaria &copy; ${new Date().getFullYear()}</p>
+    </div>
+    <!-- END FOOTER UNSUBSCRIBE -->
+  `;
+
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${footerHtml}</body>`);
+  } else {
+    return html + footerHtml;
+  }
+}
+

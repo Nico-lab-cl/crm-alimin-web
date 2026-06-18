@@ -56,6 +56,8 @@ interface Lead {
   advisorName?: string;
   CreatedAt?: string;
   createdAt?: string;
+  emailEnabled?: boolean;
+  email_enabled?: boolean;
 }
 
 export default function ListsPage() {
@@ -871,7 +873,12 @@ export default function ListsPage() {
                       {previewLeads.map((lead) => (
                         <tr key={lead.id} className="hover:bg-[#f5f8fa]/40 transition-colors">
                           <td className="px-4 py-2.5 font-bold text-[#33475b]">{getLeadName(lead)}</td>
-                          <td className="px-4 py-2.5 text-slate-500">{lead.Email || lead.email || '-'}</td>
+                          <td className="px-4 py-2.5 text-slate-500">
+                            {lead.Email || lead.email || '-'}
+                            {(lead.emailEnabled === false || lead.email_enabled === false) && (
+                              <span className="ml-2 inline-block px-1.5 py-0.5 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-extrabold uppercase leading-none">Desuscrito</span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5">
                             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-[10px] font-semibold uppercase">
                               {lead.Status || lead.status || 'Nuevo'}

@@ -57,6 +57,8 @@ export async function PATCH(
       if (body.Rating !== undefined) lead.Rating = body.Rating;
       if (body.notes !== undefined) lead.notes = body.notes;
       if (body.Notes !== undefined) lead.notes = body.Notes;
+      if (body.emailEnabled !== undefined) lead.emailEnabled = body.emailEnabled;
+      if (body.emailenabled !== undefined) lead.emailEnabled = body.emailenabled;
 
       return NextResponse.json({
         success: true,
@@ -93,6 +95,7 @@ export async function PATCH(
     addField('visited', body.visited);
     addField('visitdate', body.visitDate ?? body.visitdate);
     addField('visitproject', body.visitProject ?? body.visitproject);
+    addField('emailenabled', body.emailEnabled ?? body.emailenabled ?? body.EmailEnabled);
 
     if (updateColumns.length === 0) {
       return NextResponse.json({ message: 'No se enviaron campos válidos para actualizar.' }, { status: 400 });

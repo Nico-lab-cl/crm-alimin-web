@@ -1,4 +1,5 @@
 import { queryMain, queryMarketing } from './db';
+import { appendUnsubscribeFooter } from './email_utils';
 
 // Helper to discover Lead columns dynamically
 export async function getLeadColumns(): Promise<string[]> {
@@ -258,7 +259,8 @@ export async function getLeadsForSegment(segmentId: string) {
     columns.includes(adNameCol.replace(/"/g, '')) ? `${adNameCol} as adname` : 'NULL as adname',
     columns.includes(pieCol.replace(/"/g, '')) ? `${pieCol} as pie` : 'NULL as pie',
     `${sourceCol} as source`,
-    `${createdAtCol} as created_at`
+    `${createdAtCol} as created_at`,
+    columns.includes('emailEnabled') ? '"emailEnabled" as email_enabled' : 'TRUE as email_enabled'
   ].join(', ');
 
   const query = `
@@ -303,6 +305,13 @@ export async function checkLeadMatchesSegment(leadId: string, segmentId: string)
 
 // Dispatches a single lead + campaigns to the special webhook and logs a notification
 export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any[]) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
+  
+  if (lead.email_enabled === false || lead.emailEnabled === false) {
+    console.log(`[Automation Utility] Excluyendo lead desuscrito de la regla "${rule.name}": ${lead.email}`);
+    return false;
+  }
+
   let specialWebhookUrl = rule.webhook_url;
   
   if (!specialWebhookUrl) {
@@ -334,7 +343,7 @@ export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any
       id: c.id,
       title: c.title,
       subject: c.subject,
-      html_content: c.html_content,
+      html_content: appendUnsubscribeFooter(c.html_content, lead.id, lead.email, appUrl),
       mjml_content: c.mjml_content
     }))
   };

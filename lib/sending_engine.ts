@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
 
 interface SendCampaingOptions {
   campaignId: string;
@@ -51,6 +51,11 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const createdAtCol = rawCreatedAtCol || '"CreatedAt"';
 
   const whereClauses = ['email IS NOT NULL AND email != \'\''];
+  const emailEnabledCol = findCol('emailEnabled') || '"emailEnabled"';
+  if (columns.includes(emailEnabledCol.replace(/"/g, ''))) {
+    whereClauses.push(`${emailEnabledCol} IS NOT FALSE`);
+  }
+
   const params: (string | number | Date | string[])[] = [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -224,7 +229,8 @@ export async function executeCampaign(options: SendCampaingOptions) {
 
       const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
       const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
-      const finalHtml = optimizeHtmlForDarkMode(htmlWithTrackedLinks + trackingPixel);
+      const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, lead.id, emailValue, appUrl);
+      const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
 
       fetch(n8nUrl, {
         method: 'POST',
@@ -314,7 +320,8 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
 
   const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
   const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
-  const finalHtml = optimizeHtmlForDarkMode(htmlWithTrackedLinks + trackingPixel);
+  const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, leadId, targetEmail, appUrl);
+  const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
 
   await fetch(n8nUrl, {
     method: 'POST',

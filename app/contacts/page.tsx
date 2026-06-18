@@ -842,6 +842,7 @@ export default function ContactsPage() {
                 <tr className="bg-[#f5f8fa] text-[#516f90] text-xs font-bold uppercase tracking-wider border-b border-[#cbd6e2]">
                   <th className="px-6 py-4">Nombre / Cliente</th>
                   <th className="px-6 py-4">Correo Electrónico</th>
+                  <th className="px-6 py-4 text-center">Recibe Email</th>
                   <th className="px-6 py-4">Teléfono</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4">Origen</th>
@@ -857,6 +858,17 @@ export default function ContactsPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-[#516f90] font-medium">
                       {getLeadEmail(lead)}
+                    </td>
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center">
+                        <input 
+                          type="checkbox" 
+                          checked={lead.emailEnabled !== false}
+                          onChange={() => handleUpdateLead(lead.id, { emailEnabled: lead.emailEnabled === false })}
+                          className="w-4 h-4 text-[#2d544c] border-slate-300 rounded focus:ring-[#2d544c]/20 cursor-pointer"
+                          title={lead.emailEnabled === false ? "Desactivado - Hacer clic para activar" : "Activo - Hacer clic para desactivar"}
+                        />
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-[#516f90]">
                       {getLeadPhone(lead)}
@@ -1283,6 +1295,19 @@ export default function ContactsPage() {
                         onBlur={(e) => handleUpdateLead(selectedLead.id, { email: e.target.value })}
                         className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
                       />
+                      
+                      <div className="flex items-center gap-2 pt-2">
+                        <input 
+                          id="detail-email-enabled"
+                          type="checkbox" 
+                          checked={selectedLead.emailEnabled !== false}
+                          onChange={(e) => handleUpdateLead(selectedLead.id, { emailEnabled: e.target.checked })}
+                          className="w-4 h-4 text-[#2d544c] border-slate-300 rounded focus:ring-[#2d544c]/20 cursor-pointer"
+                        />
+                        <label htmlFor="detail-email-enabled" className="text-xs font-semibold text-[#516f90] cursor-pointer select-none">
+                          Habilitado para campañas (Suscrito)
+                        </label>
+                      </div>
                     </div>
                     
                     {/* Teléfono */}

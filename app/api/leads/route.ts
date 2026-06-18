@@ -436,7 +436,8 @@ export async function POST(request: Request) {
         Lote: lote || '',
         Etapa: etapa || '',
         CreatedAt: new Date().toISOString(),
-        Rating: 'FRIO'
+        Rating: 'FRIO',
+        emailEnabled: body.emailEnabled ?? body.emailenabled ?? true
       };
       
       // Agregar temporalmente en memoria (para que el cliente lo vea en su sesión local)
@@ -499,6 +500,7 @@ export async function POST(request: Request) {
     // Campos de tracking opcionales
     addField('created_at', new Date());
     addField('createdat', new Date());
+    addField('emailenabled', body.emailEnabled ?? body.emailenabled ?? true);
 
     if (insertColumns.length === 0) {
       return NextResponse.json({ message: 'No se encontraron columnas mapeables en el esquema.' }, { status: 400 });
