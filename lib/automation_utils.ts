@@ -345,7 +345,9 @@ export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any
       subject: c.subject,
       html_content: appendUnsubscribeFooter(c.html_content, lead.id, lead.email, appUrl),
       mjml_content: c.mjml_content
-    }))
+    })),
+    senderIndex: Math.floor(Math.random() * 5),
+    senderName: "Alimin Inmobiliaria"
   };
 
   try {

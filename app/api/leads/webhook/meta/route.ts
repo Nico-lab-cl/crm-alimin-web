@@ -229,6 +229,8 @@ export async function POST(request: Request) {
         const htmlWithUnsubscribe = appendUnsubscribeFooter(campaign.html_content, leadId, email, appUrl);
         const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
 
+        const senderIndex = Math.floor(Math.random() * 5);
+
         await fetch(n8nUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -242,7 +244,9 @@ export async function POST(request: Request) {
             html: finalHtml,
             formid: formid,
             source: 'META',
-            automation: true
+            automation: true,
+            senderIndex,
+            senderName: "Alimin Inmobiliaria"
           }),
         });
 

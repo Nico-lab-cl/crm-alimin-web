@@ -1,0 +1,241 @@
+{
+  "name": "Alimin | Email Marketing | Envio masivo balanceado (5 Cuentas) | ✅ FUNCIONANDO",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "webhook-crm",
+      "name": "Envios de leads desde el CRM",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "dataType": "number",
+        "value1": "={{ $json.body.senderIndex }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": 0
+            },
+            {
+              "value2": 1
+            },
+            {
+              "value2": 2
+            },
+            {
+              "value2": 3
+            },
+            {
+              "value2": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        200,
+        0
+      ],
+      "id": "switch-sender-index",
+      "name": "Switch: senderIndex"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        -250
+      ],
+      "id": "gmail-bienesraices",
+      "name": "Gmail: bienesraices@marketing.aliminspa.cl",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OmLpyGtcbPqYaE8r",
+          "name": "bienesraices@marketing.aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        -125
+      ],
+      "id": "gmail-inmobiliaria",
+      "name": "Gmail: inmobiliaria@marketing.aliminspa.cl",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "placeholder-inmobiliaria",
+          "name": "inmobiliaria@marketing.aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        0
+      ],
+      "id": "gmail-difusion",
+      "name": "Gmail: difusion@marketing.aliminspa.cl",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "placeholder-difusion",
+          "name": "difusion@marketing.aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        125
+      ],
+      "id": "gmail-contacto",
+      "name": "Gmail: contacto@marketing.aliminspa.cl",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "placeholder-contacto",
+          "name": "contacto@marketing.aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        250
+      ],
+      "id": "gmail-marketing",
+      "name": "Gmail: marketing@marketing.aliminspa.cl",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "placeholder-marketing",
+          "name": "marketing@marketing.aliminspa.cl"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Envios de leads desde el CRM": {
+      "main": [
+        [
+          {
+            "node": "Switch: senderIndex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: senderIndex": {
+      "main": [
+        [
+          {
+            "node": "Gmail: bienesraices@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: inmobiliaria@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: difusion@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: contacto@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: marketing@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

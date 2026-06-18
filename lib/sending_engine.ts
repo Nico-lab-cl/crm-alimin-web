@@ -216,9 +216,12 @@ export async function executeCampaign(options: SendCampaingOptions) {
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
 
   // 3. Procesar cada lead
+  let index = 0;
   for (const lead of leads) {
     try {
       const emailValue = lead.Email || lead.email; // Manejar posible diferencia de case en el objeto de retorno
+      const senderIndex = index % 5;
+      index++;
       
       const logRes = await queryMarketing(
         `INSERT INTO campaign_logs (campaign_id, lead_id, email, status) 
@@ -243,6 +246,8 @@ export async function executeCampaign(options: SendCampaingOptions) {
           subject: campaign.subject,
           html: finalHtml,
           design: campaign.mjml_content,
+          senderIndex,
+          senderName: "Alimin Inmobiliaria"
         }),
       }).catch(err => console.error(`Error enviando a n8n:`, err));
 
@@ -334,6 +339,8 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
       subject: `[PRUEBA] ${campaign.subject}`,
       html: finalHtml,
       design: campaign.mjml_content,
+      senderIndex: 0,
+      senderName: "Alimin Inmobiliaria"
     }),
   });
 

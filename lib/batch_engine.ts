@@ -418,6 +418,8 @@ async function processBatches(
 
   console.log(`[BatchEngine] Job ${job.id}: Starting ${batches.length} batches of ${job.batchSize} leads (sending: ${leads.length}, skipped: ${job.skippedLeads})`);
 
+  let index = 0;
+
   for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
     // Check for cancellation (cast to string to prevent TS control flow narrowing to RUNNING)
     if ((job.status as string) === 'CANCELLED') {
@@ -442,6 +444,9 @@ async function processBatches(
           job.processedLeads++;
           continue;
         }
+
+        const senderIndex = index % 5;
+        index++;
 
         // Create campaign log
         const logRes = await queryMarketing(
@@ -469,6 +474,8 @@ async function processBatches(
             subject: campaign.subject,
             html: finalHtml,
             design: campaign.mjml_content,
+            senderIndex,
+            senderName: "Alimin Inmobiliaria"
           }),
         });
 

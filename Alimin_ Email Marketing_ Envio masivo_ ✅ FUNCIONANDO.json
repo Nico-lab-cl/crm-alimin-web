@@ -1,0 +1,116 @@
+{
+  "name": "Alimin| Email Marketing| Envio masivo| ✅ FUNCIONANDO",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Envios de leads desde el CRM",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "=Una caja misteriosa está por llegar a Alimin 🎁",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "bienesraices@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "135ea5be-e9b5-4502-8e4e-bd266e32d690",
+      "name": "Envio de correo a traves de bienesraices@aliminspa.cl",
+      "webhookId": "d1cc1aa0-64d1-47a6-bb13-53608c32fe33",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OmLpyGtcbPqYaE8r",
+          "name": "bienesraices@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "EXTENDEMOS EL CYBER DAY💣 | Asegura tu terreno cerca del mar este CyberDay",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        -160
+      ],
+      "id": "470e9aab-0fc2-42a0-83d0-15682eb7ff23",
+      "name": "Enviar mensajes lomasdelmar@aliminspa.cl",
+      "webhookId": "0afcfb8e-896c-4fcb-a7db-cbd4cc535322",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "L2WQMNL9sCFpfem9",
+          "name": "Lomas del mar - Alimin Gmail"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Envios de leads desde el CRM": {
+      "main": [
+        [
+          {
+            "node": "Envio de correo a traves de bienesraices@aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envio de correo a traves de bienesraices@aliminspa.cl": {
+      "main": [
+        []
+      ]
+    },
+    "Enviar mensajes lomasdelmar@aliminspa.cl": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b5f0d7a8-25f6-4997-8bfb-7559675a4dcc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e88b42a5e011f39a6920cb8fcbced8eb6ca6be5a13db9dc945e745822e35ac5"
+  },
+  "id": "xfb7e9BiUGjCwoIg",
+  "tags": [
+    {
+      "updatedAt": "2026-01-24T17:16:43.490Z",
+      "createdAt": "2026-01-24T17:16:43.490Z",
+      "id": "2BzKuztLUNtPN0dg",
+      "name": "alimin"
+    }
+  ]
+}
