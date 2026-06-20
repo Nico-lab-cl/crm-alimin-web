@@ -1,0 +1,345 @@
+{
+  "name": "Alimin | Email Marketing | Envio masivo balanceado (5 Cuentas) | ✅ FUNCIONANDO",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b9fe4c0e-5e7b-4775-aa0f-260093a8c07a",
+      "name": "Envios de leads desde el CRM",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "=Una caja misteriosa está por llegar a Alimin 🎁",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "bienesraices@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "135ea5be-e9b5-4502-8e4e-bd266e32d690",
+      "name": "Envio de correo a traves de bienesraices@aliminspa.cl",
+      "webhookId": "d1cc1aa0-64d1-47a6-bb13-53608c32fe33",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OmLpyGtcbPqYaE8r",
+          "name": "bienesraices@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "EXTENDEMOS EL CYBER DAY💣 | Asegura tu terreno cerca del mar este CyberDay",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        -160
+      ],
+      "id": "470e9aab-0fc2-42a0-83d0-15682eb7ff23",
+      "name": "Enviar mensajes lomasdelmar@aliminspa.cl",
+      "webhookId": "0afcfb8e-896c-4fcb-a7db-cbd4cc535322",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "L2WQMNL9sCFpfem9",
+          "name": "Lomas del mar - Alimin Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "value1": "={{ $json.body.senderIndex }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": 0
+            },
+            {
+              "value2": 1
+            },
+            {
+              "value2": 2
+            },
+            {
+              "value2": 3
+            },
+            {
+              "value2": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        608,
+        368
+      ],
+      "id": "d927df6c-3129-4c9b-8d0a-4823801bdab4",
+      "name": "Switch: senderIndex"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "=bienesraices@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        16
+      ],
+      "id": "6cf9c369-c1bf-4489-998e-d94bd616fcad",
+      "name": "Gmail: bienesraices@marketing.aliminspa.cl",
+      "webhookId": "86104bb4-10ba-4dee-a445-128eadfa9aad",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OmLpyGtcbPqYaE8r",
+          "name": "bienesraices@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.body.senderName || 'Alimin Inmobiliaria' }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        208
+      ],
+      "id": "769502b2-0b78-49bf-978a-f4f9020d1b2f",
+      "name": "Gmail: inmobiliaria@marketing.aliminspa.cl",
+      "webhookId": "4bb11a9e-5cff-47b0-950c-f585d0c72b0d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6XZvmaB6t3sVTGXl",
+          "name": "Postventas@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "=contacto@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        384
+      ],
+      "id": "1bbccd13-4446-4379-9bd6-f8303d026f2f",
+      "name": "Gmail: difusion@marketing.aliminspa.cl",
+      "webhookId": "ff52c45f-116d-4099-b311-bc9fe2449f60",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2bCkyzgFxJBN6hib",
+          "name": "Gmail contacto@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "=difusion@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        592
+      ],
+      "id": "48cd267c-c26a-4936-af96-2e255ed1c05f",
+      "name": "Gmail: contacto@marketing.aliminspa.cl",
+      "webhookId": "73b82f95-e44f-4b38-bacf-1d94d8e4c94a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "reGIcKQBWa1jQZOY",
+          "name": "Gmail difusion@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "=marketing@marketing.aliminspa.cl"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        832
+      ],
+      "id": "a7ac5711-6362-40e9-aad5-e6ad8758e7a4",
+      "name": "Gmail: marketing@marketing.aliminspa.cl",
+      "webhookId": "4da77296-da9e-45ab-b8b1-5aa49bbb6093",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "dkmR1fqA2Xi5322O",
+          "name": "Gmail markeitng@aliminspa.cl"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        400,
+        368
+      ],
+      "id": "cbb9b593-e9e4-4930-8ed2-dbb1aff14a77",
+      "name": "Envios de leads desde el CRM1",
+      "webhookId": "451ea8a2-a6d4-4827-9c6f-375ba8adcdd8"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Envios de leads desde el CRM": {
+      "main": [
+        [
+          {
+            "node": "Envio de correo a traves de bienesraices@aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envio de correo a traves de bienesraices@aliminspa.cl": {
+      "main": [
+        []
+      ]
+    },
+    "Enviar mensajes lomasdelmar@aliminspa.cl": {
+      "main": [
+        []
+      ]
+    },
+    "Switch: senderIndex": {
+      "main": [
+        [
+          {
+            "node": "Gmail: bienesraices@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: inmobiliaria@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: difusion@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: contacto@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: marketing@marketing.aliminspa.cl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envios de leads desde el CRM1": {
+      "main": [
+        [
+          {
+            "node": "Switch: senderIndex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "880294c5-5582-45a5-9103-7b0581934f85",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e88b42a5e011f39a6920cb8fcbced8eb6ca6be5a13db9dc945e745822e35ac5"
+  },
+  "id": "xfb7e9BiUGjCwoIg",
+  "tags": [
+    {
+      "updatedAt": "2026-01-24T17:16:43.490Z",
+      "createdAt": "2026-01-24T17:16:43.490Z",
+      "id": "2BzKuztLUNtPN0dg",
+      "name": "alimin"
+    }
+  ]
+}

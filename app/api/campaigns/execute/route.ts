@@ -5,14 +5,14 @@ export async function GET() {
   // Return daily quota info
   try {
     const sentToday = await getTodaySentCount();
-    const dailyLimit = 2000;
+    const dailyLimit = 10000;
     return NextResponse.json({
       sentToday,
       dailyLimit,
       remaining: Math.max(0, dailyLimit - sentToday),
     });
   } catch {
-    return NextResponse.json({ sentToday: 0, dailyLimit: 2000, remaining: 2000 });
+    return NextResponse.json({ sentToday: 0, dailyLimit: 10000, remaining: 10000 });
   }
 }
 

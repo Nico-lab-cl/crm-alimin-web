@@ -5,7 +5,7 @@ import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_ut
 // ============================================================
 // Constants
 // ============================================================
-const GMAIL_DAILY_LIMIT = 2000;
+const GMAIL_DAILY_LIMIT = 10000;
 
 // ============================================================
 // In-Memory Job Tracker
