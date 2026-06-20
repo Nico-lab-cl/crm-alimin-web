@@ -247,7 +247,10 @@ export async function executeCampaign(options: SendCampaingOptions) {
           html: finalHtml,
           design: campaign.mjml_content,
           senderIndex,
-          senderName: "Alimin Inmobiliaria"
+          senderName: "Alimin Inmobiliaria",
+          lead_id: lead.id,
+          appUrl,
+          unsubscribeUrl: `${appUrl}/unsubscribe?id=${lead.id}`
         }),
       }).catch(err => console.error(`Error enviando a n8n:`, err));
 
@@ -340,7 +343,10 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string, 
       html: finalHtml,
       design: campaign.mjml_content,
       senderIndex,
-      senderName: "Alimin Inmobiliaria"
+      senderName: "Alimin Inmobiliaria",
+      lead_id: leadId,
+      appUrl,
+      unsubscribeUrl: `${appUrl}/unsubscribe?id=${leadId}`
     }),
   });
 

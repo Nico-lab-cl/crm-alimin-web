@@ -193,6 +193,19 @@ export function optimizeHtmlForDarkMode(html: string): string {
     return `<${tagName}${updatedAttrs} data-ogsb="background-color: ${cleanColor} !important;">`;
   });
 
+  // 6. Garantizar que todas las imágenes tengan el atributo alt (si no está, agregar alt="")
+  const imgRegex = /<img\b([^>]*?)(\/?>)/gi;
+  processedHtml = processedHtml.replace(imgRegex, (match, attrs, end) => {
+    if (/\balt\s*=/i.test(attrs)) {
+      return match;
+    }
+    let cleanAttrs = attrs.trim();
+    if (cleanAttrs.endsWith('/')) {
+      cleanAttrs = cleanAttrs.substring(0, cleanAttrs.length - 1).trim();
+    }
+    return `<img ${cleanAttrs} alt="" />`;
+  });
+
   return processedHtml;
 }
 

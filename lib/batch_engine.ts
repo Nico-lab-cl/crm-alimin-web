@@ -475,7 +475,10 @@ async function processBatches(
             html: finalHtml,
             design: campaign.mjml_content,
             senderIndex,
-            senderName: "Alimin Inmobiliaria"
+            senderName: "Alimin Inmobiliaria",
+            lead_id: lead.id,
+            appUrl,
+            unsubscribeUrl: `${appUrl}/unsubscribe?id=${lead.id}`
           }),
         });
 
