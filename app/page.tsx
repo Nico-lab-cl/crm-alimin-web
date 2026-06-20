@@ -149,6 +149,7 @@ export default function Dashboard() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testLoading, setTestLoading] = useState(false);
+  const [testSenderIndex, setTestSenderIndex] = useState('0');
   const [loading, setLoading] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Campaign | null>(null);
   const [automationLoading, setAutomationLoading] = useState(false);
@@ -440,14 +441,38 @@ export default function Dashboard() {
     
     setTestLoading(true);
     try {
-      const res = await fetch('/api/campaigns/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: selectedCampaign, email: testEmail }),
-      });
+      if (testSenderIndex === 'all') {
+        alert('Se iniciará el envío de 5 pruebas (una por cada cuenta). Revisa tu bandeja de entrada o spam.');
+        for (let i = 0; i < 5; i++) {
+          await fetch('/api/campaigns/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              campaignId: selectedCampaign, 
+              email: testEmail, 
+              senderIndex: i 
+            }),
+          });
+          if (i < 4) {
+            // Esperar 3 segundos para evitar bloqueos
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+        }
+        alert('Las 5 pruebas fueron enviadas con éxito.');
+      } else {
+        const res = await fetch('/api/campaigns/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            campaignId: selectedCampaign, 
+            email: testEmail, 
+            senderIndex: Number(testSenderIndex) 
+          }),
+        });
 
-      const data = await res.json();
-      alert(data.message);
+        const data = await res.json();
+        alert(data.message);
+      }
       fetchLogs();
     } catch {
       alert('Error enviando prueba');
@@ -552,6 +577,18 @@ export default function Dashboard() {
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}
                 />
+                <select
+                  value={testSenderIndex}
+                  onChange={(e) => setTestSenderIndex(e.target.value)}
+                  className="bg-white border-[#cbd6e2] border text-xs px-2.5 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2d544c]/20 w-44 font-semibold text-[#2d544c] outline-none"
+                >
+                  <option value="0">Cuenta 1 (bienesraices)</option>
+                  <option value="1">Cuenta 2 (inmobiliaria)</option>
+                  <option value="2">Cuenta 3 (difusion)</option>
+                  <option value="3">Cuenta 4 (contacto)</option>
+                  <option value="4">Cuenta 5 (marketing)</option>
+                  <option value="all">Todas las 5 cuentas (rotativo)</option>
+                </select>
                 <button 
                   onClick={handleSendTest}
                   disabled={testLoading || !selectedCampaign || !testEmail}

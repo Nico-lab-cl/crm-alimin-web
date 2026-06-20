@@ -284,7 +284,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
   return { processed: leads.length };
 }
 
-export async function sendTestCampaign(campaignId: string, targetEmail: string) {
+export async function sendTestCampaign(campaignId: string, targetEmail: string, senderIndex: number = 0) {
   const campaignRes = await queryMarketing('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
   if (campaignRes.rowCount === 0) throw new Error('Campaña no encontrada');
   const campaign = campaignRes.rows[0];
@@ -339,7 +339,7 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string) 
       subject: `[PRUEBA] ${campaign.subject}`,
       html: finalHtml,
       design: campaign.mjml_content,
-      senderIndex: 0,
+      senderIndex,
       senderName: "Alimin Inmobiliaria"
     }),
   });

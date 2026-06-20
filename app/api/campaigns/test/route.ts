@@ -3,13 +3,13 @@ import { sendTestCampaign } from '@/lib/sending_engine';
 
 export async function POST(request: Request) {
   try {
-    const { campaignId, email } = await request.json();
+    const { campaignId, email, senderIndex } = await request.json();
 
     if (!campaignId || !email) {
       return NextResponse.json({ message: 'campaignId y email son requeridos' }, { status: 400 });
     }
 
-    await sendTestCampaign(campaignId, email);
+    await sendTestCampaign(campaignId, email, senderIndex !== undefined ? Number(senderIndex) : 0);
 
     return NextResponse.json({ 
       message: 'Correo de prueba enviado con éxito'
