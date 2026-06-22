@@ -232,7 +232,8 @@ async function main() {
     if (formName.includes('MARCELA')) {
       assignedToId = ADVISOR_MAP['Marcela Escobar'];
     } else if (formName.includes('BARBARA') || formName.includes('BÁRBARA')) {
-      assignedToId = ADVISOR_MAP['Barbara Arias'];
+      // Barbara is no longer part of the team, distribute equally to Marcela or Orlando
+      assignedToId = Math.random() < 0.5 ? ADVISOR_MAP['Marcela Escobar'] : ADVISOR_MAP['Orlando Costa'];
     } else if (formName.includes('ORLANDO')) {
       assignedToId = ADVISOR_MAP['Orlando Costa'];
     }
@@ -285,7 +286,12 @@ async function main() {
     let assignedToId = null;
     const resp = r['Responsable'] ? String(r['Responsable']).trim() : '';
     if (ADVISOR_MAP[resp]) {
-      assignedToId = ADVISOR_MAP[resp];
+      if (resp === 'Barbara Arias') {
+        // Barbara is no longer part of the team, distribute equally to Marcela or Orlando
+        assignedToId = Math.random() < 0.5 ? ADVISOR_MAP['Marcela Escobar'] : ADVISOR_MAP['Orlando Costa'];
+      } else {
+        assignedToId = ADVISOR_MAP[resp];
+      }
     }
 
     const pie = r['Pie inicial (contacto)'] || r['Cuenta con pie inicial (contacto)'] || '';
