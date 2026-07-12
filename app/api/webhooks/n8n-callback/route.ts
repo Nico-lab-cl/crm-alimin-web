@@ -1,6 +1,43 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing, queryMain } from '@/lib/db';
 
+let leadColumnsCache: string[] | null = null;
+async function getLeadColumns(): Promise<string[]> {
+  if (leadColumnsCache) return leadColumnsCache;
+  try {
+    const res = await queryMain(`SELECT column_name FROM information_schema.columns WHERE table_name = 'Lead'`);
+    leadColumnsCache = res.rows.map((r: { column_name: string }) => r.column_name);
+  } catch {
+    leadColumnsCache = [];
+  }
+  return leadColumnsCache;
+}
+
+/**
+ * Suprime automáticamente al lead de futuros envíos cuando su correo rebota,
+ * para no seguir mandando correo a direcciones inválidas y proteger la
+ * reputación de envío (bounce rate) en Amazon SES.
+ */
+async function suppressBouncedLead(leadId: string) {
+  if (!leadId) return;
+  const columns = await getLeadColumns();
+  const emailEnabledCol = columns.find(c => c.toLowerCase() === 'emailenabled');
+  const emailBouncedCol = columns.find(c => c.toLowerCase() === 'emailbounced');
+  const idCol = columns.find(c => c.toLowerCase() === 'id') || 'id';
+
+  if (!emailEnabledCol && !emailBouncedCol) return;
+
+  const sets: string[] = [];
+  if (emailEnabledCol) sets.push(`"${emailEnabledCol}" = FALSE`);
+  if (emailBouncedCol) sets.push(`"${emailBouncedCol}" = TRUE`);
+
+  try {
+    await queryMain(`UPDATE "Lead" SET ${sets.join(', ')} WHERE "${idCol}" = $1`, [leadId]);
+  } catch (err) {
+    console.error('Error suprimiendo lead rebotado en n8n-callback:', err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     // Verificar token opcional para seguridad básica
@@ -36,6 +73,11 @@ export async function POST(request: Request) {
       WHERE id = $2
     `;
     await queryMarketing(query, [status, log_id]);
+
+    // Suprimir al lead de futuros envíos si el correo rebotó
+    if (status === 'BOUNCED' && prevStatus !== 'BOUNCED' && lead_id) {
+      await suppressBouncedLead(lead_id);
+    }
 
     // Registrar notificación si es un evento de interés y hay cambio de estado
     const relevantStatuses = ['OPENED', 'BOUNCED', 'REPLIED'];

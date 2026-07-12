@@ -1,5 +1,35 @@
+// Dominios con typos comunes que casi siempre generan hard bounce
+const KNOWN_TYPO_DOMAINS = [
+  'gmial.com', 'gmai.com', 'gmail.co', 'gnail.com', 'gmaill.com',
+  'hotmial.com', 'hotmail.co', 'hotmal.com',
+  'yahooo.com', 'yaho.com',
+  'outlok.com', 'outllok.com',
+];
+
 /**
- * Optimiza automáticamente el HTML de la campaña para prevenir 
+ * Valida el formato de un email para descartar direcciones claramente inválidas
+ * antes de enviarlas a Amazon SES (evita hard bounces por typos/sintaxis).
+ * No reemplaza una verificación real de buzón (ZeroBounce/NeverBounce), solo
+ * filtra lo obviamente mal formado.
+ */
+export function isValidEmailSyntax(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const trimmed = email.trim().toLowerCase();
+
+  // Regex razonable para formato local@dominio.tld
+  const basicPattern = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+  if (!basicPattern.test(trimmed)) return false;
+
+  if (trimmed.includes('..')) return false;
+
+  const domain = trimmed.split('@')[1];
+  if (KNOWN_TYPO_DOMAINS.includes(domain)) return false;
+
+  return true;
+}
+
+/**
+ * Optimiza automáticamente el HTML de la campaña para prevenir
  * la inversión de color agresiva en Gmail Dark Mode y Apple Mail.
  */
 export function optimizeHtmlForDarkMode(html: string): string {

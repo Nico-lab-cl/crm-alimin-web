@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax } from '@/lib/email_utils';
 
 interface SendCampaingOptions {
   campaignId: string;
@@ -209,7 +209,8 @@ export async function executeCampaign(options: SendCampaingOptions) {
   `;
 
   const leadsRes = await queryMain(leadQuery, params);
-  const leads = leadsRes.rows;
+  // Descartar correos con formato inválido (typos evidentes) para reducir hard bounces en SES
+  const leads = leadsRes.rows.filter((l: { email?: string }) => isValidEmailSyntax(l.email));
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;

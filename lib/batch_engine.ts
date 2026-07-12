@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax } from '@/lib/email_utils';
 
 // ============================================================
 // Constants
@@ -311,10 +311,18 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
   `;
 
   const leadsRes = await queryMain(leadQuery, params);
-  const allLeads = leadsRes.rows;
+  const rawLeads = leadsRes.rows;
+
+  if (rawLeads.length === 0) {
+    throw new Error('No se encontraron leads con los filtros seleccionados');
+  }
+
+  // Descartar correos con formato inválido (typos evidentes) para reducir hard bounces en SES
+  const allLeads = rawLeads.filter((l: { email?: string }) => isValidEmailSyntax(l.email));
+  const invalidSyntaxCount = rawLeads.length - allLeads.length;
 
   if (allLeads.length === 0) {
-    throw new Error('No se encontraron leads con los filtros seleccionados');
+    throw new Error('Todos los leads del segmento tienen un correo con formato inválido.');
   }
 
   // Obtener correos enviados/pendientes para esta campaña desde la DB de Marketing
@@ -365,7 +373,9 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
     dailyRemaining,
     startedAt: new Date(),
     completedAt: null,
-    errors: [],
+    errors: invalidSyntaxCount > 0
+      ? [`${invalidSyntaxCount} correo(s) descartado(s) por formato inválido antes de enviar.`]
+      : [],
     currentBatchIndex: 0,
   };
 

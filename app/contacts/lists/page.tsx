@@ -58,6 +58,8 @@ interface Lead {
   createdAt?: string;
   emailEnabled?: boolean;
   email_enabled?: boolean;
+  emailBounced?: boolean;
+  email_bounced?: boolean;
 }
 
 export default function ListsPage() {
@@ -875,8 +877,11 @@ export default function ListsPage() {
                           <td className="px-4 py-2.5 font-bold text-[#33475b]">{getLeadName(lead)}</td>
                           <td className="px-4 py-2.5 text-slate-500">
                             {lead.Email || lead.email || '-'}
-                            {(lead.emailEnabled === false || lead.email_enabled === false) && (
-                              <span className="ml-2 inline-block px-1.5 py-0.5 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-extrabold uppercase leading-none">Desuscrito</span>
+                            {(lead.emailBounced === true || lead.email_bounced === true) && (
+                              <span className="ml-2 inline-block px-1.5 py-0.5 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-extrabold uppercase leading-none">Rebotado</span>
+                            )}
+                            {(lead.emailEnabled === false || lead.email_enabled === false) && !(lead.emailBounced === true || lead.email_bounced === true) && (
+                              <span className="ml-2 inline-block px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[9px] font-extrabold uppercase leading-none">Desuscrito</span>
                             )}
                           </td>
                           <td className="px-4 py-2.5">

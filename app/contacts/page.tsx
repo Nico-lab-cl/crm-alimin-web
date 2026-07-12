@@ -868,6 +868,9 @@ export default function ContactsPage() {
                           className="w-4 h-4 text-[#2d544c] border-slate-300 rounded focus:ring-[#2d544c]/20 cursor-pointer"
                           title={lead.emailEnabled === false ? "Desactivado - Hacer clic para activar" : "Activo - Hacer clic para desactivar"}
                         />
+                        {(lead.emailBounced === true || lead.email_bounced === true) && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-extrabold uppercase leading-none">Rebotado</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-[#516f90]">
@@ -1308,6 +1311,11 @@ export default function ContactsPage() {
                           Habilitado para campañas (Suscrito)
                         </label>
                       </div>
+                      {(selectedLead.emailBounced === true || selectedLead.email_bounced === true) && (
+                        <p className="mt-1 text-[11px] font-bold text-red-600">
+                          ⚠ Desactivado automáticamente: el correo rebotó en un envío anterior.
+                        </p>
+                      )}
                     </div>
                     
                     {/* Teléfono */}
