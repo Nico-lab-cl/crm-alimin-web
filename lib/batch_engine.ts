@@ -5,7 +5,7 @@ import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax } 
 // ============================================================
 // Constants
 // ============================================================
-const GMAIL_DAILY_LIMIT = 10000;
+const SES_DAILY_LIMIT = 50000;
 
 // ============================================================
 // In-Memory Job Tracker
@@ -82,7 +82,7 @@ interface BatchExecuteOptions {
   dateRange?: { start?: string; end?: string };
   batchSize?: number;    // default 50
   delayMs?: number;      // delay between batches in ms, default 5000
-  dailyLimit?: number;   // default 2000 (Gmail Workspace)
+  dailyLimit?: number;   // default 50000 (Amazon SES)
 }
 
 function generateJobId(): string {
@@ -108,7 +108,7 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
     dateRange, 
     batchSize = 50, 
     delayMs = 5000,
-    dailyLimit = GMAIL_DAILY_LIMIT,
+    dailyLimit = SES_DAILY_LIMIT,
   } = options;
 
   // 1. Check daily quota

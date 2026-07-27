@@ -172,7 +172,7 @@ export default function Dashboard() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<BatchJobStatus | null>(null);
   const [showBatchConfig, setShowBatchConfig] = useState(false);
-  const [dailyQuota, setDailyQuota] = useState({ sentToday: 0, dailyLimit: 2000, remaining: 2000 });
+  const [dailyQuota, setDailyQuota] = useState({ sentToday: 0, dailyLimit: 50000, remaining: 50000 });
 
   useEffect(() => {
     fetchData();
@@ -401,8 +401,8 @@ export default function Dashboard() {
           totalBatches: Math.ceil((data.willSend || data.totalLeads) / batchSize),
           batchSize,
           delayMs: batchDelay * 1000,
-          dailyLimit: data.dailyLimit || 2000,
-          dailyRemaining: data.dailyRemaining || 2000,
+          dailyLimit: data.dailyLimit || 50000,
+          dailyRemaining: data.dailyRemaining || 50000,
           currentBatchIndex: 0,
           startedAt: new Date().toISOString(),
           completedAt: null,
