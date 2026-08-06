@@ -23,7 +23,8 @@ const navItems = [
     subItems: [
       { name: 'Base de Datos', href: '/contacts' },
       { name: 'Listas y Segmentos', href: '/contacts/lists' },
-      { name: 'WhatsApp Evolution 💬', href: '/contacts/whatsapp' }
+      { name: 'WhatsApp Evolution 💬', href: '/contacts/whatsapp' },
+      { name: 'Chat Web 🌐', href: '/contacts/chat-web' }
     ]
   },
   { 
