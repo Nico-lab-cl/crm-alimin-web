@@ -36,9 +36,22 @@ export async function GET(
 
     const mensajes = await queryMain(
       `
-      SELECT m.id, m.text, m."senderType" AS emisor, m."createdAt" AS creado, u.name AS autor
+      SELECT
+        m.id,
+        m.text,
+        m."senderType" AS emisor,
+        m."createdAt"  AS creado,
+        u.name         AS autor,
+        mm.id          AS adjunto_id,
+        mm.kind        AS adjunto_tipo,
+        mm."mimeType"  AS adjunto_mime,
+        mm."durationMs" AS adjunto_duracion
       FROM "Message" m
       LEFT JOIN "User" u ON u.id = m."senderId"
+      -- Solo los metadatos del adjunto. La columna "data" es binaria y pesa
+      -- megabytes: si entrara acá, cada apertura de una conversación traería
+      -- todos sus audios enteros. El archivo se pide aparte, uno por vez.
+      LEFT JOIN "MessageMedia" mm ON mm."messageId" = m.id
       WHERE m."conversationId" = $1
       ORDER BY m."createdAt" ASC
       LIMIT 500

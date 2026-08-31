@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Globe, Send, User, Mail, Phone, RefreshCw } from 'lucide-react';
+import { Globe, Send, User, Mail, Phone, RefreshCw, Paperclip, Mic, Trash2, Square } from 'lucide-react';
 
 /**
  * Bandeja del chat en vivo de aliminspa.cl.
@@ -36,6 +36,33 @@ interface Mensaje {
   emisor: string;
   autor: string | null;
   creado: string;
+  /** Metadatos del adjunto, si el mensaje trae uno. El archivo se pide aparte. */
+  adjunto_id: string | null;
+  adjunto_tipo: 'image' | 'audio' | 'video' | null;
+  adjunto_mime: string | null;
+  adjunto_duracion: number | null;
+}
+
+/**
+ * Formatos de audio que se intentan al grabar, en orden de preferencia.
+ * Chrome y Edge graban WEBM/Opus; Safari sólo acepta MP4/AAC.
+ */
+const FORMATOS_DE_AUDIO = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+];
+
+function formatoDeAudioSoportado(): string | null {
+  if (typeof MediaRecorder === 'undefined') return null;
+  return FORMATOS_DE_AUDIO.find((f) => MediaRecorder.isTypeSupported(f)) || null;
+}
+
+/** "1:07" a partir de milisegundos. */
+function duracionLegible(ms: number) {
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function nombreDe(c: Pick<Conversacion, 'lead_nombre' | 'lead_apellido' | 'nombre_visitante'>) {
@@ -69,7 +96,33 @@ export default function ChatWebPage() {
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
+  // Grabación de voz
+  const [grabando, setGrabando] = useState(false);
+  const [msGrabados, setMsGrabados] = useState(0);
+  const [puedeGrabar, setPuedeGrabar] = useState(false);
+  const grabadora = useRef<MediaRecorder | null>(null);
+  const trozos = useRef<Blob[]>([]);
+  const inicioGrabacion = useRef(0);
+  const cronometro = useRef<ReturnType<typeof setInterval> | null>(null);
+  const grabacionCancelada = useRef(false);
+  const inputArchivo = useRef<HTMLInputElement>(null);
+
   const hiloRef = useRef<HTMLDivElement>(null);
+
+  // Sin MediaRecorder no tiene sentido mostrar el botón de micrófono.
+  useEffect(() => {
+    setPuedeGrabar(
+      Boolean(navigator.mediaDevices?.getUserMedia) && formatoDeAudioSoportado() !== null
+    );
+  }, []);
+
+  // Si el asesor cambia de página con el micrófono abierto hay que soltarlo.
+  useEffect(() => {
+    return () => {
+      if (cronometro.current) clearInterval(cronometro.current);
+      grabadora.current?.stream.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   const cargarConversaciones = useCallback(async () => {
     try {
@@ -175,6 +228,139 @@ export default function ChatWebPage() {
     } finally {
       setEnviando(false);
     }
+  };
+
+  /* ── Adjuntos ──────────────────────────────────────────────── */
+
+  const enviarAdjunto = async (archivo: File, duracionMs?: number) => {
+    if (!seleccionada || enviando) return;
+
+    if (!asesorId) {
+      setError('Elige de parte de qué asesor estás respondiendo.');
+      return;
+    }
+
+    setEnviando(true);
+    setError(null);
+
+    try {
+      const cuerpo = new FormData();
+      cuerpo.append('conversationId', seleccionada);
+      cuerpo.append('advisorId', asesorId);
+      cuerpo.append('file', archivo);
+      if (texto.trim()) cuerpo.append('text', texto.trim());
+      if (duracionMs) cuerpo.append('durationMs', String(Math.round(duracionMs)));
+
+      const res = await fetch('/api/chat-web/reply-media', { method: 'POST', body: cuerpo });
+      const datos = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(datos.error || 'No se pudo enviar el archivo.');
+        return;
+      }
+
+      setTexto('');
+      await cargarHilo(seleccionada);
+      cargarConversaciones();
+    } catch {
+      setError('No hay conexión con el servidor.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const alElegirArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    // El input se limpia siempre: sin esto, elegir dos veces el mismo archivo no
+    // vuelve a disparar el evento.
+    e.target.value = '';
+    if (archivo) enviarAdjunto(archivo);
+  };
+
+  const empezarAGrabar = async () => {
+    if (!asesorId) {
+      setError('Elige de parte de qué asesor estás respondiendo.');
+      return;
+    }
+
+    setError(null);
+
+    const formato = formatoDeAudioSoportado();
+    if (!formato) {
+      setError('Este navegador no permite grabar audio.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: formato });
+
+      trozos.current = [];
+      grabacionCancelada.current = false;
+      inicioGrabacion.current = Date.now();
+
+      rec.ondataavailable = (evento) => {
+        if (evento.data.size > 0) trozos.current.push(evento.data);
+      };
+
+      rec.onstop = () => {
+        // Soltar el micrófono apaga el indicador del navegador. Va acá porque
+        // hay dos caminos hacia el stop: enviar y cancelar.
+        stream.getTracks().forEach((t) => t.stop());
+
+        const ms = Date.now() - inicioGrabacion.current;
+        const grabados = trozos.current;
+        trozos.current = [];
+
+        if (grabacionCancelada.current || grabados.length === 0) return;
+
+        if (ms < 1000) {
+          setError('La grabación fue muy corta.');
+          return;
+        }
+
+        // El tipo se recorta antes del ";codecs=..." porque el CRM valida
+        // contra una lista de tipos base.
+        const tipoBase = formato.split(';')[0];
+        const extension = tipoBase.includes('mp4')
+          ? 'm4a'
+          : tipoBase.includes('ogg')
+            ? 'ogg'
+            : 'webm';
+
+        const blob = new Blob(grabados, { type: tipoBase });
+        enviarAdjunto(
+          new File([blob], `audio-${Date.now()}.${extension}`, { type: tipoBase }),
+          ms
+        );
+      };
+
+      rec.start();
+      grabadora.current = rec;
+      setGrabando(true);
+      setMsGrabados(0);
+
+      cronometro.current = setInterval(() => {
+        const transcurrido = Date.now() - inicioGrabacion.current;
+        setMsGrabados(transcurrido);
+        // Corte de seguridad antes de acercarse al límite de tamaño del CRM.
+        if (transcurrido > 5 * 60 * 1000) detenerGrabacion(false);
+      }, 200);
+    } catch {
+      setError('No se pudo usar el micrófono. Revisa el permiso del navegador.');
+    }
+  };
+
+  const detenerGrabacion = (cancelar: boolean) => {
+    grabacionCancelada.current = cancelar;
+    if (cronometro.current) {
+      clearInterval(cronometro.current);
+      cronometro.current = null;
+    }
+    grabadora.current?.stop();
+    grabadora.current = null;
+    setGrabando(false);
+    setMsGrabados(0);
   };
 
   return (
@@ -324,6 +510,44 @@ export default function ChatWebPage() {
                           {m.autor}
                         </span>
                       )}
+
+                      {m.adjunto_id && (
+                        <div className="mb-1.5">
+                          {m.adjunto_tipo === 'image' && (
+                            <a
+                              href={`/api/chat-web/media/${m.adjunto_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <img
+                                src={`/api/chat-web/media/${m.adjunto_id}`}
+                                alt="Adjunto"
+                                loading="lazy"
+                                className="max-w-full max-h-72 rounded-xl"
+                              />
+                            </a>
+                          )}
+
+                          {m.adjunto_tipo === 'audio' && (
+                            <audio
+                              controls
+                              preload="metadata"
+                              src={`/api/chat-web/media/${m.adjunto_id}`}
+                              className="w-56 h-10"
+                            />
+                          )}
+
+                          {m.adjunto_tipo === 'video' && (
+                            <video
+                              controls
+                              preload="metadata"
+                              src={`/api/chat-web/media/${m.adjunto_id}`}
+                              className="max-w-full max-h-72 rounded-xl bg-black"
+                            />
+                          )}
+                        </div>
+                      )}
+
                       {m.text}
                       <span className="block text-[10px] opacity-60 mt-1">{hora(m.creado)}</span>
                     </div>
@@ -332,22 +556,80 @@ export default function ChatWebPage() {
               </div>
 
               <form onSubmit={responder} className="p-4 border-t border-slate-100 flex gap-2">
-                <input
-                  value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
-                  placeholder={
-                    asesorId ? 'Escribe tu respuesta...' : 'Primero elige de parte de qué asesor...'
-                  }
-                  maxLength={2000}
-                  className="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-100"
-                />
-                <button
-                  type="submit"
-                  disabled={!texto.trim() || enviando}
-                  className="px-4 rounded-lg bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700 transition-colors"
-                >
-                  <Send size={16} />
-                </button>
+                {grabando ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => detenerGrabacion(true)}
+                      title="Descartar grabación"
+                      className="px-3 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                    <div className="flex-1 flex items-center gap-2 rounded-lg bg-red-50 border border-red-100 px-4 text-sm font-semibold text-red-700">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      {duracionLegible(msGrabados)} · grabando
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => detenerGrabacion(false)}
+                      title="Enviar grabación"
+                      className="px-4 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      <Square size={14} fill="currentColor" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      ref={inputArchivo}
+                      type="file"
+                      accept="image/*,video/*"
+                      hidden
+                      onChange={alElegirArchivo}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => inputArchivo.current?.click()}
+                      disabled={enviando}
+                      title="Adjuntar foto o video"
+                      className="px-3 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-40 hover:bg-slate-200 transition-colors"
+                    >
+                      <Paperclip size={16} />
+                    </button>
+
+                    {puedeGrabar && (
+                      <button
+                        type="button"
+                        onClick={empezarAGrabar}
+                        disabled={enviando}
+                        title="Grabar mensaje de voz"
+                        className="px-3 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-40 hover:bg-slate-200 transition-colors"
+                      >
+                        <Mic size={16} />
+                      </button>
+                    )}
+
+                    <input
+                      value={texto}
+                      onChange={(e) => setTexto(e.target.value)}
+                      placeholder={
+                        asesorId ? 'Escribe tu respuesta...' : 'Primero elige de parte de qué asesor...'
+                      }
+                      maxLength={2000}
+                      className="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-100"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!texto.trim() || enviando}
+                      className="px-4 rounded-lg bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700 transition-colors"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </>
+                )}
               </form>
             </>
           )}
