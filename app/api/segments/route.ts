@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
-import { MOCK_SEGMENTS } from '@/lib/mock_segments';
+import { MOCK_SEGMENTS, ALL_CONTACTS_SEGMENT, ALL_CONTACTS_SEGMENT_ID } from '@/lib/mock_segments';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,13 @@ export async function GET() {
       segments = MOCK_SEGMENTS;
     }
 
-    return NextResponse.json(segments);
+    // La lista "Todos los contactos" es del sistema: siempre está disponible y no
+    // se persiste, así nunca queda desactualizada ni se puede borrar por accidente.
+    const withoutReserved = segments.filter(
+      (s: { id?: string }) => s?.id !== ALL_CONTACTS_SEGMENT_ID
+    );
+
+    return NextResponse.json([ALL_CONTACTS_SEGMENT, ...withoutReserved]);
   } catch (error) {
     console.error('Error in GET /api/segments:', error);
     return NextResponse.json(

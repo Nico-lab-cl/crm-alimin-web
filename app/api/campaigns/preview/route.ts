@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
+import { isValidEmailSyntax } from '@/lib/email_utils';
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +41,13 @@ export async function POST(request: Request) {
     const emailCol = findCol('email') || '"email"';
 
     const firstNameCol = findCol('firstname') || findCol('first_name') || '"FirstName"';
+
+    // Excluimos los contactos deshabilitados (así quedan marcados los rebotados)
+    // igual que lo hace el motor de envío, para que el conteo previo sea el real.
+    const emailEnabledCol = findCol('emailEnabled') || '"emailEnabled"';
+    if (columns.includes(emailEnabledCol.replace(/"/g, ''))) {
+      whereClauses.push(`${emailEnabledCol} IS NOT FALSE`);
+    }
 
     // 2. Filtros Básicos o IDs (Listas Estáticas)
     if (filters?.ids && Array.isArray(filters.ids)) {
@@ -203,7 +211,8 @@ export async function POST(request: Request) {
       ORDER BY ${emailCol}, ${rawCreatedAtCol ? createdAtCol : '1'} DESC
     `, params);
 
-    const allLeads = leadsRes.rows;
+    // Mismo descarte por sintaxis inválida que aplica el motor de envío
+    const allLeads = leadsRes.rows.filter((l: { email?: string }) => isValidEmailSyntax(l.email));
 
     // Filtrar leads que no han recibido la campaña aún
     const filteredLeads = campaignId 

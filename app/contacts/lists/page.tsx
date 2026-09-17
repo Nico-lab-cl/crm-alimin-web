@@ -62,6 +62,9 @@ interface Lead {
   email_bounced?: boolean;
 }
 
+// Debe coincidir con ALL_CONTACTS_SEGMENT_ID en lib/mock_segments.ts
+const ALL_CONTACTS_SEGMENT_ID = 'seg-all';
+
 export default function ListsPage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loadingSegments, setLoadingSegments] = useState(true);
@@ -335,7 +338,9 @@ export default function ListsPage() {
     }
 
     try {
-      const isEditing = !!selectedSegment && !forceNew;
+      // La lista del sistema no se edita: guardar sobre ella crea una lista nueva.
+      const isEditing =
+        !!selectedSegment && !forceNew && selectedSegment.id !== ALL_CONTACTS_SEGMENT_ID;
       const url = isEditing ? `/api/segments/${selectedSegment.id}` : '/api/segments';
       const method = isEditing ? 'PUT' : 'POST';
 
@@ -487,6 +492,7 @@ export default function ListsPage() {
             ) : (
               segments.map((seg) => {
                 const isActive = selectedSegment?.id === seg.id;
+                const isSystem = seg.id === ALL_CONTACTS_SEGMENT_ID;
                 return (
                   <div 
                     key={seg.id} 
@@ -508,15 +514,23 @@ export default function ListsPage() {
                         </span>
                         <h4 className="font-bold text-[#33475b] truncate text-sm">{seg.name}</h4>
                       </div>
-                      
-                      {renderFilterBadges(seg.filters)}
+
+                      {isSystem ? (
+                        <p className="text-[11px] text-[#516f90] leading-snug">
+                          Sin filtros: incluye a todos los contactos con correo válido y no rebotado.
+                          Se recalcula en cada envío.
+                        </p>
+                      ) : (
+                        renderFilterBadges(seg.filters)
+                      )}
 
                       <div className="flex items-center gap-1.5 text-[10px] text-[#516f90] pt-1">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>Creado: {new Date(seg.created_at).toLocaleDateString()}</span>
+                        <span>{isSystem ? 'Lista del sistema · siempre al día' : `Creado: ${new Date(seg.created_at).toLocaleDateString()}`}</span>
                       </div>
                     </div>
 
+                    {!isSystem && (
                     <button 
                       onClick={(e) => handleDeleteSegment(seg.id, e)}
                       className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors absolute right-2 top-2 lg:opacity-0 lg:group-hover:opacity-100"
@@ -524,6 +538,7 @@ export default function ListsPage() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    )}
                   </div>
                 );
               })

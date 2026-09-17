@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
-import { MOCK_SEGMENTS } from '@/lib/mock_segments';
+import { MOCK_SEGMENTS, ALL_CONTACTS_SEGMENT_ID } from '@/lib/mock_segments';
 
 export async function DELETE(
   request: Request,
@@ -8,6 +8,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
+
+    if (id === ALL_CONTACTS_SEGMENT_ID) {
+      return NextResponse.json(
+        { message: 'La lista "Todos los contactos" es del sistema y no se puede modificar ni eliminar.' },
+        { status: 400 }
+      );
+    }
+
     let dbConnected = false;
 
     try {
@@ -43,6 +51,14 @@ export async function PUT(
 ) {
   try {
     const { id } = params;
+
+    if (id === ALL_CONTACTS_SEGMENT_ID) {
+      return NextResponse.json(
+        { message: 'La lista "Todos los contactos" es del sistema y no se puede modificar ni eliminar.' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { name, type, filters } = body;
 

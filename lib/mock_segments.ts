@@ -20,6 +20,22 @@ export interface MockSegment {
   created_at: string;
 }
 
+/**
+ * Lista fija del sistema: toda la base de contactos enviables.
+ * No lleva ningún filtro, así que el motor de envío sólo aplica sus exclusiones
+ * de siempre (correo presente, sintaxis válida y emailEnabled distinto de FALSE,
+ * que es como quedan marcados los rebotados). Es dinámica: cada envío la recalcula.
+ */
+export const ALL_CONTACTS_SEGMENT_ID = 'seg-all';
+
+export const ALL_CONTACTS_SEGMENT: MockSegment = {
+  id: ALL_CONTACTS_SEGMENT_ID,
+  name: 'Todos los contactos (Base completa)',
+  type: 'dynamic',
+  filters: {},
+  created_at: new Date(0).toISOString()
+};
+
 export const MOCK_SEGMENTS: MockSegment[] = [
   {
     id: 'seg-1',
