@@ -264,8 +264,14 @@ export default function ContactsPage() {
    * Va por /api/leads/[id]/contacted y no por el PATCH general porque son cuatro
    * columnas que tienen que moverse juntas, incluida followupStage, que es la que
    * apaga los recordatorios de seguimiento del CRM móvil.
+   *
+   * Marcar además saca al lead de NUEVO, y desmarcar lo devuelve desde
+   * CONTACTADO: un lead no puede figurar "Nuevo" y "Atendido" en la misma fila.
+   * Ese movimiento lo decide el servidor, así que la etapa vuelve en la
+   * respuesta -- salvo cuando la llamada viene de un cambio de etapa, que ya
+   * sabe a dónde va y no quiere que se la pisen (ver aplicarEstado).
    */
-  const setContactedMark = async (leadId: string, valor: boolean) => {
+  const setContactedMark = async (leadId: string, valor: boolean, aplicarEstado = true) => {
     const actual = leads.find(l => l.id === leadId) || (selectedLead?.id === leadId ? selectedLead : null);
     const previo = {
       contacted: actual?.contacted ?? null,
@@ -307,6 +313,7 @@ export default function ContactsPage() {
           contacted: data.lead.contacted,
           contactedAt: data.lead.contactedAt,
           contactedById: data.lead.contactedById ?? null,
+          ...(aplicarEstado && data.lead.status ? { status: data.lead.status } : {}),
         });
       }
       return true;
@@ -354,7 +361,10 @@ export default function ContactsPage() {
 
     await Promise.all([
       handleUpdateLead(leadId, { status: normalizeStatus(stageKey) }),
-      setContactedMark(leadId, marcar),
+      // La etapa la manda el PATCH de al lado, así que acá se ignora la que
+      // devuelva el servidor: las dos llamadas convergen en la base, pero llegan
+      // en cualquier orden y la de la marca podría traer una etapa intermedia.
+      setContactedMark(leadId, marcar, false),
     ]);
   };
 

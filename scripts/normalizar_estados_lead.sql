@@ -106,11 +106,52 @@ UPDATE "Lead"
 SET status = 'NUEVO'
 WHERE status IS NULL OR TRIM(status) = '';
 
+
+-- ---------------------------------------------------------------------------
+-- 4. Leads atendidos que siguen figurando como NUEVO
+-- ---------------------------------------------------------------------------
+-- La marca de contacto se enciende sola cuando el asesor le responde un mensaje
+-- al cliente, y hasta ahora eso no movía la etapa. El resultado son filas que
+-- dicen "Nuevo" y "Atendido" a la vez: el listado muestra como sin tocar un lead
+-- que alguien ya atendió, que es exactamente lo contrario de para qué sirve la
+-- etapa.
+--
+-- El código nuevo mueve las dos juntas, pero solo de aquí en adelante. Esto
+-- endereza los que ya están cruzados.
+--
+-- Solo se toca NUEVO. Un lead atendido que está en VISITA o RESERVADO ya avanzó
+-- más allá y no hay nada que corregir.
+--
+-- Va dentro de un DO con SQL dinámico porque la columna "contacted" la crea una
+-- migración de otro repo. Si todavía no existe, nombrarla directamente abortaría
+-- la transacción entera y se perdería también la normalización de arriba, que sí
+-- tiene sentido correr igual.
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Lead' AND column_name = 'contacted'
+    ) THEN
+        EXECUTE $sql$
+            UPDATE "Lead"
+            SET status = 'CONTACTADO'
+            WHERE "contacted" = true
+              AND UPPER(TRIM(status)) = 'NUEVO'
+        $sql$;
+    ELSE
+        RAISE NOTICE
+            'Se omite el cruce etapa/atencion: la columna "contacted" no existe '
+            'todavia. Correr chat_media_y_contacto.sql del repo del CRM movil y '
+            'volver a pasar este archivo.';
+    END IF;
+END $$;
+
 COMMIT;
 
 
 -- ---------------------------------------------------------------------------
--- 4. Verificación de la marca de contacto
+-- 5. Verificación de la marca de contacto
 -- ---------------------------------------------------------------------------
 -- El CRM web nuevo escribe estas cuatro columnas al mover el pipeline. Si no
 -- existen, las crea scripts/chat_media_y_contacto.sql del repo del CRM móvil
@@ -127,7 +168,7 @@ ORDER BY 2;
 
 
 -- ---------------------------------------------------------------------------
--- 5. Después: cómo quedó
+-- 6. Después: cómo quedó
 -- ---------------------------------------------------------------------------
 -- Se espera solo NUEVO / CONTACTADO / VISITA / RESERVADO. Cualquier otro valor
 -- que aparezca acá es un estado que algún import viejo dejó suelto y que

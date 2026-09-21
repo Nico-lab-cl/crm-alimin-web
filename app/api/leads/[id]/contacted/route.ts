@@ -108,6 +108,29 @@ export async function POST(
     if (tiene('contactedById')) {
       asignaciones.push(`${col('contactedById')} = NULL`);
     }
+
+    // La etapa acompaña a la marca, pero solo en los dos bordes.
+    //
+    // Un lead atendido no puede seguir figurando como "Nuevo": es lo primero que
+    // se mira para decidir a quién llamar, y una fila que dice "Nuevo" y
+    // "Atendido" a la vez no le sirve a nadie. Al desmarcar pasa lo inverso,
+    // pero solo desde CONTACTADO: un lead en VISITA o RESERVADO ya avanzó más
+    // allá de esto y retrocederlo por un toque sería borrar información.
+    //
+    // Va como CASE dentro del mismo UPDATE y no como un SELECT previo para no
+    // abrir una ventana entre leer la etapa y escribirla: el CRM móvil escribe
+    // sobre esta misma fila.
+    if (tiene('status')) {
+      const desde = contactado ? 'NUEVO' : 'CONTACTADO';
+      const hacia = contactado ? 'CONTACTADO' : 'NUEVO';
+      valores.push(desde, hacia);
+      const idxDesde = valores.length - 1;
+      const idxHacia = valores.length;
+      asignaciones.push(
+        `${col('status')} = CASE WHEN UPPER(TRIM(${col('status')})) = $${idxDesde} ` +
+          `THEN $${idxHacia} ELSE ${col('status')} END`
+      );
+    }
     if (tiene('lastActivity')) {
       valores.push(
         contactado
@@ -121,7 +144,7 @@ export async function POST(
       asignaciones.push(`${col('lastNoteAt')} = $${valores.length}`);
     }
 
-    const devolver = ['id', 'contacted', 'contactedAt', 'contactedById', 'followupStage']
+    const devolver = ['id', 'status', 'contacted', 'contactedAt', 'contactedById', 'followupStage']
       .filter(tiene)
       .map(col)
       .join(', ');
