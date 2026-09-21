@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { ESTADO_INICIAL } from '@/lib/lead_status';
 import { 
   MessageSquare, 
   Search, 
@@ -85,7 +86,7 @@ export default function WhatsAppInboxPage() {
     firstName: '',
     lastName: '',
     email: '',
-    status: 'Nuevo',
+    status: ESTADO_INICIAL,
     source: 'WhatsApp',
     project: '',
     phone: '',
@@ -97,7 +98,7 @@ export default function WhatsAppInboxPage() {
       firstName: '',
       lastName: '',
       email: '',
-      status: 'Nuevo',
+      status: ESTADO_INICIAL,
       source: 'WhatsApp',
       project: '',
       phone: `+${selectedChat.phone}`
@@ -794,8 +795,8 @@ export default function WhatsAppInboxPage() {
                     onChange={(e) => setCreateFormData({ ...createFormData, status: e.target.value })}
                     className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-2.5 py-1.5 text-xs text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none font-semibold"
                   >
-                    <option value="Nuevo">Nuevo</option>
-                    <option value="Contactado">Contactado</option>
+                    <option value="NUEVO">Nuevo</option>
+                    <option value="CONTACTADO">Contactado</option>
                   </select>
                 </div>
               </div>

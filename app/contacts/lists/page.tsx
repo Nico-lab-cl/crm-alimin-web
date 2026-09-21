@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { ESTADO_INICIAL, LEAD_STATUSES, statusLabel } from '@/lib/lead_status';
 import { 
   Users, 
   Trash2, 
@@ -646,10 +647,7 @@ export default function ListsPage() {
                     className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
                   >
                       <option value="">Todos los Estados</option>
-                      <option value="Nuevo">Nuevo</option>
-                      <option value="Contactado">Contactado</option>
-                      <option value="Visita">Visita</option>
-                      <option value="Reservado">Reservado</option>
+                      {LEAD_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
                     </select>
                   </div>
 
@@ -901,7 +899,7 @@ export default function ListsPage() {
                           </td>
                           <td className="px-4 py-2.5">
                             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-[10px] font-semibold uppercase">
-                              {lead.Status || lead.status || 'Nuevo'}
+                              {statusLabel(lead.Status || lead.status || ESTADO_INICIAL)}
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-slate-500 font-medium">

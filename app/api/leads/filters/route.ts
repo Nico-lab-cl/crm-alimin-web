@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMain } from '@/lib/db';
+import { LEAD_STATUSES } from '@/lib/lead_status';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export async function GET() {
     // Si no está conectada la base de datos, retornar mock
     if (!dbConnected) {
       return NextResponse.json({
-        statuses: ['Nuevo', 'Contactado', 'Visita', 'Reservado'],
+        statuses: [...LEAD_STATUSES],
         sources: ['META', 'Sitio Web', 'Referido', 'Manual'],
         projects: ['Lomas del Mar', 'Arena y Sol'],
         interests: ['FRIO', 'INTERESADO', 'VENTA'],
@@ -126,7 +127,7 @@ export async function GET() {
     // Intereses del lead unificados (Frío, Interesado, Venta)
     interests = ['FRIO', 'INTERESADO', 'VENTA'];
 
-    const statuses = ['Nuevo', 'Contactado', 'Visita', 'Reservado'];
+    const statuses = [...LEAD_STATUSES];
 
     // Mapeamos los nombres de las columnas para la UI
     const schema = schemaRes!.rows.map((col: { column_name: string; data_type: string }) => {
@@ -174,7 +175,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching leads filters/schema:', error);
     return NextResponse.json({ 
-      statuses: ['Nuevo', 'Contactado', 'Visita', 'Reservado'], 
+      statuses: [...LEAD_STATUSES], 
       sources: ['META', 'Sitio Web', 'Referido', 'Manual'], 
       projects: ['Lomas del Mar', 'Arena y Sol'], 
       interests: ['FRIO', 'INTERESADO', 'VENTA'],

@@ -3,6 +3,7 @@ import { queryMain, queryMarketing } from '@/lib/db';
 import { MOCK_LEADS } from '@/lib/mock_db';
 import { parseDateRobust } from '@/lib/date_utils';
 import { retroactiveLinkLeads } from '@/lib/evolution_sync';
+import { ESTADO_INICIAL, normalizeStatus } from '@/lib/lead_status';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,9 @@ export async function GET(request: Request) {
     const source = searchParams.get('source') || '';
     const project = searchParams.get('project') || '';
     const interest = searchParams.get('interest') || '';
+    // Marca de atención del asesor: 'true' solo atendidos, 'false' solo pendientes.
+    // Es distinto del estado del pipeline y se filtra aparte a propósito.
+    const contacted = searchParams.get('contacted') || '';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
     
@@ -94,6 +98,10 @@ export async function GET(request: Request) {
               return leadDate ? leadDate.getTime() <= endTime : false;
             });
           }
+        }
+        if (contacted === 'true' || contacted === 'false') {
+          const buscado = contacted === 'true';
+          filtered = filtered.filter(l => (l.contacted === true) === buscado);
         }
         if (interest) {
           filtered = filtered.filter(l => {
@@ -232,6 +240,17 @@ export async function GET(request: Request) {
         
         projectFilter += `)`;
         whereClauses.push(projectFilter);
+      }
+
+      // Filtro por marca de atención del asesor.
+      // La columna la crea una migración manual del repo del CRM móvil, así que
+      // puede no existir todavía: si falta, el filtro se ignora en silencio en
+      // vez de tirar la consulta entera abajo.
+      if (contacted === 'true' || contacted === 'false') {
+        const contactedCol = findCol('contacted');
+        if (contactedCol) {
+          whereClauses.push(`COALESCE(${contactedCol}, false) = ${contacted === 'true' ? 'true' : 'false'}`);
+        }
       }
 
       // Filtro por Interés (mapeado a la columna Rating / Temperatura en el CRM)
@@ -430,7 +449,7 @@ export async function POST(request: Request) {
         LastName: lastName || '',
         Email: email,
         Phone: phone || '',
-        Status: status || 'Nuevo',
+        Status: normalizeStatus(status || ESTADO_INICIAL),
         Source: source || 'Manual',
         Project: project || '',
         Lote: lote || '',
@@ -491,7 +510,7 @@ export async function POST(request: Request) {
     }
 
     addField('phone', phone);
-    addField('status', status || 'Nuevo');
+    addField('status', normalizeStatus(status || ESTADO_INICIAL));
     addField('source', source || 'Manual');
     addField('project', project || '');
     addField('lote', lote || '');

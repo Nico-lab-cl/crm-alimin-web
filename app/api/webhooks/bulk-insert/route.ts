@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMain } from '@/lib/db';
+import { ESTADO_INICIAL, normalizeStatus } from '@/lib/lead_status';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
             if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
               val = val || false;
             }
-            if (field === 'status' && !val) val = 'Nuevo';
+            if (field === 'status') val = normalizeStatus(val || ESTADO_INICIAL);
             p1.push(val);
           });
           vp1.push(`(${ph.join(', ')})`);
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
             if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
               val = val || false;
             }
-            if (field === 'status' && !val) val = 'Nuevo';
+            if (field === 'status') val = normalizeStatus(val || ESTADO_INICIAL);
             p2.push(val);
           });
           vp2.push(`(${ph.join(', ')})`);

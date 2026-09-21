@@ -30,8 +30,17 @@ import {
   Phone,
   ArrowRight,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
+import {
+  ESTADO_INICIAL,
+  LEAD_STATUSES,
+  implicaContacto,
+  normalizeStatus,
+  sameStatus,
+  statusLabel
+} from '@/lib/lead_status';
 
 interface Lead {
   id: string;
@@ -98,9 +107,11 @@ export default function ContactsPage() {
   const [interest, setInterest] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  // Marca de atención del asesor: '' todos, 'true' atendidos, 'false' pendientes
+  const [contacted, setContacted] = useState('');
   
   // Opciones de filtros dinámicos (cargados desde API)
-  const [statuses, setStatuses] = useState<string[]>(['Nuevo', 'Contactado', 'Visita', 'Reservado']);
+  const [statuses, setStatuses] = useState<string[]>([...LEAD_STATUSES]);
   const [sources, setSources] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
@@ -217,12 +228,17 @@ export default function ContactsPage() {
     }
   }, [selectedLead]);
 
+  // Aplica campos sobre el lead en memoria, tanto en la tabla como en la ficha
+  // abierta. Está aparte porque lo usan el PATCH general y la marca de atención,
+  // que van por rutas distintas.
+  const aplicarEnLocal = useCallback((leadId: string, fields: Partial<Lead>) => {
+    setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, ...fields } : l));
+    setSelectedLead(prev => (prev && prev.id === leadId ? { ...prev, ...fields } : prev));
+  }, []);
+
   const handleUpdateLead = async (leadId: string, fieldsToUpdate: Partial<Lead>) => {
     // Actualización optimista en local
-    setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, ...fieldsToUpdate } : l));
-    if (selectedLead && selectedLead.id === leadId) {
-      setSelectedLead(prev => prev ? { ...prev, ...fieldsToUpdate } : null);
-    }
+    aplicarEnLocal(leadId, fieldsToUpdate);
     
     setIsUpdatingField(true);
     try {
@@ -240,6 +256,106 @@ export default function ContactsPage() {
     } finally {
       setIsUpdatingField(false);
     }
+  };
+
+  /**
+   * Marca o desmarca que el asesor ya atendió al cliente.
+   *
+   * Va por /api/leads/[id]/contacted y no por el PATCH general porque son cuatro
+   * columnas que tienen que moverse juntas, incluida followupStage, que es la que
+   * apaga los recordatorios de seguimiento del CRM móvil.
+   */
+  const setContactedMark = async (leadId: string, valor: boolean) => {
+    const actual = leads.find(l => l.id === leadId) || (selectedLead?.id === leadId ? selectedLead : null);
+    const previo = {
+      contacted: actual?.contacted ?? null,
+      contactedAt: actual?.contactedAt ?? null,
+      contactedById: actual?.contactedById ?? null,
+    };
+
+    aplicarEnLocal(leadId, {
+      contacted: valor,
+      contactedAt: valor ? new Date().toISOString() : null,
+      contactedById: null,
+    });
+
+    setIsUpdatingField(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/contacted`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contacted: valor })
+      });
+      const data = await res.json().catch(() => null);
+      // 501 = la base todavía no tiene las columnas de la marca de contacto.
+      // Pasa si el CRM web se desplegó antes de que alguien corriera la migración
+      // manual. El cambio de etapa igual se guardó, así que no se molesta al
+      // usuario con una alerta por algo que no puede resolver: se revierte la
+      // marca en pantalla (vuelve a null y el badge desaparece) y queda en consola.
+      if (res.status === 501) {
+        console.warn('Marca de contacto no disponible:', data?.message, data?.faltantes);
+        aplicarEnLocal(leadId, previo);
+        return false;
+      }
+      if (!res.ok) {
+        throw new Error(data?.message || 'Error al marcar el contacto');
+      }
+      // Se reescribe con lo que devolvió la base: la fecha real del servidor, no
+      // la del reloj del navegador.
+      if (data?.lead) {
+        aplicarEnLocal(leadId, {
+          contacted: data.lead.contacted,
+          contactedAt: data.lead.contactedAt,
+          contactedById: data.lead.contactedById ?? null,
+        });
+      }
+      return true;
+    } catch (e) {
+      aplicarEnLocal(leadId, previo);
+      console.error('Error updating contacted:', e);
+      alert((e as Error).message || 'No se pudo guardar la marca de contacto.');
+      return false;
+    } finally {
+      setIsUpdatingField(false);
+    }
+  };
+
+  /**
+   * Mueve el lead de etapa en el pipeline.
+   *
+   * Arrastra la marca de atención con la etapa a propósito: si alguien avanza un
+   * lead a CONTACTADO, VISITA o RESERVADO desde acá, es porque ya hablaron con el
+   * cliente, y dejar contacted en false haría que el cron del CRM móvil le siga
+   * mandando recordatorios al asesor por un lead ya atendido. Volverlo a NUEVO
+   * hace lo inverso: lo reabre y los recordatorios se reanudan.
+   */
+  const handleStageChange = async (leadId: string, stageKey: string) => {
+    const marcar = implicaContacto(stageKey);
+    const actual = leads.find(l => l.id === leadId) || (selectedLead?.id === leadId ? selectedLead : null);
+    const estabaAtendido = actual ? getLeadContacted(actual) === true : false;
+
+    // Retroceder a NUEVO un lead ya atendido borra quién lo atendió y cuándo, y
+    // reabre los recordatorios del asesor. Quien mueve la etapa suele estar
+    // corrigiendo la etapa, no pidiendo eso, así que se avisa antes. El resto de
+    // los movimientos no pregunta nada: solo suman información.
+    if (!marcar && estabaAtendido) {
+      const ok = window.confirm(
+        [
+          'Este contacto está marcado como atendido.',
+          '',
+          'Volverlo a Nuevo borra esa marca (quién lo atendió y cuándo) y el CRM',
+          'móvil va a reanudar los recordatorios de seguimiento al asesor.',
+          '',
+          '¿Continuar?'
+        ].join('\n')
+      );
+      if (!ok) return;
+    }
+
+    await Promise.all([
+      handleUpdateLead(leadId, { status: normalizeStatus(stageKey) }),
+      setContactedMark(leadId, marcar),
+    ]);
   };
 
   // Función para eliminar un contacto
@@ -281,7 +397,7 @@ export default function ContactsPage() {
     lastName: '',
     email: '',
     phone: '',
-    status: 'Nuevo',
+    status: ESTADO_INICIAL,
     source: 'Manual',
     project: '',
     lote: '',
@@ -339,6 +455,7 @@ export default function ContactsPage() {
         source,
         project,
         interest,
+        contacted,
         startDate,
         endDate
       });
@@ -355,7 +472,7 @@ export default function ContactsPage() {
     } finally {
       if (showLoadingSpinner) setLoading(false);
     }
-  }, [page, limit, search, status, source, project, interest, startDate, endDate]);
+  }, [page, limit, search, status, source, project, interest, contacted, startDate, endDate]);
 
   // Efecto para búsquedas y filtrados dinámicos
   useEffect(() => {
@@ -400,7 +517,22 @@ export default function ContactsPage() {
 
   const getLeadEmail = (lead: Lead) => lead.Email || lead.email || 'Sin Email';
   const getLeadPhone = (lead: Lead) => lead.Phone || lead.phone || 'Sin Teléfono';
-  const getLeadStatus = (lead: Lead) => lead.Status || lead.status || 'Nuevo';
+  const getLeadStatus = (lead: Lead) => normalizeStatus(lead.Status || lead.status || ESTADO_INICIAL);
+
+  // ¿El asesor ya marcó a este cliente como atendido?
+  //
+  // Es la columna "contacted" que escribe el CRM móvil (toggle en la ficha, o
+  // automático al responderle un mensaje al cliente). Es distinta del estado del
+  // pipeline: la etapa es la posición comercial, esto es si alguien lo atendió.
+  // Devuelve null cuando la columna no viene en la respuesta -- base sin la
+  // migración aplicada, o modo simulado -- para poder no mostrar nada en vez de
+  // afirmar que está pendiente.
+  const getLeadContacted = (lead: Lead): boolean | null => {
+    const v = lead.contacted ?? lead.Contacted;
+    return typeof v === 'boolean' ? v : null;
+  };
+
+  const getLeadContactedAt = (lead: Lead) => lead.contactedAt || lead.contactedat || null;
   const getLeadSource = (lead: Lead) => {
     const src = lead.Source || lead.source || 'Manual';
     const srcLower = src.toLowerCase();
@@ -456,7 +588,7 @@ export default function ContactsPage() {
     if (leads.length === 0) return alert('No hay contactos para exportar');
     
     // Encabezados del CSV
-    const headers = ['Nombre', 'Email', 'Teléfono', 'Estado', 'Origen', 'Proyecto', 'Lote', 'Etapa', 'Fecha Creación'];
+    const headers = ['Nombre', 'Email', 'Teléfono', 'Estado', 'Atendido', 'Origen', 'Proyecto', 'Lote', 'Etapa', 'Fecha Creación'];
     
     // Contenido
     const csvRows = [
@@ -465,7 +597,8 @@ export default function ContactsPage() {
         `"${getLeadName(lead).replace(/"/g, '""')}"`,
         `"${getLeadEmail(lead)}"`,
         `"${getLeadPhone(lead)}"`,
-        `"${getLeadStatus(lead)}"`,
+        `"${statusLabel(getLeadStatus(lead))}"`,
+        `"${getLeadContacted(lead) === null ? '' : getLeadContacted(lead) ? 'Sí' : 'No'}"`,
         `"${getLeadSource(lead)}"`,
         `"${getLeadProject(lead)}"`,
         `"${getLeadLote(lead)}"`,
@@ -504,7 +637,7 @@ export default function ContactsPage() {
           lastName: '',
           email: '',
           phone: '',
-          status: 'Nuevo',
+          status: ESTADO_INICIAL,
           source: 'Manual',
           project: '',
           lote: '',
@@ -540,23 +673,20 @@ export default function ContactsPage() {
 
   // Pipeline de estados con configuración visual
   const pipelineStages = [
-    { key: 'Nuevo', label: 'Nuevo', icon: Sparkles, color: 'sky', emoji: '🆕' },
-    { key: 'Contactado', label: 'Contactado', icon: Phone, color: 'amber', emoji: '📞' },
-    { key: 'Visita', label: 'Visita', icon: MapPin, color: 'emerald', emoji: '📍' },
-    { key: 'Reservado', label: 'Reservado', icon: Check, color: 'purple', emoji: '🏠' },
+    { key: 'NUEVO', label: 'Nuevo', icon: Sparkles, color: 'sky', emoji: '🆕' },
+    { key: 'CONTACTADO', label: 'Contactado', icon: Phone, color: 'amber', emoji: '📞' },
+    { key: 'VISITA', label: 'Visita', icon: MapPin, color: 'emerald', emoji: '📍' },
+    { key: 'RESERVADO', label: 'Reservado', icon: Check, color: 'purple', emoji: '🏠' },
   ];
 
   // Contar leads por estado (sobre el total cargado actualmente)
   const getStatusCount = (statusKey: string) => {
-    return leads.filter(l => {
-      const s = getLeadStatus(l).toLowerCase();
-      return s === statusKey.toLowerCase();
-    }).length;
+    return leads.filter(l => sameStatus(getLeadStatus(l), statusKey)).length;
   };
 
   // Determinar el índice del stage actual de un lead
   const getStageIndex = (statusName: string) => {
-    const idx = pipelineStages.findIndex(s => s.key.toLowerCase() === statusName.toLowerCase());
+    const idx = pipelineStages.findIndex(s => sameStatus(s.key, statusName));
     return idx >= 0 ? idx : -1;
   };
 
@@ -633,7 +763,7 @@ export default function ContactsPage() {
             purple: { bg: 'bg-purple-50/80', border: 'border-purple-200', text: 'text-purple-700', iconBg: 'bg-purple-500', bar: 'bg-purple-500' },
           };
           const c = colorMap[stage.color] || colorMap.sky;
-          const isActiveFilter = status === stage.key;
+          const isActiveFilter = sameStatus(status, stage.key);
           return (
             <button
               key={stage.key}
@@ -677,7 +807,7 @@ export default function ContactsPage() {
       {/* Filtros de Búsqueda y Segmentación */}
       <div className="bg-white border border-[#cbd6e2] rounded-xl p-5 shadow-sm space-y-4">
         {/* Fila 1: Búsqueda y Filtros Básicos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
           {/* Buscador */}
           <div className="space-y-1.5 lg:col-span-2">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Buscar contacto</label>
@@ -708,7 +838,27 @@ export default function ContactsPage() {
               className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
             >
               <option value="">Todos los Estados</option>
-              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+              {statuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+            </select>
+          </div>
+
+          {/* Filtrar por marca de atención del asesor.
+              No es lo mismo que la etapa del pipeline: un lead puede estar en
+              NUEVO y ya haber sido atendido (el asesor le respondió el mensaje
+              antes de mover la etapa), o al revés. */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Atención</label>
+            <select
+              value={contacted}
+              onChange={(e) => {
+                setContacted(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Atendidos y Pendientes</option>
+              <option value="false">Pendientes de contactar</option>
+              <option value="true">Ya contactados</option>
             </select>
           </div>
 
@@ -779,7 +929,7 @@ export default function ContactsPage() {
 
           {/* Botón de Limpiar Filtros */}
           <div>
-            {(search || status || source || project || interest || startDate || endDate) ? (
+            {(search || status || source || project || interest || contacted || startDate || endDate) ? (
               <button 
                 onClick={() => {
                   setSearch('');
@@ -787,6 +937,7 @@ export default function ContactsPage() {
                   setSource('');
                   setProject('');
                   setInterest('');
+                  setContacted('');
                   setStartDate('');
                   setEndDate('');
                   setPage(1);
@@ -818,7 +969,7 @@ export default function ContactsPage() {
               </div>
               <p className="text-xl font-bold text-[#33475b]">No se encontraron contactos</p>
               <p className="text-[#516f90] mt-2 max-w-sm text-sm">Prueba limpiando los filtros actuales o añade un contacto nuevo manualmente.</p>
-              {(search || status || source || project || interest || startDate || endDate) && (
+              {(search || status || source || project || interest || contacted || startDate || endDate) && (
                 <button 
                   onClick={() => {
                     setSearch('');
@@ -826,6 +977,7 @@ export default function ContactsPage() {
                     setSource('');
                     setProject('');
                     setInterest('');
+                    setContacted('');
                     setStartDate('');
                     setEndDate('');
                     setPage(1);
@@ -877,9 +1029,28 @@ export default function ContactsPage() {
                       {getLeadPhone(lead)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${getStatusStyle(getLeadStatus(lead))}`}>
-                        {getLeadStatus(lead)}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${getStatusStyle(getLeadStatus(lead))}`}>
+                          {statusLabel(getLeadStatus(lead))}
+                        </span>
+                        {getLeadContacted(lead) !== null && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase leading-none border ${
+                              getLeadContacted(lead)
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                            title={
+                              getLeadContacted(lead)
+                                ? 'Un asesor confirmó que ya atendió a este cliente'
+                                : 'Nadie ha marcado a este cliente como atendido: el CRM móvil le sigue enviando recordatorios al asesor'
+                            }
+                          >
+                            {getLeadContacted(lead) ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+                            {getLeadContacted(lead) ? 'Atendido' : 'Pendiente'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-xs font-bold text-[#516f90]">
                       <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200">
@@ -1019,7 +1190,7 @@ export default function ContactsPage() {
                       onChange={(e) => setFormData({...formData, status: e.target.value})}
                       className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
                     >
-                      {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      {statuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
                     </select>
                   </div>
                   
@@ -1228,7 +1399,7 @@ export default function ContactsPage() {
                   return (
                     <div key={stage.key} className="flex items-center flex-1 gap-1">
                       <button
-                        onClick={() => handleUpdateLead(selectedLead.id, { status: stage.key })}
+                        onClick={() => handleStageChange(selectedLead.id, stage.key)}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                           isActive
                             ? `${c.activeBg} ${c.activeText} border-transparent shadow-md scale-[1.02]`
@@ -1258,6 +1429,53 @@ export default function ContactsPage() {
               <p className="text-[10px] text-[#516f90] mt-1.5 text-center font-medium">
                 Haz clic en cualquier etapa para actualizar el estado del contacto
               </p>
+
+              {/* Marca de atención del asesor.
+                  Es la columna "contacted" que comparte con el CRM móvil, y es la
+                  que apaga los recordatorios de seguimiento. Se muestra aparte del
+                  pipeline porque responde otra pregunta: la etapa dice dónde va el
+                  negocio, esto dice si alguien ya habló con el cliente. */}
+              {getLeadContacted(selectedLead) !== null && (
+                <div className={`mt-3 flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
+                  getLeadContacted(selectedLead)
+                    ? 'bg-emerald-50/60 border-emerald-200'
+                    : 'bg-amber-50/60 border-amber-200'
+                }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    getLeadContacted(selectedLead) ? 'bg-emerald-500 text-white' : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {getLeadContacted(selectedLead) ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${
+                      getLeadContacted(selectedLead) ? 'text-emerald-800' : 'text-amber-800'
+                    }`}>
+                      {getLeadContacted(selectedLead) ? 'Ya lo contactaron' : 'Pendiente de contactar'}
+                    </p>
+                    <p className="text-[10px] text-[#516f90] font-medium truncate">
+                      {getLeadContacted(selectedLead)
+                        ? getLeadContactedAt(selectedLead)
+                          ? `Marcado el ${new Date(getLeadContactedAt(selectedLead)).toLocaleDateString('es-CL')} a las ${new Date(getLeadContactedAt(selectedLead)).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Marcado como atendido'
+                        : 'El CRM móvil le sigue enviando recordatorios al asesor'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setContactedMark(selectedLead.id, !getLeadContacted(selectedLead))}
+                    disabled={isUpdatingField}
+                    title={getLeadContacted(selectedLead)
+                      ? 'Marcar como pendiente: reabre los recordatorios de seguimiento'
+                      : 'Marcar como atendido: apaga los recordatorios de seguimiento'}
+                    className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                      getLeadContacted(selectedLead) ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      getLeadContacted(selectedLead) ? 'translate-x-5' : ''
+                    }`} />
+                  </button>
+                </div>
+              )}
             </div>
             
             {/* Cuerpo del Panel (3 Columnas) */}
@@ -1334,10 +1552,10 @@ export default function ContactsPage() {
                       <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Estado</label>
                       <select 
                         value={getLeadStatus(selectedLead)}
-                        onChange={(e) => handleUpdateLead(selectedLead.id, { status: e.target.value })}
+                        onChange={(e) => handleStageChange(selectedLead.id, e.target.value)}
                         className="w-full bg-[#f5f8fa] border border-[#cbd6e2] rounded px-3 py-1.5 text-sm text-[#33475b] focus:ring-1 focus:ring-[#2d544c]/20 outline-none"
                       >
-                        {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                        {statuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
                       </select>
                     </div>
  

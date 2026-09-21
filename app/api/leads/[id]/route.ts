@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { queryMain } from '@/lib/db';
 import { MOCK_LEADS } from '@/lib/mock_db';
 import { retroactiveLinkLeads } from '@/lib/evolution_sync';
+import { normalizeStatus } from '@/lib/lead_status';
 
 export async function PATCH(
   request: Request,
@@ -43,8 +44,8 @@ export async function PATCH(
       if (body.Email !== undefined) lead.Email = body.Email;
       if (body.phone !== undefined) lead.Phone = body.phone;
       if (body.Phone !== undefined) lead.Phone = body.Phone;
-      if (body.status !== undefined) lead.Status = body.status;
-      if (body.Status !== undefined) lead.Status = body.Status;
+      if (body.status !== undefined) lead.Status = normalizeStatus(body.status);
+      if (body.Status !== undefined) lead.Status = normalizeStatus(body.Status);
       if (body.source !== undefined) lead.Source = body.source;
       if (body.Source !== undefined) lead.Source = body.Source;
       if (body.project !== undefined) lead.Project = body.project;
@@ -84,7 +85,16 @@ export async function PATCH(
     addField('lastname', body.lastName ?? body.LastName);
     addField('email', body.email ?? body.Email);
     addField('phone', body.phone ?? body.Phone);
-    addField('status', body.status ?? body.Status);
+    // La normalización va acá y no solo en la interfaz porque este PATCH es el
+    // único punto por el que el repo cambia el estado de un lead existente, y
+    // también le pegan n8n y scripts sueltos. Un estado vacío se ignora en vez de
+    // convertirse en 'NUEVO': borrar la etapa de un lead nunca es la intención de
+    // un PATCH parcial.
+    const statusEntrante = body.status ?? body.Status;
+    addField(
+      'status',
+      statusEntrante ? normalizeStatus(statusEntrante) : undefined
+    );
     addField('source', body.source ?? body.Source);
     addField('project', body.project ?? body.Project);
     addField('lote', body.lote ?? body.Lote);

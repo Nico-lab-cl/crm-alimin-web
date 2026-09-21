@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMain, mainDb } from '@/lib/db';
+import { ESTADO_INICIAL, normalizeStatus } from '@/lib/lead_status';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -101,8 +102,8 @@ export async function POST(request: Request) {
           if (field === 'visited' || field === 'visitReminderSent1d' || field === 'visitReminderSent1h') {
             val = val || false;
           }
-          if (field === 'status' && !val) {
-            val = 'Nuevo';
+          if (field === 'status') {
+            val = normalizeStatus(val || ESTADO_INICIAL);
           }
           params.push(val);
         });
