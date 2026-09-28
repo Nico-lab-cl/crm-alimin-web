@@ -50,16 +50,17 @@ export default function Sidebar() {
   return (
     <div className="flex flex-col h-screen w-64 bg-white border-r border-[#cbd6e2] sticky top-0">
       {/* Logo */}
-      <div className="p-6 border-b border-[#cbd6e2] flex items-center gap-3">
-        <div className="relative w-10 h-10 overflow-hidden rounded-lg">
-          <Image 
-            src="/img/logo.png" 
-            alt="Alimin Logo" 
-            fill 
-            className="object-cover"
-          />
-        </div>
-        <span className="text-xl font-bold text-[#2d544c] tracking-tight">ALIMIN</span>
+      {/* El mismo imagotipo que usa el portal de pagos con la barra expandida
+          (hoja y palabra en un solo archivo), en vez de la hoja más el texto. */}
+      <div className="p-6 border-b border-[#cbd6e2] flex items-center">
+        <Image
+          src="/img/imagotipo.png"
+          alt="Alimin"
+          width={256}
+          height={68}
+          priority
+          className="h-9 w-auto object-contain"
+        />
       </div>
 
       {/* Navigation */}
