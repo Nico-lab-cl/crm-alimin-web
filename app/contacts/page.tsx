@@ -69,7 +69,18 @@ const getEventStyle = (type: string) => {
     case 'EMAIL_CLICKED':
       return { icon: ExternalLink, colorClass: 'bg-amber-500', bgClass: 'bg-amber-50/50', borderClass: 'border-amber-100' };
     case 'PAGE_VIEW':
+    case 'PAGE_VISIT':
       return { icon: Globe, colorClass: 'bg-sky-500', bgClass: 'bg-sky-50/50', borderClass: 'border-sky-100' };
+    case 'PAGE_TIME':
+      return { icon: Clock, colorClass: 'bg-sky-400', bgClass: 'bg-sky-50/30', borderClass: 'border-sky-100' };
+    case 'CHAT_IN':
+      return { icon: MessageSquare, colorClass: 'bg-orange-500', bgClass: 'bg-orange-50/60', borderClass: 'border-orange-200' };
+    case 'CHAT_OUT':
+      return { icon: MessageSquare, colorClass: 'bg-teal-600', bgClass: 'bg-teal-50/50', borderClass: 'border-teal-100' };
+    case 'LEAD_CONTACTED':
+      return { icon: CheckCircle2, colorClass: 'bg-emerald-600', bgClass: 'bg-emerald-50/50', borderClass: 'border-emerald-100' };
+    case 'VISIT':
+      return { icon: MapPin, colorClass: 'bg-rose-500', bgClass: 'bg-rose-50/50', borderClass: 'border-rose-100' };
     case 'FORM_SUBMIT':
       return { icon: FileText, colorClass: 'bg-indigo-500', bgClass: 'bg-indigo-50/50', borderClass: 'border-indigo-100' };
     case 'CLICK_BUTTON':
@@ -206,6 +217,31 @@ export default function ContactsPage() {
       fetchWhatsappMessages(selectedLead.id);
     }
   }, [selectedLead, activeTab, fetchWhatsappMessages]);
+
+  // Abrir la ficha de un lead que llega por enlace (/contacts?lead=<id>), por
+  // ejemplo desde la página de Lead Score. Se lee window.location en vez de
+  // useSearchParams para no obligar a envolver la página en Suspense.
+  useEffect(() => {
+    const leadId = new URLSearchParams(window.location.search).get('lead');
+    if (!leadId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/leads?ids=${encodeURIComponent(leadId)}&limit=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.leads?.[0]) setSelectedLead(data.leads[0]);
+      } catch (e) {
+        console.error('Error abriendo el lead del enlace:', e);
+      }
+    })();
+  }, []);
+
+  // Al cerrar la ficha se limpia el enlace, para que recargar no la reabra.
+  useEffect(() => {
+    if (!selectedLead && window.location.search.includes('lead=')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [selectedLead]);
 
   // Limpiar filtros al cambiar de contacto
   useEffect(() => {
@@ -1794,7 +1830,7 @@ export default function ContactsPage() {
                                     <p className="leading-relaxed text-slate-600">{event.description}</p>
                                     
                                     {/* Enlace de página visitada */}
-                                    {event.type === 'PAGE_VIEW' && event.details?.page_url && (
+                                    {(event.type === 'PAGE_VIEW' || event.type === 'PAGE_VISIT') && event.details?.page_url && (
                                       <a 
                                         href={event.details.page_url} 
                                         target="_blank" 

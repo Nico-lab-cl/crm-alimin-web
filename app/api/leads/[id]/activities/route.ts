@@ -52,10 +52,13 @@ export async function GET(
     // 3. Obtener el lead para registrar su fecha de creación
     let leadCreatedAt: string | null = null;
     let leadSource = 'Manual';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let leadRow: Record<string, any> | null = null;
     try {
       const leadRes = await queryMain('SELECT * FROM "Lead" WHERE id = $1', [id]);
       if (leadRes.rows.length > 0) {
         const lead = leadRes.rows[0];
+        leadRow = lead;
         leadCreatedAt = lead.CreatedAt || lead.createdAt || lead.created_at || null;
         leadSource = lead.Source || lead.source || 'Manual';
       }
@@ -194,10 +197,89 @@ export async function GET(
       }
     }
 
-    // 7. Filtrar por fechas
+    // 7. Conversaciones: lo que escribió el cliente por Messenger, Instagram o
+    //    el chat web, y lo que le respondió el asesor. Es la interacción que más
+    //    pesa en el lead score, así que la ficha tiene que mostrarla. El binario
+    //    de los adjuntos no se lee: solo si hubo uno y de qué tipo.
+    //    createdAt es timestamp sin zona escrito en UTC por Prisma.
+    try {
+      const msgs = await queryMain(
+        `SELECT m.id, m.text, m."senderType", m."sourceType",
+                (m."createdAt" AT TIME ZONE 'UTC') AS fecha,
+                c.platform, u.name AS asesor, mm.kind AS adjunto
+           FROM "Message" m
+           JOIN "Conversation" c ON c.id = m."conversationId"
+           LEFT JOIN "User" u ON u.id = m."senderId"
+           LEFT JOIN "MessageMedia" mm ON mm."messageId" = m.id
+          WHERE c."leadId" = $1
+          ORDER BY m."createdAt" DESC
+          LIMIT 300`,
+        [id]
+      );
+      const canal = (p: string | null) =>
+        p === 'instagram' ? 'Instagram' : p === 'facebook' ? 'Messenger' : p === 'tiktok' ? 'TikTok' : 'el chat de la web';
+      const ADJUNTO: Record<string, string> = { image: '📷 Imagen', audio: '🎤 Audio', video: '🎬 Video' };
+
+      for (const m of msgs.rows) {
+        const delCliente = m.senderType === 'meta' || m.senderType === 'visitor';
+        const texto = (m.text || '').trim();
+        const cuerpo = [m.adjunto ? ADJUNTO[m.adjunto] || 'Adjunto' : '', texto.length > 300 ? `${texto.slice(0, 297)}...` : texto]
+          .filter(Boolean)
+          .join(' · ');
+        eventsList.push({
+          id: `chat-${m.id}`,
+          type: delCliente ? 'CHAT_IN' : 'CHAT_OUT',
+          title: delCliente
+            ? m.sourceType === 'COMMENT'
+              ? `Comentó en una publicación de ${canal(m.platform)}`
+              : `Escribió por ${canal(m.platform)}`
+            : `${m.asesor || 'El asesor'} respondió por ${canal(m.platform)}`,
+          description: cuerpo || '(mensaje sin texto)',
+          date: new Date(m.fecha).toISOString(),
+          details: { platform: m.platform },
+        });
+      }
+    } catch (e) {
+      console.error('Error querying conversations:', e);
+    }
+
+    // 8. Hitos del pipeline que quedan en el propio lead.
+    if (leadRow) {
+      if (leadRow.contactedAt) {
+        let quien = '';
+        try {
+          if (leadRow.contactedById) {
+            const u = await queryMain('SELECT name FROM "User" WHERE id = $1', [leadRow.contactedById]);
+            quien = u.rows[0]?.name || '';
+          }
+        } catch {
+          quien = '';
+        }
+        eventsList.push({
+          id: `contacted-${id}`,
+          type: 'LEAD_CONTACTED',
+          title: 'Marcado como atendido',
+          description: quien ? `${quien} confirmó que ya habló con el cliente` : 'Un asesor confirmó que ya habló con el cliente',
+          date: new Date(leadRow.contactedAt).toISOString(),
+        });
+      }
+      if (leadRow.visitDate) {
+        eventsList.push({
+          id: `visit-${id}`,
+          type: 'VISIT',
+          title: 'Visita al terreno',
+          description: [leadRow.visitProject, leadRow.etapa && `Etapa ${leadRow.etapa}`, leadRow.lote && `Lote ${leadRow.lote}`]
+            .filter(Boolean)
+            .join(' · ') || 'Visita agendada',
+          date: new Date(leadRow.visitDate).toISOString(),
+        });
+      }
+    }
+
+    // 9. Filtrar por fechas
     const filteredEvents = filterEvents(eventsList, startDate, endDate);
 
-    // 8. Ordenar cronológicamente (más recientes primero)
+    // 10. Ordenar cronológicamente (más recientes primero)
     filteredEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return NextResponse.json({

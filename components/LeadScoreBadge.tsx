@@ -35,9 +35,9 @@ export function LeadScoreCell({ score, banda, motivos }: { score: unknown; banda
   const lista = motivosDe(motivos);
   const estilo = ESTILO[banda];
   return (
-    <div className="flex flex-col items-start gap-1 max-w-[220px]" title={lista.join('\n')}>
+    <div className="flex flex-col items-start gap-1 max-w-[260px]" title={`Puntaje ${score} de 100\n${lista.join('\n')}`}>
       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-extrabold ${estilo.chip}`}>
-        <span className="tabular-nums">{score}</span>
+        <span className="tabular-nums">{score}<span className="font-semibold opacity-60">/100</span></span>
         <span className="font-bold">{estilo.etiqueta}</span>
       </span>
       {lista.slice(1, 3).map((m) => (
