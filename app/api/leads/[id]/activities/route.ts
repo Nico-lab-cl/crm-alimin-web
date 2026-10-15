@@ -169,6 +169,11 @@ export async function GET(
             const catName = act.details?.category || 'General';
             title = 'Clic en Botón de Interés';
             description = `Hizo clic en el botón "${btnName}" (Categoría: ${catName})`;
+          } else if (eventType === 'PAGE_TIME') {
+            const segundos = Number(act.details?.active_seconds) || 0;
+            const tiempo = segundos >= 60 ? `${Math.round(segundos / 60)} min` : `${segundos} s`;
+            title = 'Tiempo en la Página';
+            description = `Estuvo ${tiempo} con la página "${act.page_title || 'Sin Título'}" abierta`;
           }
 
           eventsList.push({

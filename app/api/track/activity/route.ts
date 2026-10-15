@@ -66,10 +66,12 @@ export async function POST(request: Request) {
       JSON.stringify(details || {}),
     ]);
 
-    // Buscar detalles del lead en MAIN_DB solo si está identificado
+    // Buscar detalles del lead en MAIN_DB solo si está identificado.
+    // PAGE_TIME (segundos activos al salir de una página) solo alimenta el
+    // lead score: no genera notificación, llegaría una por cada página vista.
     let name = '';
     let email = '';
-    if (lead_id) {
+    if (lead_id && event_type !== 'PAGE_TIME') {
       try {
         const leadRes = await queryMain('SELECT * FROM "Lead" WHERE id = $1', [lead_id]);
         if (leadRes.rows.length > 0) {

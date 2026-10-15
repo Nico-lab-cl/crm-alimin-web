@@ -41,6 +41,7 @@ import {
   sameStatus,
   statusLabel
 } from '@/lib/lead_status';
+import { LeadScoreCell, LeadScoreDetail } from '@/components/LeadScoreBadge';
 
 interface Lead {
   id: string;
@@ -109,7 +110,9 @@ export default function ContactsPage() {
   const [endDate, setEndDate] = useState('');
   // Marca de atención del asesor: '' todos, 'true' atendidos, 'false' pendientes
   const [contacted, setContacted] = useState('');
-  
+  // Lead score: '' por fecha, 'TODOS' ordenado por puntaje, o una banda (también ordenada por puntaje)
+  const [scoreBand, setScoreBand] = useState('');
+
   // Opciones de filtros dinámicos (cargados desde API)
   const [statuses, setStatuses] = useState<string[]>([...LEAD_STATUSES]);
   const [sources, setSources] = useState<string[]>([]);
@@ -469,6 +472,10 @@ export default function ContactsPage() {
         startDate,
         endDate
       });
+      if (scoreBand) {
+        params.set('sort', 'score');
+        if (scoreBand !== 'TODOS') params.set('scoreBand', scoreBand);
+      }
       const res = await fetch(`/api/leads?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -482,7 +489,7 @@ export default function ContactsPage() {
     } finally {
       if (showLoadingSpinner) setLoading(false);
     }
-  }, [page, limit, search, status, source, project, interest, contacted, startDate, endDate]);
+  }, [page, limit, search, status, source, project, interest, contacted, scoreBand, startDate, endDate]);
 
   // Efecto para búsquedas y filtrados dinámicos
   useEffect(() => {
@@ -892,7 +899,26 @@ export default function ContactsPage() {
         {/* Fila 2: Filtros Avanzados (Interés y Fecha de Creación) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end pt-2 border-t border-[#cbd6e2]/40">
           {/* Filtrar por Interés */}
-          <div className="space-y-1.5 lg:col-span-2">
+          {/* Lead score: cualquier opción ordena por puntaje, de mayor a menor */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Lead Score</label>
+            <select
+              value={scoreBand}
+              onChange={(e) => {
+                setScoreBand(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-[#f5f8fa] border-[#cbd6e2] border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#2d544c]/20 outline-none text-[#33475b] focus:bg-white"
+            >
+              <option value="">Por fecha de ingreso</option>
+              <option value="TODOS">Todos, mayor puntaje primero</option>
+              <option value="CALIENTE">🔥 Solo calientes</option>
+              <option value="TIBIO">Solo tibios</option>
+              <option value="FRIO">Solo fríos</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Interés del Lead</label>
             <select 
               value={interest}
@@ -939,7 +965,7 @@ export default function ContactsPage() {
 
           {/* Botón de Limpiar Filtros */}
           <div>
-            {(search || status || source || project || interest || contacted || startDate || endDate) ? (
+            {(search || status || source || project || interest || contacted || scoreBand || startDate || endDate) ? (
               <button 
                 onClick={() => {
                   setSearch('');
@@ -948,6 +974,7 @@ export default function ContactsPage() {
                   setProject('');
                   setInterest('');
                   setContacted('');
+                  setScoreBand('');
                   setStartDate('');
                   setEndDate('');
                   setPage(1);
@@ -979,7 +1006,7 @@ export default function ContactsPage() {
               </div>
               <p className="text-xl font-bold text-[#33475b]">No se encontraron contactos</p>
               <p className="text-[#516f90] mt-2 max-w-sm text-sm">Prueba limpiando los filtros actuales o añade un contacto nuevo manualmente.</p>
-              {(search || status || source || project || interest || contacted || startDate || endDate) && (
+              {(search || status || source || project || interest || contacted || scoreBand || startDate || endDate) && (
                 <button 
                   onClick={() => {
                     setSearch('');
@@ -988,6 +1015,7 @@ export default function ContactsPage() {
                     setProject('');
                     setInterest('');
                     setContacted('');
+                    setScoreBand('');
                     setStartDate('');
                     setEndDate('');
                     setPage(1);
@@ -1003,6 +1031,7 @@ export default function ContactsPage() {
               <thead>
                 <tr className="bg-[#f5f8fa] text-[#516f90] text-xs font-bold uppercase tracking-wider border-b border-[#cbd6e2]">
                   <th className="px-6 py-4">Nombre / Cliente</th>
+                  <th className="px-6 py-4">Lead Score</th>
                   <th className="px-6 py-4">Correo Electrónico</th>
                   <th className="px-6 py-4 text-center">Recibe Email</th>
                   <th className="px-6 py-4">Teléfono</th>
@@ -1017,6 +1046,9 @@ export default function ContactsPage() {
                   <tr key={lead.id} onClick={() => setSelectedLead(lead)} className="hover:bg-[#f5f8fa] transition-all group cursor-pointer select-none">
                     <td className="px-6 py-4">
                       <p className="font-bold text-[#33475b] group-hover:text-[#2d544c] transition-colors">{getLeadName(lead)}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <LeadScoreCell score={lead.leadScore} banda={lead.leadScoreBand} motivos={lead.leadScoreReasons} />
                     </td>
                     <td className="px-6 py-4 text-sm text-[#516f90] font-medium">
                       {getLeadEmail(lead)}
@@ -1569,6 +1601,16 @@ export default function ContactsPage() {
                       </select>
                     </div>
  
+                    {/* Lead score y su porqué (lo calcula el CRM cada 15 minutos) */}
+                    <div>
+                      <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Lead Score</label>
+                      <LeadScoreDetail
+                        score={selectedLead.leadScore}
+                        banda={selectedLead.leadScoreBand}
+                        motivos={selectedLead.leadScoreReasons}
+                      />
+                    </div>
+
                     {/* Temperatura (Interés) */}
                     <div>
                       <label className="text-[10px] font-bold text-[#516f90] uppercase tracking-wide block mb-1">Interés / Temperatura</label>

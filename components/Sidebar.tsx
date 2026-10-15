@@ -10,7 +10,8 @@ import {
   Home,
   ChevronRight,
   Globe,
-  QrCode
+  QrCode,
+  Flame
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -38,6 +39,7 @@ const navItems = [
       { name: 'Firmas de Email 🖋️', href: '/campaigns/signatures' }
     ]
   },
+  { name: 'Lead Score', href: '/lead-score', icon: Flame },
   { name: 'Mapeo Web', href: '/mapeo-web', icon: Globe },
   { name: 'Creador de QR', href: '/qr', icon: QrCode },
   { name: 'Métricas', href: '/metrics', icon: BarChart3 },

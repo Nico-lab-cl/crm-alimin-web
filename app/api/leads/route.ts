@@ -4,6 +4,7 @@ import { MOCK_LEADS } from '@/lib/mock_db';
 import { parseDateRobust } from '@/lib/date_utils';
 import { retroactiveLinkLeads } from '@/lib/evolution_sync';
 import { ESTADO_INICIAL, normalizeStatus } from '@/lib/lead_status';
+import { tablaExiste } from '@/lib/lead_score';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,8 @@ export async function GET(request: Request) {
     const adId = searchParams.get('adId') || '';
     const adName = searchParams.get('adName') || '';
     const ids = searchParams.get('ids') || ''; // Lista de IDs separada por comas (Listas Estáticas)
+    const scoreBand = (searchParams.get('scoreBand') || '').toUpperCase(); // CALIENTE / TIBIO / FRIO
+    const sort = searchParams.get('sort') || ''; // 'score' ordena por lead score
 
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -374,11 +377,24 @@ export async function GET(request: Request) {
       }
     }
 
+    // Lead score: se suma con un LEFT JOIN si el CRM ya creó la tabla.
+    let conScore = false;
+    try {
+      conScore = await tablaExiste();
+    } catch {
+      conScore = false;
+    }
+    if (conScore && ['CALIENTE', 'TIBIO', 'FRIO'].includes(scoreBand)) {
+      params.push(scoreBand);
+      whereClauses.push(`ls.banda = $${params.length}`);
+    }
+    const scoreJoin = conScore ? 'LEFT JOIN public.lead_score ls ON ls.lead_id = "Lead".id' : '';
+
     const whereStr = whereClauses.join(' AND ');
     console.log('GET /api/leads: database query debug:', { whereStr, params, columns });
 
     // Consultar el conteo total
-    const countRes = await queryMain(`SELECT COUNT(*) as total FROM "Lead" WHERE ${whereStr}`, params);
+    const countRes = await queryMain(`SELECT COUNT(*) as total FROM "Lead" ${scoreJoin} WHERE ${whereStr}`, params);
     const totalCount = parseInt(countRes.rows[0].total, 10);
 
     // Consultar leads paginados y ordenados
@@ -388,15 +404,20 @@ export async function GET(request: Request) {
     const offsetIdx = params.length;
 
     const assignedToCol = columns.find(c => c.toLowerCase() === 'assignedtoid');
-    const selectFields = assignedToCol 
-      ? `*, (SELECT name FROM "User" WHERE id = "${assignedToCol}") as "AdvisorName"`
-      : '*';
+    const scoreFields = conScore
+      ? `, ls.score AS "leadScore", ls.banda AS "leadScoreBand", ls.motivos AS "leadScoreReasons"`
+      : '';
+    const selectFields = assignedToCol
+      ? `"Lead".*, (SELECT name FROM "User" WHERE id = "Lead"."${assignedToCol}") as "AdvisorName"${scoreFields}`
+      : `"Lead".*${scoreFields}`;
+    const porFecha = `${rawCreatedAtCol ? `"Lead".${createdAtCol}` : '1'} DESC NULLS LAST`;
+    const orderBy = conScore && sort === 'score' ? `ls.score DESC NULLS LAST, ${porFecha}` : porFecha;
 
     const selectQuery = `
       SELECT ${selectFields}
-      FROM "Lead" 
-      WHERE ${whereStr} 
-      ORDER BY ${rawCreatedAtCol ? createdAtCol : '1'} DESC NULLS LAST
+      FROM "Lead" ${scoreJoin}
+      WHERE ${whereStr}
+      ORDER BY ${orderBy}
       LIMIT $${limitIdx} OFFSET $${offsetIdx}
     `;
 
