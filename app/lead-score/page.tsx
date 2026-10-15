@@ -13,9 +13,11 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  BarChart3,
 } from 'lucide-react';
 import { LeadScoreCell, type BandaScore } from '@/components/LeadScoreBadge';
 import { statusLabel } from '@/lib/lead_status';
+import ResumenGeneral, { type General } from './ResumenGeneral';
 
 type LeadFila = {
   lead_id: string;
@@ -46,6 +48,7 @@ type Campana = {
 
 type Datos = {
   listo: boolean;
+  general?: General;
   calculadoEn?: string | null;
   reglas?: { caliente: number; tibio: number; vidaMediaDias: number };
   resumen?: Record<BandaScore, number>;
@@ -98,7 +101,7 @@ export default function LeadScorePage() {
   const [cargando, setCargando] = useState(true);
   const [recalculando, setRecalculando] = useState(false);
   const [error, setError] = useState('');
-  const [pestana, setPestana] = useState<'leads' | 'campanas'>('leads');
+  const [pestana, setPestana] = useState<'general' | 'leads' | 'campanas'>('leads');
   const [verReglas, setVerReglas] = useState(false);
 
   // Filtros
@@ -107,7 +110,9 @@ export default function LeadScorePage() {
   const [banda, setBanda] = useState('');
   const [origen, setOrigen] = useState('');
   const [asesor, setAsesor] = useState('');
-  const hayFiltros = Boolean(desde || hasta || banda || origen || asesor);
+  const [op, setOp] = useState('gte');
+  const [puntaje, setPuntaje] = useState('');
+  const hayFiltros = Boolean(desde || hasta || banda || origen || asesor || puntaje);
 
   const cargar = useCallback(async () => {
     try {
@@ -117,6 +122,10 @@ export default function LeadScorePage() {
       if (banda) params.set('banda', banda);
       if (origen) params.set('origen', origen);
       if (asesor) params.set('asesor', asesor);
+      if (/^\d{1,3}$/.test(puntaje)) {
+        params.set('op', op);
+        params.set('puntaje', puntaje);
+      }
       const res = await fetch(`/api/lead-score?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.message || 'No se pudo leer el lead score');
@@ -127,10 +136,12 @@ export default function LeadScorePage() {
     } finally {
       setCargando(false);
     }
-  }, [desde, hasta, banda, origen, asesor]);
+  }, [desde, hasta, banda, origen, asesor, op, puntaje]);
 
+  // El puntaje se escribe: se espera a que termine de tipear.
   useEffect(() => {
-    cargar();
+    const t = setTimeout(cargar, 300);
+    return () => clearTimeout(t);
   }, [cargar]);
 
   const recalcular = async () => {
@@ -153,6 +164,8 @@ export default function LeadScorePage() {
     setBanda('');
     setOrigen('');
     setAsesor('');
+    setOp('gte');
+    setPuntaje('');
   };
 
   const reglas = datos?.reglas || { caliente: 60, tibio: 35, vidaMediaDias: 14 };
@@ -238,7 +251,7 @@ export default function LeadScorePage() {
 
       {/* Filtros */}
       <div className="bg-white border border-[#cbd6e2] rounded-2xl shadow-sm p-5 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Creado desde</label>
             <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={campo} />
@@ -250,11 +263,40 @@ export default function LeadScorePage() {
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Temperatura</label>
             <select value={banda} onChange={(e) => setBanda(e.target.value)} className={campo}>
-              <option value="">Calientes y tibios</option>
+              <option value="">{puntaje ? 'Todas' : 'Calientes y tibios'}</option>
+              <option value="TODAS">Todas las temperaturas</option>
               <option value="CALIENTE">🔥 Solo calientes</option>
               <option value="TIBIO">Solo tibios</option>
               <option value="FRIO">Solo fríos</option>
             </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Puntaje</label>
+            <div className="flex gap-1.5">
+              <select
+                value={op}
+                onChange={(e) => setOp(e.target.value)}
+                className={`${campo} !w-16 shrink-0 px-2 text-center font-bold`}
+                aria-label="Comparación del puntaje"
+              >
+                <option value="gte">≥</option>
+                <option value="gt">&gt;</option>
+                <option value="eq">=</option>
+                <option value="lte">≤</option>
+                <option value="lt">&lt;</option>
+              </select>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                inputMode="numeric"
+                placeholder="0 a 100"
+                value={puntaje}
+                onChange={(e) => setPuntaje(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                className={campo}
+                aria-label="Puntaje"
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-[#516f90] uppercase tracking-wider">Origen</label>
@@ -351,6 +393,7 @@ export default function LeadScorePage() {
           <div className="bg-white border border-[#cbd6e2] rounded-2xl shadow-sm overflow-hidden">
             <div className="px-4 sm:px-6 pt-4 border-b border-[#cbd6e2] flex gap-1">
               {([
+                ['general', 'Resumen general', BarChart3],
                 ['leads', 'Leads para llamar', Users],
                 ['campanas', 'Calidad por campaña', Megaphone],
               ] as const).map(([id, titulo, Icono]) => (
@@ -367,12 +410,14 @@ export default function LeadScorePage() {
               ))}
             </div>
 
-            {pestana === 'leads' ? (
+            {pestana === 'general' ? (
+              datos?.general ? <ResumenGeneral g={datos.general} reglas={reglas} origenes={ORIGEN} /> : null
+            ) : pestana === 'leads' ? (
               <div className="overflow-x-auto">
                 {leads.length === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-[#516f90]">
                     No hay leads con estos filtros.
-                    {!banda && ' Hoy no hay calientes ni tibios: prueba con "Solo fríos" para ver el resto.'}
+                    {!banda && !puntaje && ' Hoy no hay calientes ni tibios: prueba con "Todas las temperaturas" para ver el resto.'}
                   </p>
                 ) : (
                   <>
