@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax, getCampaignPreheader, insertPreheader } from '@/lib/email_utils';
 
 interface SendCampaingOptions {
   campaignId: string;
@@ -215,6 +215,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
+  const preheader = getCampaignPreheader(campaign);
 
   // 3. Procesar cada lead
   let index = 0;
@@ -234,7 +235,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
       const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
       const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
       const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, lead.id, emailValue, appUrl);
-      const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
+      const finalHtml = optimizeHtmlForDarkMode(insertPreheader(htmlWithUnsubscribe + trackingPixel, preheader));
 
       fetch(n8nUrl, {
         method: 'POST',
@@ -245,6 +246,7 @@ export async function executeCampaign(options: SendCampaingOptions) {
           title: campaign.title,
           email: emailValue,
           subject: campaign.subject,
+          preheader,
           html: finalHtml,
           design: campaign.mjml_content,
           senderIndex,
@@ -296,6 +298,7 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string, 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
+  const preheader = getCampaignPreheader(campaign);
 
   // Buscar si existe un lead real con ese correo en la base de datos principal
   let leadId = '00000000-0000-0000-0000-000000000000'; // UUID dummy válido por defecto
@@ -330,7 +333,7 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string, 
   const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
   const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
   const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, leadId, targetEmail, appUrl);
-  const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
+  const finalHtml = optimizeHtmlForDarkMode(insertPreheader(htmlWithUnsubscribe + trackingPixel, preheader));
 
   await fetch(n8nUrl, {
     method: 'POST',
@@ -341,6 +344,7 @@ export async function sendTestCampaign(campaignId: string, targetEmail: string, 
       title: `[PRUEBA] ${campaign.title}`,
       email: targetEmail,
       subject: `[PRUEBA] ${campaign.subject}`,
+      preheader,
       html: finalHtml,
       design: campaign.mjml_content,
       senderIndex,

@@ -1,6 +1,6 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax, getCampaignPreheader, insertPreheader } from '@/lib/email_utils';
 
 // ============================================================
 // Constants
@@ -419,6 +419,7 @@ async function processBatches(
     job.completedAt = new Date();
     return;
   }
+  const preheader = getCampaignPreheader(campaign);
 
   // Split leads into batches
   const batches: typeof leads[] = [];
@@ -470,7 +471,7 @@ async function processBatches(
         const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
         const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
         const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, lead.id, emailValue, appUrl);
-        const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
+        const finalHtml = optimizeHtmlForDarkMode(insertPreheader(htmlWithUnsubscribe + trackingPixel, preheader));
 
         // Send to n8n webhook
         const response = await fetch(n8nUrl, {
@@ -482,6 +483,7 @@ async function processBatches(
             title: campaign.title,
             email: emailValue,
             subject: campaign.subject,
+            preheader,
             html: finalHtml,
             design: campaign.mjml_content,
             senderIndex,

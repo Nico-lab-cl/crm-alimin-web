@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { queryMarketing, queryMain } from '@/lib/db';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, getCampaignPreheader, insertPreheader } from '@/lib/email_utils';
 import { checkLeadMatchesSegment, dispatchLeadToWebhook } from '@/lib/automation_utils';
 
 export async function POST(request: Request) {
@@ -227,7 +227,8 @@ export async function POST(request: Request) {
 
         const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
         const htmlWithUnsubscribe = appendUnsubscribeFooter(campaign.html_content, leadId, email, appUrl);
-        const finalHtml = optimizeHtmlForDarkMode(htmlWithUnsubscribe + trackingPixel);
+        const preheader = getCampaignPreheader(campaign);
+        const finalHtml = optimizeHtmlForDarkMode(insertPreheader(htmlWithUnsubscribe + trackingPixel, preheader));
 
         const senderIndex = Math.floor(Math.random() * 5);
 
@@ -241,6 +242,7 @@ export async function POST(request: Request) {
             name: name,
             phone: phone,
             subject: campaign.subject,
+            preheader,
             html: finalHtml,
             formid: formid,
             source: 'META',

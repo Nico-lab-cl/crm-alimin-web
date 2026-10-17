@@ -1,5 +1,5 @@
 import { queryMain, queryMarketing } from './db';
-import { appendUnsubscribeFooter } from './email_utils';
+import { appendUnsubscribeFooter, getCampaignPreheader, insertPreheader } from './email_utils';
 
 // Helper to discover Lead columns dynamically
 export async function getLeadColumns(): Promise<string[]> {
@@ -343,7 +343,8 @@ export async function dispatchLeadToWebhook(lead: any, rule: any, campaigns: any
       id: c.id,
       title: c.title,
       subject: c.subject,
-      html_content: appendUnsubscribeFooter(c.html_content, lead.id, lead.email, appUrl),
+      preheader: getCampaignPreheader(c),
+      html_content: insertPreheader(appendUnsubscribeFooter(c.html_content, lead.id, lead.email, appUrl), getCampaignPreheader(c)),
       mjml_content: c.mjml_content
     })),
     senderIndex: Math.floor(Math.random() * 5),

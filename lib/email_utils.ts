@@ -170,6 +170,43 @@ export function optimizeHtmlForDarkMode(html: string): string {
 }
 
 /**
+ * Lee el preheader (texto de vista previa en la bandeja) desde el diseño de Unlayer,
+ * que lo guarda en body.values.preheaderText (panel "Body" del editor).
+ */
+export function getCampaignPreheader(campaign: { mjml_content?: unknown }): string {
+  try {
+    const design = typeof campaign.mjml_content === 'string'
+      ? JSON.parse(campaign.mjml_content)
+      : campaign.mjml_content;
+    const text = (design as { body?: { values?: { preheaderText?: string } } })?.body?.values?.preheaderText;
+    return typeof text === 'string' ? text.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Inserta el preheader como texto oculto al inicio del <body>, seguido de espacios
+ * invisibles para que Gmail/Outlook no completen la vista previa con el pie de desuscripción.
+ */
+export function insertPreheader(html: string, preheader: string): string {
+  if (!html || !preheader || html.includes('<!-- PREHEADER -->')) return html;
+
+  const escaped = preheader
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const filler = '&#847;&zwnj;&nbsp;'.repeat(90);
+  const preheaderHtml = `<!-- PREHEADER --><div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">${escaped}${filler}</div>`;
+
+  const bodyRegex = /<body[^>]*>/i;
+  if (bodyRegex.test(html)) {
+    return html.replace(bodyRegex, (match) => `${match}${preheaderHtml}`);
+  }
+  return preheaderHtml + html;
+}
+
+/**
  * Agrega dinámicamente un footer de desuscripción elegante y responsivo en español,
  * adaptado a los colores de marca de Alimin Inmobiliaria.
  */
