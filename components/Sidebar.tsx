@@ -11,8 +11,7 @@ import {
   ChevronRight,
   Globe,
   QrCode,
-  Flame,
-  MessageCircle
+  Flame
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -41,7 +40,6 @@ const navItems = [
     ]
   },
   { name: 'Lead Score', href: '/lead-score', icon: Flame },
-  { name: 'WhatsApp de Anuncios', href: '/whatsapp-anuncios', icon: MessageCircle },
   { name: 'Mapeo Web', href: '/mapeo-web', icon: Globe },
   { name: 'Creador de QR', href: '/qr', icon: QrCode },
   { name: 'Métricas', href: '/metrics', icon: BarChart3 },
