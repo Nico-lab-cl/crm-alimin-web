@@ -14,6 +14,7 @@ export type FilaGrupo = {
   promedio: number;
   calientes: number;
   tibios: number;
+  frios: number;
   conInteraccion: number;
   atendidos: number;
 };
@@ -113,6 +114,7 @@ function TablaGrupos({ titulo, filas, etiqueta }: { titulo: string; filas: FilaG
               <th className="px-4 py-2.5 text-right">Prom.</th>
               <th className="px-4 py-2.5 text-right">Calientes</th>
               <th className="px-4 py-2.5 text-right">Tibios</th>
+              <th className="px-4 py-2.5 text-right">Fríos</th>
               <th className="px-4 py-2.5 text-right">Con interacción</th>
               <th className="px-4 py-2.5 text-right">Atendidos</th>
             </tr>
@@ -125,6 +127,7 @@ function TablaGrupos({ titulo, filas, etiqueta }: { titulo: string; filas: FilaG
                 <td className="px-4 py-2.5 text-right tabular-nums font-bold">{f.promedio}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{num(f.calientes)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{num(f.tibios)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{num(f.frios)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{pct(f.conInteraccion, f.leads)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{pct(f.atendidos, f.leads)}</td>
               </tr>

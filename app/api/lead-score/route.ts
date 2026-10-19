@@ -132,6 +132,7 @@ export async function GET(request: Request) {
                 round(avg(s.score))::int AS promedio,
                 count(*) FILTER (WHERE s.banda = 'CALIENTE')::int AS calientes,
                 count(*) FILTER (WHERE s.banda = 'TIBIO')::int AS tibios,
+                count(*) FILTER (WHERE s.banda = 'FRIO')::int AS frios,
                 count(*) FILTER (WHERE s.puntos_interaccion > 0)::int AS con_interaccion,
                 count(*) FILTER (WHERE COALESCE(l.contacted, false))::int AS contactados,
                 count(*) FILTER (WHERE COALESCE(l.visited, false) OR upper(COALESCE(l.status, '')) IN ('VISITA', 'RESERVADO'))::int AS avanzaron
@@ -167,13 +168,14 @@ export async function GET(request: Request) {
     for (const r of bandas.rows) resumen[r.banda as keyof typeof resumen] = r.n;
 
     // Resumen general
-    type Grupo = { leads: number; suma: number; calientes: number; tibios: number; conInteraccion: number; atendidos: number };
-    const nuevoGrupo = (): Grupo => ({ leads: 0, suma: 0, calientes: 0, tibios: 0, conInteraccion: 0, atendidos: 0 });
+    type Grupo = { leads: number; suma: number; calientes: number; tibios: number; frios: number; conInteraccion: number; atendidos: number };
+    const nuevoGrupo = (): Grupo => ({ leads: 0, suma: 0, calientes: 0, tibios: 0, frios: 0, conInteraccion: 0, atendidos: 0 });
     const sumarA = (g: Grupo, r: (typeof general.rows)[number]) => {
       g.leads++;
       g.suma += r.score;
       if (r.banda === 'CALIENTE') g.calientes++;
       if (r.banda === 'TIBIO') g.tibios++;
+      if (r.banda === 'FRIO') g.frios++;
       if (r.puntos_interaccion > 0) g.conInteraccion++;
       if (r.contacted) g.atendidos++;
     };
@@ -209,6 +211,7 @@ export async function GET(request: Request) {
       promedio: g.leads ? Math.round(g.suma / g.leads) : 0,
       calientes: g.calientes,
       tibios: g.tibios,
+      frios: g.frios,
       conInteraccion: g.conInteraccion,
       atendidos: g.atendidos,
     });

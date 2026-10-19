@@ -41,6 +41,7 @@ type Campana = {
   promedio: number;
   calientes: number;
   tibios: number;
+  frios: number;
   con_interaccion: number;
   contactados: number;
   avanzaron: number;
@@ -491,6 +492,7 @@ export default function LeadScorePage() {
                           <th className="px-6 py-3 text-right">Puntaje prom.</th>
                           <th className="px-6 py-3 text-right">Calientes</th>
                           <th className="px-6 py-3 text-right">Tibios</th>
+                          <th className="px-6 py-3 text-right">Fríos</th>
                           <th className="px-6 py-3 text-right">Con interacción</th>
                           <th className="px-6 py-3 text-right">Atendidos</th>
                           <th className="px-6 py-3 text-right">Visita o reserva</th>
@@ -510,6 +512,9 @@ export default function LeadScorePage() {
                             </td>
                             <td className="px-6 py-3 text-right tabular-nums">
                               {c.tibios} <span className="text-[11px] text-[#516f90]">({pct(c.tibios, c.leads)})</span>
+                            </td>
+                            <td className="px-6 py-3 text-right tabular-nums">
+                              {c.frios} <span className="text-[11px] text-[#516f90]">({pct(c.frios, c.leads)})</span>
                             </td>
                             <td className="px-6 py-3 text-right tabular-nums">{pct(c.con_interaccion, c.leads)}</td>
                             <td className="px-6 py-3 text-right tabular-nums">{pct(c.contactados, c.leads)}</td>
