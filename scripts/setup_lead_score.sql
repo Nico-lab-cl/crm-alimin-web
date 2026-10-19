@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS public.lead_score (
   lead_id            text PRIMARY KEY,           -- "Lead".id
   score              integer NOT NULL,           -- 0 a 100
-  banda              text NOT NULL,              -- CALIENTE / TIBIO / FRIO
+  banda              text NOT NULL,              -- CALIENTE / TIBIO / TEMPLADO / FRIO
   origen             text NOT NULL,              -- WEB / LANDING_META / FORM_META / MANUAL / ANTIGUA
   puntos_origen      integer NOT NULL DEFAULT 0,
   puntos_perfil      integer NOT NULL DEFAULT 0,

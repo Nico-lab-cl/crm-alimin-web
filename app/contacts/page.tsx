@@ -950,6 +950,7 @@ export default function ContactsPage() {
               <option value="TODOS">Todos, mayor puntaje primero</option>
               <option value="CALIENTE">🔥 Solo calientes</option>
               <option value="TIBIO">Solo tibios</option>
+              <option value="TEMPLADO">Solo templados</option>
               <option value="FRIO">Solo fríos</option>
             </select>
           </div>

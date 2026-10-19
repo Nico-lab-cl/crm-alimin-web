@@ -384,7 +384,7 @@ export async function GET(request: Request) {
     } catch {
       conScore = false;
     }
-    if (conScore && ['CALIENTE', 'TIBIO', 'FRIO'].includes(scoreBand)) {
+    if (conScore && ['CALIENTE', 'TIBIO', 'TEMPLADO', 'FRIO'].includes(scoreBand)) {
       params.push(scoreBand);
       whereClauses.push(`ls.banda = $${params.length}`);
     }

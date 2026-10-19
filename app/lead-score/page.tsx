@@ -7,6 +7,7 @@ import {
   RefreshCcw,
   Thermometer,
   Snowflake,
+  CloudSun,
   Megaphone,
   Info,
   Users,
@@ -41,6 +42,7 @@ type Campana = {
   promedio: number;
   calientes: number;
   tibios: number;
+  templados: number;
   frios: number;
   con_interaccion: number;
   contactados: number;
@@ -51,7 +53,7 @@ type Datos = {
   listo: boolean;
   general?: General;
   calculadoEn?: string | null;
-  reglas?: { caliente: number; tibio: number; vidaMediaDias: number };
+  reglas?: { caliente: number; tibio: number; templado: number; vidaMediaDias: number };
   resumen?: Record<BandaScore, number>;
   leads?: LeadFila[];
   campanas?: Campana[];
@@ -169,7 +171,7 @@ export default function LeadScorePage() {
     setPuntaje('');
   };
 
-  const reglas = datos?.reglas || { caliente: 60, tibio: 35, vidaMediaDias: 14 };
+  const reglas = { caliente: 60, tibio: 35, templado: 20, vidaMediaDias: 14, ...datos?.reglas };
   const leads = datos?.leads || [];
   const campanas = (datos?.campanas || []).filter((c) => c.leads >= 3);
 
@@ -209,8 +211,11 @@ export default function LeadScorePage() {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-700 border-amber-200">
             Tibio: {reglas.tibio} a {reglas.caliente - 1} · hacer seguimiento
           </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold bg-sky-50 text-sky-700 border-sky-200">
+            Templado: {reglas.templado} a {reglas.tibio - 1} · ya mostró interés
+          </span>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold bg-slate-50 text-slate-500 border-slate-200">
-            Frío: menos de {reglas.tibio}
+            Frío: menos de {reglas.templado}
           </span>
         </div>
         <button
@@ -268,6 +273,7 @@ export default function LeadScorePage() {
               <option value="TODAS">Todas las temperaturas</option>
               <option value="CALIENTE">🔥 Solo calientes</option>
               <option value="TIBIO">Solo tibios</option>
+              <option value="TEMPLADO">Solo templados</option>
               <option value="FRIO">Solo fríos</option>
             </select>
           </div>
@@ -362,11 +368,12 @@ export default function LeadScorePage() {
       ) : (
         <>
           {/* Tarjetas por temperatura: también filtran */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {([
               ['CALIENTE', 'Calientes', Flame, 'text-orange-600 bg-orange-50', `${reglas.caliente} o más puntos`],
               ['TIBIO', 'Tibios', Thermometer, 'text-amber-600 bg-amber-50', `${reglas.tibio} a ${reglas.caliente - 1} puntos`],
-              ['FRIO', 'Fríos', Snowflake, 'text-slate-500 bg-slate-50', `menos de ${reglas.tibio} puntos`],
+              ['TEMPLADO', 'Templados', CloudSun, 'text-sky-600 bg-sky-50', `${reglas.templado} a ${reglas.tibio - 1} puntos`],
+              ['FRIO', 'Fríos', Snowflake, 'text-slate-500 bg-slate-50', `menos de ${reglas.templado} puntos`],
             ] as const).map(([b, titulo, Icono, color, rango]) => (
               <button
                 key={b}
@@ -492,6 +499,7 @@ export default function LeadScorePage() {
                           <th className="px-6 py-3 text-right">Puntaje prom.</th>
                           <th className="px-6 py-3 text-right">Calientes</th>
                           <th className="px-6 py-3 text-right">Tibios</th>
+                          <th className="px-6 py-3 text-right">Templados</th>
                           <th className="px-6 py-3 text-right">Fríos</th>
                           <th className="px-6 py-3 text-right">Con interacción</th>
                           <th className="px-6 py-3 text-right">Atendidos</th>
@@ -512,6 +520,9 @@ export default function LeadScorePage() {
                             </td>
                             <td className="px-6 py-3 text-right tabular-nums">
                               {c.tibios} <span className="text-[11px] text-[#516f90]">({pct(c.tibios, c.leads)})</span>
+                            </td>
+                            <td className="px-6 py-3 text-right tabular-nums">
+                              {c.templados} <span className="text-[11px] text-[#516f90]">({pct(c.templados, c.leads)})</span>
                             </td>
                             <td className="px-6 py-3 text-right tabular-nums">
                               {c.frios} <span className="text-[11px] text-[#516f90]">({pct(c.frios, c.leads)})</span>

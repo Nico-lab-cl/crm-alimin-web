@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { queryMain } from '@/lib/db';
-import { recalcularSinSolapar, tablaExiste, UMBRAL_CALIENTE, UMBRAL_TIBIO, VIDA_MEDIA_DIAS } from '@/lib/lead_score';
+import {
+  recalcularSinSolapar,
+  tablaExiste,
+  UMBRAL_CALIENTE,
+  UMBRAL_TIBIO,
+  UMBRAL_TEMPLADO,
+  VIDA_MEDIA_DIAS,
+} from '@/lib/lead_score';
 
 export const dynamic = 'force-dynamic';
 
-const BANDAS = ['CALIENTE', 'TIBIO', 'FRIO'];
+const BANDAS = ['CALIENTE', 'TIBIO', 'TEMPLADO', 'FRIO'];
 const ORIGENES = ['WEB', 'LANDING_META', 'FORM_META', 'MANUAL', 'ANTIGUA'];
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const OPERADORES: Record<string, string> = { gte: '>=', gt: '>', eq: '=', lte: '<=', lt: '<' };
@@ -34,7 +41,7 @@ function senalDe(motivo: string): string | null {
  * Filtros (todos opcionales, se aplican igual a las tarjetas, al listado y a
  * la calidad por campaña):
  *   desde / hasta  fecha de creación del lead (YYYY-MM-DD, día de Chile)
- *   banda          CALIENTE / TIBIO / FRIO; sin banda el listado muestra
+ *   banda          CALIENTE / TIBIO / TEMPLADO / FRIO; sin banda el listado muestra
  *                  calientes y tibios, que son los que hay que llamar
  *   origen         WEB / LANDING_META / FORM_META / MANUAL / ANTIGUA
  *   asesor         id del asesor
@@ -132,6 +139,7 @@ export async function GET(request: Request) {
                 round(avg(s.score))::int AS promedio,
                 count(*) FILTER (WHERE s.banda = 'CALIENTE')::int AS calientes,
                 count(*) FILTER (WHERE s.banda = 'TIBIO')::int AS tibios,
+                count(*) FILTER (WHERE s.banda = 'TEMPLADO')::int AS templados,
                 count(*) FILTER (WHERE s.banda = 'FRIO')::int AS frios,
                 count(*) FILTER (WHERE s.puntos_interaccion > 0)::int AS con_interaccion,
                 count(*) FILTER (WHERE COALESCE(l.contacted, false))::int AS contactados,
@@ -164,17 +172,36 @@ export async function GET(request: Request) {
       ),
     ]);
 
-    const resumen = { CALIENTE: 0, TIBIO: 0, FRIO: 0 };
+    const resumen = { CALIENTE: 0, TIBIO: 0, TEMPLADO: 0, FRIO: 0 };
     for (const r of bandas.rows) resumen[r.banda as keyof typeof resumen] = r.n;
 
     // Resumen general
-    type Grupo = { leads: number; suma: number; calientes: number; tibios: number; frios: number; conInteraccion: number; atendidos: number };
-    const nuevoGrupo = (): Grupo => ({ leads: 0, suma: 0, calientes: 0, tibios: 0, frios: 0, conInteraccion: 0, atendidos: 0 });
+    type Grupo = {
+      leads: number;
+      suma: number;
+      calientes: number;
+      tibios: number;
+      templados: number;
+      frios: number;
+      conInteraccion: number;
+      atendidos: number;
+    };
+    const nuevoGrupo = (): Grupo => ({
+      leads: 0,
+      suma: 0,
+      calientes: 0,
+      tibios: 0,
+      templados: 0,
+      frios: 0,
+      conInteraccion: 0,
+      atendidos: 0,
+    });
     const sumarA = (g: Grupo, r: (typeof general.rows)[number]) => {
       g.leads++;
       g.suma += r.score;
       if (r.banda === 'CALIENTE') g.calientes++;
       if (r.banda === 'TIBIO') g.tibios++;
+      if (r.banda === 'TEMPLADO') g.templados++;
       if (r.banda === 'FRIO') g.frios++;
       if (r.puntos_interaccion > 0) g.conInteraccion++;
       if (r.contacted) g.atendidos++;
@@ -211,6 +238,7 @@ export async function GET(request: Request) {
       promedio: g.leads ? Math.round(g.suma / g.leads) : 0,
       calientes: g.calientes,
       tibios: g.tibios,
+      templados: g.templados,
       frios: g.frios,
       conInteraccion: g.conInteraccion,
       atendidos: g.atendidos,
@@ -228,7 +256,7 @@ export async function GET(request: Request) {
       success: true,
       listo: true,
       calculadoEn: estado.rows[0]?.calculado_en ?? null,
-      reglas: { caliente: UMBRAL_CALIENTE, tibio: UMBRAL_TIBIO, vidaMediaDias: VIDA_MEDIA_DIAS },
+      reglas: { caliente: UMBRAL_CALIENTE, tibio: UMBRAL_TIBIO, templado: UMBRAL_TEMPLADO, vidaMediaDias: VIDA_MEDIA_DIAS },
       resumen,
       leads: leads.rows,
       campanas: campanas.rows,

@@ -30,7 +30,7 @@ export async function register() {
       try {
         const r = await recalcularSinSolapar();
         console.log(
-          `[lead-score] ${r.leads} leads: ${r.bandas.CALIENTE} calientes, ${r.bandas.TIBIO} tibios, ${r.bandas.FRIO} fríos (${r.ms} ms).`
+          `[lead-score] ${r.leads} leads: ${r.bandas.CALIENTE} calientes, ${r.bandas.TIBIO} tibios, ${r.bandas.TEMPLADO} templados, ${r.bandas.FRIO} fríos (${r.ms} ms).`
         );
       } catch (error) {
         // Nunca se relanza: mataría el temporizador hasta el próximo reinicio.

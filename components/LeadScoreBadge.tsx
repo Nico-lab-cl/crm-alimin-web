@@ -7,13 +7,16 @@
  * le cree y vuelve a llamar por orden de llegada.
  */
 
-export type BandaScore = 'CALIENTE' | 'TIBIO' | 'FRIO';
+export type BandaScore = 'CALIENTE' | 'TIBIO' | 'TEMPLADO' | 'FRIO';
 
 const ESTILO: Record<BandaScore, { chip: string; etiqueta: string }> = {
   CALIENTE: { chip: 'bg-orange-50 text-orange-700 border-orange-200', etiqueta: '🔥 Caliente' },
   TIBIO: { chip: 'bg-amber-50 text-amber-700 border-amber-200', etiqueta: 'Tibio' },
+  TEMPLADO: { chip: 'bg-sky-50 text-sky-700 border-sky-200', etiqueta: 'Templado' },
   FRIO: { chip: 'bg-slate-50 text-slate-500 border-slate-200', etiqueta: 'Frío' },
 };
+
+const esBanda = (b: unknown): b is BandaScore => typeof b === 'string' && b in ESTILO;
 
 export function motivosDe(valor: unknown): string[] {
   if (Array.isArray(valor)) return valor.filter((m): m is string => typeof m === 'string');
@@ -29,7 +32,7 @@ export function motivosDe(valor: unknown): string[] {
 
 /** Celda compacta del listado: número, banda y las dos razones que más pesan. */
 export function LeadScoreCell({ score, banda, motivos }: { score: unknown; banda: unknown; motivos: unknown }) {
-  if (typeof score !== 'number' || !(banda === 'CALIENTE' || banda === 'TIBIO' || banda === 'FRIO')) {
+  if (typeof score !== 'number' || !esBanda(banda)) {
     return <span className="text-xs text-slate-300">—</span>;
   }
   const lista = motivosDe(motivos);
@@ -51,7 +54,7 @@ export function LeadScoreCell({ score, banda, motivos }: { score: unknown; banda
 
 /** Bloque de la ficha del lead: todo el porqué. */
 export function LeadScoreDetail({ score, banda, motivos }: { score: unknown; banda: unknown; motivos: unknown }) {
-  if (typeof score !== 'number' || !(banda === 'CALIENTE' || banda === 'TIBIO' || banda === 'FRIO')) {
+  if (typeof score !== 'number' || !esBanda(banda)) {
     return (
       <p className="text-xs text-[#516f90]">
         Sin puntaje todavía: se calcula cada 15 minutos para los leads desde abril y los antiguos que vuelven a interactuar.

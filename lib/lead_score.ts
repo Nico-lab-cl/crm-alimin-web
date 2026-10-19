@@ -33,6 +33,8 @@ import { queryMain, queryMarketing } from './db';
 export const VIDA_MEDIA_DIAS = 14;
 export const UMBRAL_CALIENTE = 60;
 export const UMBRAL_TIBIO = 35;
+/** Entre 20 y 34 el lead ya mostró algo: el equipo no lo considera frío. */
+export const UMBRAL_TEMPLADO = 20;
 /**
  * Un lead caliente no se enfría apenas baja de 60: con el decaimiento
  * oscilaría entre bandas cada pasada y cada vuelta sería un aviso nuevo.
@@ -106,7 +108,7 @@ const BOTON_INTERES = /cotiz|plano|lote|precio|agend|visita|reserv|simul|financ|
 // ---------------------------------------------------------------------------
 
 export type Origen = keyof typeof PUNTOS_ORIGEN;
-export type Banda = 'CALIENTE' | 'TIBIO' | 'FRIO';
+export type Banda = 'CALIENTE' | 'TIBIO' | 'TEMPLADO' | 'FRIO';
 
 export type LeadParaScore = {
   id: string;
@@ -363,7 +365,8 @@ export function calcularScore(
   interaccion = Math.min(interaccion, TOPE_INTERACCION);
   const score = Math.min(100, Math.round(puntosOrigen + perfil + interaccion));
 
-  let banda: Banda = score >= UMBRAL_CALIENTE ? 'CALIENTE' : score >= UMBRAL_TIBIO ? 'TIBIO' : 'FRIO';
+  let banda: Banda =
+    score >= UMBRAL_CALIENTE ? 'CALIENTE' : score >= UMBRAL_TIBIO ? 'TIBIO' : score >= UMBRAL_TEMPLADO ? 'TEMPLADO' : 'FRIO';
   if (bandaAnterior === 'CALIENTE' && banda !== 'CALIENTE' && score >= UMBRAL_SALIDA_CALIENTE) banda = 'CALIENTE';
 
   const ultimaInteraccion = fechas.length ? masReciente(fechas)[0] : null;
@@ -585,7 +588,7 @@ export async function recalcularScores() {
   // de la ventana y no son leads vivos) no deben seguir con un puntaje viejo.
   await queryMain(`DELETE FROM public.lead_score WHERE NOT (lead_id = ANY($1))`, [filas.map((f) => f.id)]);
 
-  const bandas = { CALIENTE: 0, TIBIO: 0, FRIO: 0 };
+  const bandas = { CALIENTE: 0, TIBIO: 0, TEMPLADO: 0, FRIO: 0 };
   for (const f of filas) bandas[f.r.banda]++;
   return { leads: filas.length, bandas, ms: Date.now() - inicio };
 }

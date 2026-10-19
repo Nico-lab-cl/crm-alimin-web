@@ -14,6 +14,7 @@ export type FilaGrupo = {
   promedio: number;
   calientes: number;
   tibios: number;
+  templados: number;
   frios: number;
   conInteraccion: number;
   atendidos: number;
@@ -27,7 +28,7 @@ export type General = FilaGrupo & {
   senales: { senal: string; leads: number }[];
 };
 
-type Reglas = { caliente: number; tibio: number };
+type Reglas = { caliente: number; tibio: number; templado: number };
 
 const MARCA = '#2d544c';
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '—');
@@ -94,7 +95,8 @@ function Distribucion({ tramos, reglas }: { tramos: General['tramos']; reglas: R
         ))}
       </div>
       <p className="text-[11px] text-[#516f90] mt-2">
-        Arriba, el puntaje donde empieza cada tramo; abajo, cuántos leads hay. Tibio desde {reglas.tibio} · Caliente desde{' '}
+        Arriba, el puntaje donde empieza cada tramo; abajo, cuántos leads hay. Templado desde {reglas.templado} · Tibio desde{' '}
+        {reglas.tibio} · Caliente desde{' '}
         {reglas.caliente}.
       </p>
     </div>
@@ -114,6 +116,7 @@ function TablaGrupos({ titulo, filas, etiqueta }: { titulo: string; filas: FilaG
               <th className="px-4 py-2.5 text-right">Prom.</th>
               <th className="px-4 py-2.5 text-right">Calientes</th>
               <th className="px-4 py-2.5 text-right">Tibios</th>
+              <th className="px-4 py-2.5 text-right">Templados</th>
               <th className="px-4 py-2.5 text-right">Fríos</th>
               <th className="px-4 py-2.5 text-right">Con interacción</th>
               <th className="px-4 py-2.5 text-right">Atendidos</th>
@@ -127,6 +130,7 @@ function TablaGrupos({ titulo, filas, etiqueta }: { titulo: string; filas: FilaG
                 <td className="px-4 py-2.5 text-right tabular-nums font-bold">{f.promedio}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{num(f.calientes)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{num(f.tibios)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{num(f.templados)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{num(f.frios)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{pct(f.conInteraccion, f.leads)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{pct(f.atendidos, f.leads)}</td>
