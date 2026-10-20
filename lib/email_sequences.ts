@@ -199,6 +199,15 @@ const VENTANAS: Record<Ventana, Array<[number, number]>> = {
 /** Estados con los que el lead ya no es para nutrir: ya está con el asesor o es cliente. */
 const ESTADOS_FUERA = [...ESTADOS_CLIENTE, 'RESERVADO', 'VISITA'];
 const FUENTES_WEB = ['web', 'sitio web', 'newsletter', 'lomasdelmar'];
+/** UTM de anuncios: quien llega así a la web no es orgánico. */
+const UTM_PAGADO = ['meta', 'fb', 'facebook', 'ig', 'instagram'];
+const MEDIO_PAGADO = ['paid', 'paid_social', 'cpc'];
+
+function vieneDeAnuncio(l: LeadFila): boolean {
+  return (
+    UTM_PAGADO.includes((l.utmSource || '').toLowerCase()) || MEDIO_PAGADO.includes((l.utmMedium || '').toLowerCase())
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Proyecto del lead
@@ -245,6 +254,8 @@ interface LeadFila {
   interests: string | null;
   adName: string | null;
   utmCampaign: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
   visitProject: string | null;
   formId: string | null;
   emailEnabled: boolean | null;
@@ -254,7 +265,7 @@ interface LeadFila {
 }
 
 const COLUMNAS_LEAD = `id::text AS id, email, "firstName", source, status, interests, "adName",
-  "utmCampaign", "visitProject", "formId", "emailEnabled", "emailBounced",
+  "utmCampaign", "utmSource", "utmMedium", "visitProject", "formId", "emailEnabled", "emailBounced",
   ("createdAt" AT TIME ZONE 'UTC') AS creado, ("visitDate" AT TIME ZONE 'UTC') AS visita`;
 
 /**
@@ -510,20 +521,24 @@ async function paginasDe(ids: string[], dias: number): Promise<Map<string, strin
   return mapa;
 }
 
+/**
+ * El formulario de la web recibe también a quien viene de un anuncio de Meta
+ * (la landing de los anuncios). Ese lead va a la bienvenida de Meta: la de la
+ * web es para el orgánico (Google, directo, redes sin pagar).
+ */
 async function candidatosNuevos(disparador: 'NUEVO_META' | 'NUEVO_WEB'): Promise<Candidato[]> {
-  const filtroFuente =
-    disparador === 'NUEVO_META'
-      ? `lower(COALESCE(source, '')) = 'meta'`
-      : `(lower(COALESCE(source, '')) = ANY($2) OR source ILIKE '%aliminspa%')`;
-  const params: unknown[] = [CAPTURA_NUEVO_HORAS];
-  if (disparador === 'NUEVO_WEB') params.push(FUENTES_WEB);
   const res = await queryMain(
     `SELECT ${COLUMNAS_LEAD} FROM "Lead"
       WHERE ("createdAt" AT TIME ZONE 'UTC') > now() - make_interval(hours => $1)
-        AND ${filtroFuente}`,
-    params
+        AND (lower(COALESCE(source, '')) = 'meta'
+             OR lower(COALESCE(source, '')) = ANY($2) OR source ILIKE '%aliminspa%')`,
+    [CAPTURA_NUEVO_HORAS, FUENTES_WEB]
   );
-  const leads: LeadFila[] = res.rows.filter(esLeadParaNutrir);
+  const leads: LeadFila[] = res.rows.filter((l: LeadFila) => {
+    if (!esLeadParaNutrir(l)) return false;
+    const deMeta = (l.source || '').toLowerCase() === 'meta' || vieneDeAnuncio(l);
+    return disparador === 'NUEVO_META' ? deMeta : !deMeta;
+  });
   const paginas = await paginasDe(
     leads.map((l) => l.id),
     7
