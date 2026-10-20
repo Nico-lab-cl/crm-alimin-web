@@ -4,6 +4,7 @@ import {
   candidatosPorSecuencia,
   leerSecuencias,
   pasadaSinSolapar,
+  enviarPrueba,
   pasosSinCorreo,
   tieneEnlaceWeb,
 } from '@/lib/email_sequences';
@@ -32,7 +33,7 @@ export async function GET() {
                 count(*) FILTER (WHERE opened_at IS NOT NULL OR status IN ('OPENED', 'CLICKED'))::int AS aperturas,
                 count(*) FILTER (WHERE clicks > 0 OR last_clicked_at IS NOT NULL)::int AS clics
            FROM campaign_logs
-          WHERE sequence_step_id IS NOT NULL
+          WHERE sequence_step_id IS NOT NULL AND is_test = FALSE
           GROUP BY 1`
       ),
       queryMarketing(
@@ -80,6 +81,7 @@ export async function GET() {
 /**
  * accion=vista-previa  cuántos entrarían ahora a cada secuencia (no escribe).
  * accion=pasada        corre una pasada ya, sin esperar al temporizador.
+ * accion=prueba        manda todos los pasos a un correo ({ email, secuencias? }).
  */
 export async function POST(request: Request) {
   try {
@@ -87,6 +89,13 @@ export async function POST(request: Request) {
     if (accion === 'pasada') {
       const r = await pasadaSinSolapar();
       return NextResponse.json({ success: true, resultado: r });
+    }
+    if (accion === 'prueba') {
+      const body = await request.json().catch(() => ({}));
+      const email = String(body.email || '').trim();
+      const ids = Array.isArray(body.secuencias) && body.secuencias.length ? body.secuencias.map(String) : null;
+      const resultados = await enviarPrueba(email, ids);
+      return NextResponse.json({ success: true, resultados });
     }
     if (accion === 'vista-previa') {
       const secuencias = await leerSecuencias();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Workflow, RefreshCcw, Eye, Play, Save, Info, Power, Clock, Mail, AlertTriangle } from 'lucide-react';
+import { Workflow, RefreshCcw, Eye, Play, Save, Info, Power, Clock, Mail, AlertTriangle, Send } from 'lucide-react';
 
 type Stats = { enviados: number; aperturas: number; clics: number };
 
@@ -42,6 +42,15 @@ type Reciente = {
   motivo_salida: string | null;
   pasos_enviados: number;
   proximo_envio_at: string | null;
+};
+
+type ResultadoPrueba = {
+  secuencia: string;
+  paso: number;
+  nombre: string;
+  provisorio: boolean;
+  ok: boolean;
+  error?: string;
 };
 
 type Datos = {
@@ -97,6 +106,8 @@ export default function SecuenciasPage() {
   // Cambios sin guardar por paso: { [pasoId]: { campaign_id, espera_horas } }
   const [cambios, setCambios] = useState<Record<string, { campaign_id?: string | null; espera_horas?: number }>>({});
   const [topes, setTopes] = useState<Record<string, number>>({});
+  const [correoPrueba, setCorreoPrueba] = useState('');
+  const [prueba, setPrueba] = useState<ResultadoPrueba[] | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -164,6 +175,32 @@ export default function SecuenciasPage() {
         return n;
       });
       await cargar();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setOcupado('');
+    }
+  };
+
+  /** Todos los pasos seguidos al correo de prueba; sin ids, todas las secuencias. */
+  const enviarPrueba = async (ids: string[] | null) => {
+    const email = correoPrueba.trim();
+    if (!email) return alert('Escribe el correo de prueba arriba.');
+    const pasos = (datos?.secuencias || [])
+      .filter((s) => !ids || ids.includes(s.id))
+      .reduce((a, s) => a + s.pasos.length, 0);
+    if (!confirm(`Se enviarán ${pasos} correos de prueba a ${email}, uno tras otro (tarda ~${Math.ceil(pasos * 1.6)} s). ¿Seguir?`)) return;
+    setOcupado('prueba');
+    setPrueba(null);
+    try {
+      const res = await fetch('/api/sequences?accion=prueba', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, secuencias: ids || [] }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message);
+      setPrueba(json.resultados);
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -253,6 +290,50 @@ export default function SecuenciasPage() {
         </ul>
       </div>
 
+      <div className="bg-white border border-[#cbd6e2] rounded-2xl shadow-sm px-5 py-4 space-y-3">
+        <p className="flex items-center gap-2 font-bold text-[#2d544c]">
+          <Send className="w-4 h-4" /> Probar las cadenas en tu correo
+        </p>
+        <p className="text-sm text-[#516f90]">
+          Manda todos los pasos seguidos, sin las esperas, por el mismo camino que a los leads (n8n). Los pasos que aún no
+          tienen diseño llegan como correo provisorio con el link a su página. No inscribe a nadie ni cuenta en las
+          métricas.
+        </p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="email"
+            value={correoPrueba}
+            onChange={(e) => setCorreoPrueba(e.target.value)}
+            placeholder="tu@correo.cl"
+            className="border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm w-72"
+          />
+          <button
+            onClick={() => enviarPrueba(null)}
+            disabled={!!ocupado}
+            className="flex items-center gap-2 px-4 py-2 bg-[#2d544c] text-white rounded-lg font-bold hover:bg-[#1f3a35] disabled:opacity-60"
+          >
+            <Send className="w-4 h-4" /> {ocupado === 'prueba' ? 'Enviando…' : 'Enviar prueba de todas'}
+          </button>
+        </div>
+        {prueba && (
+          <div className="text-sm">
+            <p className="font-bold text-[#33475b]">
+              {prueba.filter((r) => r.ok).length} de {prueba.length} correos entregados a n8n
+              {prueba.some((r) => !r.ok) ? ' · revisa los que fallaron' : ''}.
+            </p>
+            <ul className="mt-1 text-xs text-[#516f90] max-h-48 overflow-y-auto">
+              {prueba.map((r, i) => (
+                <li key={i} className={r.ok ? '' : 'text-red-700'}>
+                  {r.ok ? '✓' : '✗'} {r.secuencia} · paso {r.paso}: {r.nombre}
+                  {r.provisorio ? ' (provisorio)' : ''}
+                  {r.error ? ` — ${r.error}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">{error}</div>}
 
       {secuencias.map((s) => {
@@ -311,6 +392,14 @@ export default function SecuenciasPage() {
                     />
                   </label>
                 )}
+                <button
+                  onClick={() => enviarPrueba([s.id])}
+                  disabled={!!ocupado}
+                  title="Manda todos los pasos de esta secuencia al correo de prueba"
+                  className="flex items-center gap-1 px-3 py-2 bg-white border border-[#cbd6e2] text-[#2d544c] rounded-lg text-sm font-bold disabled:opacity-60"
+                >
+                  <Send className="w-4 h-4" /> Probar
+                </button>
                 {cambiosPendientes && (
                   <button
                     onClick={() => guardar(s)}

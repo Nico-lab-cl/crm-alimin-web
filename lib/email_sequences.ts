@@ -850,19 +850,25 @@ async function enviarPaso(
   lead: { id: string; email: string },
   utm: { campaign: string; content: string },
   pasoId: string,
-  senderIndex: number
+  senderIndex: number,
+  prueba?: { asunto: string }
 ): Promise<boolean> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
   const preheader = getCampaignPreheader(campana);
 
-  const logRes = await queryMarketing(
-    `INSERT INTO campaign_logs (campaign_id, lead_id, email, status, sequence_step_id)
-     VALUES ($1, $2, $3, 'PENDING', $4) RETURNING id`,
-    [campana.id, lead.id, lead.email, pasoId]
-  );
-  const logId = logRes.rows[0].id;
+  // El correo provisorio de una prueba no es una campaña: va sin registro ni
+  // seguimiento, con el enlace directo.
+  let logId: string | null = null;
+  if (campana.id) {
+    const logRes = await queryMarketing(
+      `INSERT INTO campaign_logs (campaign_id, lead_id, email, status, sequence_step_id, is_test)
+       VALUES ($1, $2, $3, $5, $4, $6) RETURNING id`,
+      [campana.id, lead.id, lead.email, pasoId, prueba ? 'TEST' : 'PENDING', !!prueba]
+    );
+    logId = logRes.rows[0].id;
+  }
 
   const conUtm = agregarUtm(campana.html_content, {
     utm_source: 'email',
@@ -870,12 +876,12 @@ async function enviarPaso(
     utm_campaign: utm.campaign,
     utm_content: utm.content,
   });
-  const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
+  const trackingPixel = logId
+    ? `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`
+    : '';
+  const conSeguimiento = logId ? reescribirEnlaces(conUtm, logId, appUrl) : conUtm;
   const html = optimizeHtmlForDarkMode(
-    insertPreheader(
-      appendUnsubscribeFooter(reescribirEnlaces(conUtm, logId, appUrl), lead.id, lead.email, appUrl) + trackingPixel,
-      preheader
-    )
+    insertPreheader(appendUnsubscribeFooter(conSeguimiento, lead.id, lead.email, appUrl) + trackingPixel, preheader)
   );
 
   const response = await fetch(n8nUrl, {
@@ -884,9 +890,9 @@ async function enviarPaso(
     body: JSON.stringify({
       log_id: logId,
       campaign_id: campana.id,
-      title: campana.title,
+      title: prueba ? `[PRUEBA] ${campana.title}` : campana.title,
       email: lead.email,
-      subject: campana.subject,
+      subject: prueba ? prueba.asunto : campana.subject,
       preheader,
       html,
       design: campana.mjml_content,
@@ -898,13 +904,113 @@ async function enviarPaso(
     }),
   });
 
-  await queryMarketing(
-    response.ok
-      ? `UPDATE campaign_logs SET status = 'SENT', sent_at = CURRENT_TIMESTAMP WHERE id = $1`
-      : `UPDATE campaign_logs SET status = 'FAILED' WHERE id = $1`,
-    [logId]
-  );
+  if (logId) {
+    // Un FAILED queda sin sent_at: no cuenta como envío para la frecuencia.
+    await queryMarketing(
+      `UPDATE campaign_logs
+          SET status = $2::text, sent_at = CASE WHEN $2::text = 'FAILED' THEN sent_at ELSE CURRENT_TIMESTAMP END
+        WHERE id = $1`,
+      [logId, !response.ok ? 'FAILED' : prueba ? 'TEST' : 'SENT']
+    );
+  }
   return response.ok;
+}
+
+// ---------------------------------------------------------------------------
+// Prueba de cadenas completas
+// ---------------------------------------------------------------------------
+
+const SITIO = 'https://aliminspa.cl';
+const DESTINOS: Record<Proyecto, { ficha: string; agenda: string }> = {
+  LOMAS: { ficha: '/proyectos/lomas-del-mar', agenda: '/agendar-visita' },
+  ARENA: { ficha: '/proyectos/arena-y-sol', agenda: '/agendar-visita-arenas' },
+};
+
+/** A dónde lleva cada paso según el guion (SECUENCIAS-NUTRICION-CORREOS.md). */
+function destinoDe(s: SecuenciaFila, paso: PasoFila): string {
+  if (!s.proyecto) return `${SITIO}/reunion`;
+  const agenda = /visita|agendar|lote|recordatorio|mirando|avance/i.test(paso.nombre);
+  return SITIO + (agenda ? DESTINOS[s.proyecto].agenda : DESTINOS[s.proyecto].ficha);
+}
+
+/** Correo de reemplazo para un paso que aún no tiene diseño. */
+function correoProvisorio(s: SecuenciaFila, paso: PasoFila): Campana {
+  const url = destinoDe(s, paso);
+  const cuando = paso.espera_horas === 0 ? 'apenas entran' : `${paso.espera_horas} h después del paso anterior`;
+  const html = `<html><body style="margin:0;background:#f5f8fa;font-family:Arial,sans-serif;">
+  <div style="max-width:560px;margin:24px auto;background:#ffffff;border:1px solid #cbd6e2;border-radius:12px;padding:28px;color:#33475b;">
+    <p style="margin:0 0 6px;font-size:12px;color:#516f90;text-transform:uppercase;letter-spacing:1px;">Correo provisorio · sin diseño todavía</p>
+    <h1 style="margin:0 0 12px;font-size:22px;color:#2d544c;">${s.nombre}</h1>
+    <p style="margin:0 0 4px;font-size:16px;"><b>Paso ${paso.posicion} de ${s.pasos.length}:</b> ${paso.nombre}</p>
+    <p style="margin:0 0 20px;font-size:14px;color:#516f90;">A los leads les llega ${cuando}. Este paso lleva a la página de abajo.</p>
+    <a href="${url}" style="display:inline-block;background:#2d544c;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:8px;">Abrir la página del paso</a>
+    <p style="margin:16px 0 0;font-size:12px;color:#a3b8cc;">${url}</p>
+  </div></body></html>`;
+  return { id: '', title: `${s.nombre} · paso ${paso.posicion}`, subject: paso.nombre, html_content: html, mjml_content: null };
+}
+
+export interface ResultadoPrueba {
+  secuencia: string;
+  paso: number;
+  nombre: string;
+  provisorio: boolean;
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Manda a un correo todos los pasos de las secuencias pedidas, seguidos y sin
+ * esperas, por el mismo camino que a los leads (n8n). Los pasos sin diseño van
+ * con un correo provisorio. No inscribe a nadie ni cuenta en las métricas.
+ */
+export async function enviarPrueba(email: string, ids: string[] | null): Promise<ResultadoPrueba[]> {
+  if (!isValidEmailSyntax(email)) throw new Error('Correo de prueba inválido');
+  const secuencias = (await leerSecuencias()).filter((s) => !ids || ids.includes(s.id));
+
+  let leadId = '00000000-0000-0000-0000-000000000000';
+  try {
+    const res = await queryMain(`SELECT id::text AS id FROM "Lead" WHERE lower(email) = lower($1) LIMIT 1`, [email]);
+    if (res.rows[0]) leadId = res.rows[0].id;
+  } catch {
+    // Sin lead: el pie de desuscripción usa el id vacío, como en las pruebas de campaña.
+  }
+
+  const conDiseno = Array.from(new Set(secuencias.flatMap((s) => s.pasos.map((p) => p.campaign_id)).filter(Boolean)));
+  const campanas = new Map<string, Campana>();
+  if (conDiseno.length) {
+    const res = await queryMarketing(
+      `SELECT id, title, subject, html_content, mjml_content FROM campaigns WHERE id = ANY($1::uuid[])`,
+      [conDiseno]
+    );
+    res.rows.forEach((c) => campanas.set(c.id, c));
+  }
+
+  const resultados: ResultadoPrueba[] = [];
+  let indice = 0;
+  for (const s of secuencias) {
+    for (const paso of s.pasos) {
+      const real = paso.campaign_id ? campanas.get(paso.campaign_id) : undefined;
+      const campana = real || correoProvisorio(s, paso);
+      const asunto = `[PRUEBA ${s.nombre} · ${paso.posicion}/${s.pasos.length}] ${real ? real.subject : paso.nombre}`;
+      const fila = { secuencia: s.nombre, paso: paso.posicion, nombre: paso.nombre, provisorio: !real };
+      try {
+        const ok = await enviarPaso(
+          campana,
+          { id: leadId, email },
+          { campaign: s.clave, content: `paso-${paso.posicion}` },
+          paso.id,
+          indice++ % 5,
+          { asunto }
+        );
+        resultados.push({ ...fila, ok });
+      } catch (error) {
+        resultados.push({ ...fila, ok: false, error: (error as Error).message });
+      }
+      // Con pausa para que la bandeja los muestre en orden.
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return resultados;
 }
 
 async function enviarPendientes(secuencias: SecuenciaFila[]): Promise<{ enviados: number; corridos: number }> {
