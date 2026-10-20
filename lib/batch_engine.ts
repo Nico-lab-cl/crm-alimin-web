@@ -1,6 +1,7 @@
 import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
-import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax, getCampaignPreheader, insertPreheader } from '@/lib/email_utils';
+import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax, getCampaignPreheader, insertPreheader, agregarUtm } from '@/lib/email_utils';
+import { emailsDormidos } from '@/lib/email_sequences';
 
 // ============================================================
 // Constants
@@ -340,9 +341,15 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
   }
 
   // Filtrar leads que no han recibido la campaña aún
-  const unsentLeads = campaignId
+  const notYetSent = campaignId
     ? allLeads.filter((l: { email?: string }) => !sentEmails.has((l.email || '').toLowerCase()))
     : allLeads;
+
+  // Fuera los dormidos que tampoco abrieron la secuencia de reactivación:
+  // seguir escribiéndoles baja la entrega del resto.
+  const dormidos = await emailsDormidos();
+  const unsentLeads = notYetSent.filter((l: { email?: string }) => !dormidos.has((l.email || '').toLowerCase()));
+  const sunsetCount = notYetSent.length - unsentLeads.length;
 
   if (unsentLeads.length === 0) {
     throw new Error('Todos los leads calificados para este segmento ya han recibido esta campaña.');
@@ -373,9 +380,10 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
     dailyRemaining,
     startedAt: new Date(),
     completedAt: null,
-    errors: invalidSyntaxCount > 0
-      ? [`${invalidSyntaxCount} correo(s) descartado(s) por formato inválido antes de enviar.`]
-      : [],
+    errors: [
+      ...(invalidSyntaxCount > 0 ? [`${invalidSyntaxCount} correo(s) descartado(s) por formato inválido antes de enviar.`] : []),
+      ...(sunsetCount > 0 ? [`${sunsetCount} correo(s) dormido(s) fuera del envío: no abrieron la reactivación.`] : []),
+    ],
     currentBatchIndex: 0,
   };
 
@@ -420,6 +428,13 @@ async function processBatches(
     return;
   }
   const preheader = getCampaignPreheader(campaign);
+  // UTM para que la web sepa de qué masivo llegó la visita; los enlaces que ya
+  // traen los suyos se respetan.
+  const campaignHtml = agregarUtm(campaign.html_content, {
+    utm_source: 'email',
+    utm_medium: 'masivo',
+    utm_campaign: slugCampana(campaign.title),
+  }, true);
 
   // Split leads into batches
   const batches: typeof leads[] = [];
@@ -469,7 +484,7 @@ async function processBatches(
 
         // Build final HTML with tracking pixel and link click tracking
         const trackingPixel = `<img src="${appUrl}/api/track/open?log_id=${logId}" width="1" height="1" style="display:none;" />`;
-        const htmlWithTrackedLinks = rewriteHtmlLinks(campaign.html_content, logId, appUrl);
+        const htmlWithTrackedLinks = rewriteHtmlLinks(campaignHtml, logId, appUrl);
         const htmlWithUnsubscribe = appendUnsubscribeFooter(htmlWithTrackedLinks, lead.id, emailValue, appUrl);
         const finalHtml = optimizeHtmlForDarkMode(insertPreheader(htmlWithUnsubscribe + trackingPixel, preheader));
 
@@ -563,6 +578,16 @@ async function processBatches(
   }
   job.completedAt = new Date();
   console.log(`[BatchEngine] Job ${job.id}: Finished. Sent: ${job.processedLeads - job.failedLeads}, Failed: ${job.failedLeads}, Skipped (daily limit): ${job.skippedLeads}`);
+}
+
+/** "Lomas del mar Whatsapp " -> "lomas-del-mar-whatsapp" */
+function slugCampana(title: string): string {
+  return (title || 'campana')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function rewriteHtmlLinks(html: string, logId: string, appUrl: string): string {

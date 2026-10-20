@@ -207,6 +207,31 @@ export function insertPreheader(html: string, preheader: string): string {
 }
 
 /**
+ * Agrega parámetros UTM a los enlaces que van a aliminspa.cl, para que la web
+ * sepa de qué correo llegó la visita. Va antes de reescribir los enlaces de
+ * seguimiento de clics. Con `soloSiFalta`, un enlace que ya trae utm_source
+ * queda como lo armó quien diseñó el correo.
+ *
+ * Los & van sin escapar: el rastreador de clics codifica la URL entera, y un
+ * &amp; terminaría como parte del nombre del parámetro.
+ */
+export function agregarUtm(html: string, utm: Record<string, string>, soloSiFalta = false): string {
+  if (!html) return html;
+  const hrefRegex = /(<a\s+(?:[^>]*?\s+)?href=["'])(https?:\/\/[^"']+)(["'])/gi;
+  return html.replace(hrefRegex, (match, antes: string, url: string, despues: string) => {
+    try {
+      const u = new URL(url.replace(/&amp;/g, '&'));
+      if (!/(^|\.)aliminspa\.cl$/i.test(u.hostname)) return match;
+      if (soloSiFalta && u.searchParams.has('utm_source')) return match;
+      for (const [k, v] of Object.entries(utm)) u.searchParams.set(k, v);
+      return `${antes}${u.toString()}${despues}`;
+    } catch {
+      return match;
+    }
+  });
+}
+
+/**
  * Agrega dinámicamente un footer de desuscripción elegante y responsivo en español,
  * adaptado a los colores de marca de Alimin Inmobiliaria.
  */

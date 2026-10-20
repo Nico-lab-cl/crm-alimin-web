@@ -34,6 +34,7 @@ const navItems = [
     icon: Mail,
     subItems: [
       { name: 'Campañas', href: '/campaigns' },
+      { name: 'Secuencias de Nutrición', href: '/campaigns/secuencias' },
       { name: 'Reglas de Automatización', href: '/settings/meta-automations' },
       { name: 'Métricas de Campañas', href: '/campaigns/metrics' },
       { name: 'Firmas de Email 🖋️', href: '/campaigns/signatures' }
