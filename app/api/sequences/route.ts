@@ -5,6 +5,7 @@ import {
   leerSecuencias,
   pasadaSinSolapar,
   pasosSinCorreo,
+  tieneEnlaceWeb,
 } from '@/lib/email_sequences';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,7 @@ export async function GET() {
           GROUP BY 1`
       ),
       queryMarketing(
-        `SELECT id, title, subject, created_at FROM campaigns ORDER BY created_at DESC LIMIT 300`
+        `SELECT id, title, subject, created_at, html_content FROM campaigns ORDER BY created_at DESC LIMIT 300`
       ),
       queryMarketing(`SELECT count(*)::int AS n FROM email_sunset`),
       queryMarketing(
@@ -65,7 +66,8 @@ export async function GET() {
           stats: statsPaso.get(p.id) || { enviados: 0, aperturas: 0, clics: 0 },
         })),
       })),
-      campanas: campanas.rows,
+      // El HTML no viaja al panel: solo si tiene enlace.
+      campanas: campanas.rows.map(({ html_content, ...c }) => ({ ...c, conEnlace: tieneEnlaceWeb(html_content) })),
       fueraDeMasivos: sunset.rows[0]?.n || 0,
       recientes: recientes.rows,
     });

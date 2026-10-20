@@ -454,6 +454,17 @@ export function pasosSinCorreo(s: SecuenciaFila): PasoFila[] {
   return s.pasos.filter((p) => !p.campaign_id);
 }
 
+/**
+ * Los correos son una sola imagen: si la imagen no tiene enlace, el clic no
+ * lleva a ninguna parte y no se mide. Vale la web (donde van los UTM) o
+ * WhatsApp, que el equipo ya usa en algunos correos.
+ */
+export function tieneEnlaceWeb(html: string | null | undefined): boolean {
+  return /<a\s[^>]*href=["']https?:\/\/(?:(?:[a-z0-9-]+\.)*aliminspa\.cl|wa\.me|(?:api\.|www\.)?whatsapp\.com)(?:[/?#][^"']*)?["']/i.test(
+    html || ''
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Candidatos por disparador
 // ---------------------------------------------------------------------------

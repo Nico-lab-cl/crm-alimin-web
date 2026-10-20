@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
-import { leerSecuencias, pasosSinCorreo } from '@/lib/email_sequences';
+import { leerSecuencias, pasosSinCorreo, tieneEnlaceWeb } from '@/lib/email_sequences';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +60,22 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             {
               success: false,
               message: `Falta elegir el correo de: ${faltan.map((p) => `paso ${p.posicion}`).join(', ')}.`,
+            },
+            { status: 400 }
+          );
+        }
+        const correos = await queryMarketing(`SELECT id, title, html_content FROM campaigns WHERE id = ANY($1::uuid[])`, [
+          actual.pasos.map((p) => p.campaign_id),
+        ]);
+        const sinEnlace = actual.pasos.filter((p) => {
+          const c = correos.rows.find((x) => x.id === p.campaign_id);
+          return !c || !tieneEnlaceWeb(c.html_content);
+        });
+        if (sinEnlace.length > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: `El correo de ${sinEnlace.map((p) => `paso ${p.posicion}`).join(', ')} no tiene link (a aliminspa.cl o a WhatsApp). Ponle link a la imagen en el editor (Acción → Abrir sitio web).`,
             },
             { status: 400 }
           );

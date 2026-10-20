@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Workflow, RefreshCcw, Eye, Play, Save, Info, Power, Clock, Mail } from 'lucide-react';
+import { Workflow, RefreshCcw, Eye, Play, Save, Info, Power, Clock, Mail, AlertTriangle } from 'lucide-react';
 
 type Stats = { enviados: number; aperturas: number; clics: number };
 
@@ -31,7 +31,7 @@ type Secuencia = {
   pasos: Paso[];
 };
 
-type Campana = { id: string; title: string; subject: string };
+type Campana = { id: string; title: string; subject: string; conEnlace: boolean };
 
 type Reciente = {
   id: string;
@@ -401,6 +401,11 @@ export default function SecuenciasPage() {
                           {elegida && (
                             <div className="text-xs text-[#516f90] mt-1 flex items-center gap-1">
                               <Mail className="w-3 h-3" /> {elegida.subject}
+                            </div>
+                          )}
+                          {elegida && !elegida.conEnlace && (
+                            <div className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" /> La imagen no tiene link (web o WhatsApp): no se podrá encender.
                             </div>
                           )}
                         </td>
