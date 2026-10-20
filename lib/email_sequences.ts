@@ -348,6 +348,10 @@ export async function asegurarTablas() {
       desde TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await queryMarketing(`ALTER TABLE campaign_logs ADD COLUMN IF NOT EXISTS sequence_step_id UUID`);
+  // Asunto y preheader propios del paso: el mismo diseño puede ir en varias
+  // secuencias, y el asunto de una campaña ya enviada no se toca.
+  await queryMarketing(`ALTER TABLE email_sequence_steps ADD COLUMN IF NOT EXISTS asunto TEXT`);
+  await queryMarketing(`ALTER TABLE email_sequence_steps ADD COLUMN IF NOT EXISTS preheader TEXT`);
   // CONCURRENTLY: campaign_logs es grande y un masivo puede estar escribiendo.
   // El índice solo acelera el control de frecuencia: si falla, se sigue.
   try {
@@ -423,6 +427,8 @@ export interface PasoFila {
   espera_horas: number;
   ventana: Ventana;
   campaign_id: string | null;
+  asunto: string | null;
+  preheader: string | null;
 }
 
 export interface SecuenciaFila {
@@ -847,16 +853,20 @@ interface Campana {
  */
 async function enviarPaso(
   campana: Campana,
-  lead: { id: string; email: string },
+  lead: { id: string; email: string; nombre?: string | null },
   utm: { campaign: string; content: string },
-  pasoId: string,
+  paso: PasoFila,
   senderIndex: number,
-  prueba?: { asunto: string }
+  prueba?: { prefijo: string }
 ): Promise<boolean> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketing.aliminspa.cl';
   const n8nUrl = process.env.N8N_WEBHOOK_URL;
   if (!n8nUrl) throw new Error('N8N_WEBHOOK_URL no configurada');
-  const preheader = getCampaignPreheader(campana);
+  const pasoId = paso.id;
+  const preheader = paso.preheader?.trim()
+    ? personalizar(paso.preheader, lead.nombre)
+    : getCampaignPreheader(campana);
+  const asunto = personalizar(paso.asunto?.trim() || campana.subject, lead.nombre);
 
   // El correo provisorio de una prueba no es una campaña: va sin registro ni
   // seguimiento, con el enlace directo.
@@ -892,7 +902,7 @@ async function enviarPaso(
       campaign_id: campana.id,
       title: prueba ? `[PRUEBA] ${campana.title}` : campana.title,
       email: lead.email,
-      subject: prueba ? prueba.asunto : campana.subject,
+      subject: prueba ? `${prueba.prefijo} ${asunto}` : asunto,
       preheader,
       html,
       design: campana.mjml_content,
@@ -914,6 +924,28 @@ async function enviarPaso(
     );
   }
   return response.ok;
+}
+
+/** "MARÍA JOSÉ pérez" -> "María" */
+function primerNombre(nombre: string | null | undefined): string {
+  const primero = (nombre || '').trim().split(/\s+/)[0] || '';
+  if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'-]{2,}$/.test(primero)) return '';
+  return primero.charAt(0).toLocaleUpperCase('es-CL') + primero.slice(1).toLocaleLowerCase('es-CL');
+}
+
+/**
+ * Reemplaza {nombre}. Sin nombre se quita junto con su coma o espacio
+ * ("{nombre}, tu terreno" -> "Tu terreno"; "¿Dudas, {nombre}?" -> "¿Dudas?").
+ */
+export function personalizar(texto: string, nombre: string | null | undefined): string {
+  const n = primerNombre(nombre);
+  if (n) return texto.replace(/\{nombre\}/gi, n);
+  const limpio = texto
+    .replace(/\{nombre\}\s*,\s*/gi, '')
+    .replace(/\s*,\s*\{nombre\}/gi, '')
+    .replace(/\s*\{nombre\}\s*/gi, ' ')
+    .trim();
+  return limpio.replace(/^([¿¡]?)([a-záéíóúüñ])/, (_m, signo: string, letra: string) => signo + letra.toLocaleUpperCase('es-CL'));
 }
 
 // ---------------------------------------------------------------------------
@@ -963,14 +995,25 @@ export interface ResultadoPrueba {
  * esperas, por el mismo camino que a los leads (n8n). Los pasos sin diseño van
  * con un correo provisorio. No inscribe a nadie ni cuenta en las métricas.
  */
-export async function enviarPrueba(email: string, ids: string[] | null): Promise<ResultadoPrueba[]> {
+export async function enviarPrueba(
+  email: string,
+  ids: string[] | null,
+  nombre?: string | null
+): Promise<ResultadoPrueba[]> {
   if (!isValidEmailSyntax(email)) throw new Error('Correo de prueba inválido');
   const secuencias = (await leerSecuencias()).filter((s) => !ids || ids.includes(s.id));
 
   let leadId = '00000000-0000-0000-0000-000000000000';
+  let nombreLead: string | null = null;
   try {
-    const res = await queryMain(`SELECT id::text AS id FROM "Lead" WHERE lower(email) = lower($1) LIMIT 1`, [email]);
-    if (res.rows[0]) leadId = res.rows[0].id;
+    const res = await queryMain(
+      `SELECT id::text AS id, "firstName" FROM "Lead" WHERE lower(email) = lower($1) LIMIT 1`,
+      [email]
+    );
+    if (res.rows[0]) {
+      leadId = res.rows[0].id;
+      nombreLead = res.rows[0].firstName;
+    }
   } catch {
     // Sin lead: el pie de desuscripción usa el id vacío, como en las pruebas de campaña.
   }
@@ -991,16 +1034,17 @@ export async function enviarPrueba(email: string, ids: string[] | null): Promise
     for (const paso of s.pasos) {
       const real = paso.campaign_id ? campanas.get(paso.campaign_id) : undefined;
       const campana = real || correoProvisorio(s, paso);
-      const asunto = `[PRUEBA ${s.nombre} · ${paso.posicion}/${s.pasos.length}] ${real ? real.subject : paso.nombre}`;
+      const prefijo = `[PRUEBA ${s.nombre} · ${paso.posicion}/${s.pasos.length}]`;
       const fila = { secuencia: s.nombre, paso: paso.posicion, nombre: paso.nombre, provisorio: !real };
       try {
         const ok = await enviarPaso(
           campana,
-          { id: leadId, email },
+          { id: leadId, email, nombre: nombre?.trim() || nombreLead },
           { campaign: s.clave, content: `paso-${paso.posicion}` },
-          paso.id,
+          // Sin diseño, el asunto es el nombre del paso.
+          real ? paso : { ...paso, asunto: paso.asunto || paso.nombre },
           indice++ % 5,
-          { asunto }
+          { prefijo }
         );
         resultados.push({ ...fila, ok });
       } catch (error) {
@@ -1114,9 +1158,9 @@ async function enviarPendientes(secuencias: SecuenciaFila[]): Promise<{ enviados
     try {
       const ok = await enviarPaso(
         campana,
-        { id: e.lead_id, email: e.email },
+        { id: e.lead_id, email: e.email, nombre: fresco.firstName },
         { campaign: s.clave, content: `paso-${paso.posicion}` },
-        paso.id,
+        paso,
         indice++ % 5
       );
       yaEnEstaPasada.add(e.lead_id);

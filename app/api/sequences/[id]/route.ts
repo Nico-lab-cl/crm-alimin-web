@@ -8,6 +8,8 @@ interface CambioPaso {
   id: string;
   campaign_id?: string | null;
   espera_horas?: number;
+  asunto?: string | null;
+  preheader?: string | null;
 }
 
 /**
@@ -33,6 +35,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           p.id,
           p.campaign_id || null,
         ]);
+      }
+      for (const campo of ['asunto', 'preheader'] as const) {
+        if (p[campo] === undefined) continue;
+        const valor = (p[campo] || '').trim().slice(0, 200) || null;
+        await queryMarketing(`UPDATE email_sequence_steps SET ${campo} = $2 WHERE id = $1`, [p.id, valor]);
       }
       if (p.espera_horas !== undefined) {
         const horas = Math.round(Number(p.espera_horas));

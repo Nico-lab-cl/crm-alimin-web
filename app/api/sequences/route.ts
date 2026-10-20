@@ -81,7 +81,7 @@ export async function GET() {
 /**
  * accion=vista-previa  cuántos entrarían ahora a cada secuencia (no escribe).
  * accion=pasada        corre una pasada ya, sin esperar al temporizador.
- * accion=prueba        manda todos los pasos a un correo ({ email, secuencias? }).
+ * accion=prueba        manda todos los pasos a un correo ({ email, nombre?, secuencias? }).
  */
 export async function POST(request: Request) {
   try {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       const body = await request.json().catch(() => ({}));
       const email = String(body.email || '').trim();
       const ids = Array.isArray(body.secuencias) && body.secuencias.length ? body.secuencias.map(String) : null;
-      const resultados = await enviarPrueba(email, ids);
+      const resultados = await enviarPrueba(email, ids, body.nombre ? String(body.nombre) : null);
       return NextResponse.json({ success: true, resultados });
     }
     if (accion === 'vista-previa') {

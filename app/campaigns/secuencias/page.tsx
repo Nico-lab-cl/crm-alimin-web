@@ -12,6 +12,8 @@ type Paso = {
   espera_horas: number;
   ventana: 'INMEDIATA' | 'OPTIMA';
   campaign_id: string | null;
+  asunto: string | null;
+  preheader: string | null;
   stats: Stats;
 };
 
@@ -104,9 +106,12 @@ export default function SecuenciasPage() {
   const [vistaPrevia, setVistaPrevia] = useState<Record<string, number> | null>(null);
   const [ocupado, setOcupado] = useState('');
   // Cambios sin guardar por paso: { [pasoId]: { campaign_id, espera_horas } }
-  const [cambios, setCambios] = useState<Record<string, { campaign_id?: string | null; espera_horas?: number }>>({});
+  const [cambios, setCambios] = useState<
+    Record<string, { campaign_id?: string | null; espera_horas?: number; asunto?: string; preheader?: string }>
+  >({});
   const [topes, setTopes] = useState<Record<string, number>>({});
   const [correoPrueba, setCorreoPrueba] = useState('');
+  const [nombrePrueba, setNombrePrueba] = useState('');
   const [prueba, setPrueba] = useState<ResultadoPrueba[] | null>(null);
 
   const cargar = useCallback(async () => {
@@ -196,7 +201,7 @@ export default function SecuenciasPage() {
       const res = await fetch('/api/sequences?accion=prueba', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, secuencias: ids || [] }),
+        body: JSON.stringify({ email, nombre: nombrePrueba.trim(), secuencias: ids || [] }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.message);
@@ -306,6 +311,12 @@ export default function SecuenciasPage() {
             onChange={(e) => setCorreoPrueba(e.target.value)}
             placeholder="tu@correo.cl"
             className="border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm w-72"
+          />
+          <input
+            value={nombrePrueba}
+            onChange={(e) => setNombrePrueba(e.target.value)}
+            placeholder="Nombre para {nombre}"
+            className="border border-[#cbd6e2] rounded-lg px-3 py-2 text-sm w-48"
           />
           <button
             onClick={() => enviarPrueba(null)}
@@ -446,6 +457,9 @@ export default function SecuenciasPage() {
                     const campaignId = c.campaign_id !== undefined ? c.campaign_id : p.campaign_id;
                     const espera = c.espera_horas !== undefined ? c.espera_horas : p.espera_horas;
                     const elegida = campanas.find((x) => x.id === campaignId);
+                    const asunto = c.asunto !== undefined ? c.asunto : p.asunto || '';
+                    const preheader = c.preheader !== undefined ? c.preheader : p.preheader || '';
+                    const largo = asunto.replace(/\{nombre\}/gi, 'Nombre').length;
                     return (
                       <tr key={p.id} className="border-t border-[#eaf0f6] align-top">
                         <td className="px-4 py-3">
@@ -490,6 +504,25 @@ export default function SecuenciasPage() {
                           {elegida && (
                             <div className="text-xs text-[#516f90] mt-1 flex items-center gap-1">
                               <Mail className="w-3 h-3" /> {elegida.subject}
+                            </div>
+                          )}
+                          <input
+                            value={asunto}
+                            onChange={(e) => setCambios((x) => ({ ...x, [p.id]: { ...x[p.id], asunto: e.target.value } }))}
+                            placeholder={elegida ? `Asunto (vacío = "${elegida.subject}")` : 'Asunto del paso'}
+                            className="w-full border border-[#cbd6e2] rounded px-2 py-1 mt-2 text-xs"
+                          />
+                          <input
+                            value={preheader}
+                            onChange={(e) =>
+                              setCambios((x) => ({ ...x, [p.id]: { ...x[p.id], preheader: e.target.value } }))
+                            }
+                            placeholder="Preheader (vacío = el del diseño)"
+                            className="w-full border border-[#cbd6e2] rounded px-2 py-1 mt-1 text-xs"
+                          />
+                          {asunto && (
+                            <div className={`text-[11px] mt-1 ${largo > 50 ? 'text-amber-700' : 'text-[#516f90]'}`}>
+                              {largo} caracteres con un nombre de 6 letras{largo > 50 ? ': se corta en el celular' : ''}
                             </div>
                           )}
                           {elegida && !elegida.conEnlace && (
