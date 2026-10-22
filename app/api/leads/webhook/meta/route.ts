@@ -92,13 +92,26 @@ export async function POST(request: Request) {
       insertVals.push(now);
     }
 
+    // Si el lead ya existe, este webhook no decide nada sobre su llegada.
+    //
+    // n8n manda el mismo lead tambien al CRM de asesores (POST /api/leads), y es
+    // ese el que lo reabre, le avisa al asesor y le pone la hora de llegada. Si
+    // aqui se pisaba createdAt, el CRM de asesores veia una llegada "de hace un
+    // instante" y la tomaba por un envio repetido, sin avisar. Y si se pisaba el
+    // origen, un cliente que llego por la web quedaba como META y se perdia de
+    // donde vino.
     const valuePlaceholders = insertVals.map((_, i) => `$${i + 1}`).join(', ');
+    const conservarSiHay = ['source', 'formid', 'adname', 'adid'];
     const updateSets = insertCols
       .filter(col => col !== emailCol && col !== idCol) // Don't update id or email on conflict
+      .filter(col => col !== createdAtCol)
       .map(col => {
         const rawCol = col.replace(/"/g, '');
         if (rawCol === 'pie') {
           return `${col} = CASE WHEN EXCLUDED.${col} IS NOT NULL AND EXCLUDED.${col} != '' THEN EXCLUDED.${col} ELSE "Lead".${col} END`;
+        }
+        if (conservarSiHay.includes(rawCol.toLowerCase())) {
+          return `${col} = COALESCE(NULLIF("Lead".${col}, ''), EXCLUDED.${col})`;
         }
         return `${col} = EXCLUDED.${col}`;
       })
