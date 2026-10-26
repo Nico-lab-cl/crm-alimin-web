@@ -22,7 +22,10 @@ type Tarjeta = {
 
 type Datos = {
   listo: boolean;
-  dias: number;
+  desde: string;
+  hasta: string;
+  fechaMinima: string;
+  hoy: string;
   porColumna: number;
   asesores: { id: string; name: string }[];
   columnas: { columna: string; leads: number }[];
@@ -45,6 +48,11 @@ const BANDA: Record<string, string> = {
 };
 
 const PERIODOS = [7, 30, 90];
+// La API recorta igual cualquier rango a [FECHA_MINIMA, hoy]; acá solo limita los calendarios.
+const FECHA_MINIMA = '2026-05-01';
+const hoyEnChile = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+const fechaLarga = (f: string) =>
+  new Date(`${f}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const nombre = (t: Tarjeta) => [t.firstName, t.lastName].filter(Boolean).join(' ') || 'Sin nombre';
 
@@ -61,7 +69,9 @@ function fechaCorta(fecha: string) {
 export default function PipelinePage() {
   const router = useRouter();
   const [asesor, setAsesor] = useState('');
-  const [periodo, setPeriodo] = useState(30);
+  const [periodo, setPeriodo] = useState<number | 'RANGO'>(30);
+  const [desde, setDesde] = useState(FECHA_MINIMA);
+  const [hasta, setHasta] = useState(hoyEnChile);
   const [datos, setDatos] = useState<Datos | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -69,7 +79,7 @@ export default function PipelinePage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const qs = new URLSearchParams({ dias: String(periodo) });
+      const qs = new URLSearchParams(periodo === 'RANGO' ? { desde, hasta } : { dias: String(periodo) });
       if (asesor) qs.set('asesor', asesor);
       const res = await fetch(`/api/pipeline?${qs}`, { cache: 'no-store' });
       const json = await res.json();
@@ -81,7 +91,7 @@ export default function PipelinePage() {
     } finally {
       setCargando(false);
     }
-  }, [asesor, periodo]);
+  }, [asesor, periodo, desde, hasta]);
 
   useEffect(() => {
     cargar();
@@ -125,7 +135,34 @@ export default function PipelinePage() {
                 {p} días
               </button>
             ))}
+            <button
+              onClick={() => setPeriodo('RANGO')}
+              className={`px-3 py-2 text-sm font-bold ${periodo === 'RANGO' ? 'bg-[#2d544c] text-white' : 'text-[#516f90] hover:bg-slate-50'}`}
+            >
+              Personalizado
+            </button>
           </div>
+          {periodo === 'RANGO' && (
+            <div className="flex items-center gap-1.5 text-sm text-[#516f90]">
+              <input
+                type="date"
+                value={desde}
+                min={FECHA_MINIMA}
+                max={hasta}
+                onChange={(ev) => ev.target.value && setDesde(ev.target.value)}
+                className="px-2 py-1.5 border border-[#cbd6e2] rounded-lg bg-white text-[#33475b]"
+              />
+              <span>a</span>
+              <input
+                type="date"
+                value={hasta}
+                min={desde}
+                max={hoyEnChile()}
+                onChange={(ev) => ev.target.value && setHasta(ev.target.value)}
+                className="px-2 py-1.5 border border-[#cbd6e2] rounded-lg bg-white text-[#33475b]"
+              />
+            </div>
+          )}
           <button
             onClick={cargar}
             disabled={cargando}
@@ -141,8 +178,8 @@ export default function PipelinePage() {
       {datos && (
         <>
           <p className="text-xs text-[#516f90] flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 shrink-0" /> Leads que entraron a su etapa en los últimos {datos.dias} días. Cada columna muestra
-            los {datos.porColumna} más recientes.
+            <Info className="w-3.5 h-3.5 shrink-0" /> Leads que llegaron entre el {fechaLarga(datos.desde)} y el {fechaLarga(datos.hasta)}, en
+            la etapa en que están hoy. Cada columna muestra los {datos.porColumna} con movimiento más reciente.
           </p>
           <div className={`grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 ${cargando ? 'opacity-60' : ''}`}>
             {ETAPAS.map((et) => {

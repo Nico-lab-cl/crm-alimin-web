@@ -10,8 +10,9 @@ export const dynamic = 'force-dynamic';
  * escribe un trigger de la base (ver
  * crm-aliminv2/prisma/migrations_manual/2026-10-26_pipeline.sql).
  *
- * El período filtra por "etapaDesde": un lead aparece si entró a su etapa
- * actual dentro de los últimos N días.
+ * Las fechas filtran por cuándo llegó el lead ("createdAt", en hora de Chile):
+ * el tablero muestra en qué etapa está hoy cada lead que llegó en ese rango.
+ * Se acepta ?dias=N (últimos N días) o ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD.
  */
 
 // Los asesores que trabajan leads hoy (los mismos de crm-aliminv2/src/lib/assignment.ts).
@@ -20,6 +21,9 @@ const ASESORES = [
   'a6ce92ca-f1a1-4dcf-a042-fda1c31ca485', // Orlando
   '77cea468-b4a5-44e6-aaa5-0a3f376affb1', // Bárbara
 ];
+
+/** Antes de esto no hay leads propios que valga la pena mirar en el tablero. */
+const FECHA_MINIMA = '2026-05-01';
 
 const ESTADOS_CLIENTE = ['RESERVA_POR_FIRMAR', 'RESERVA_PAGADA', 'PIE_POR_PAGAR', 'PAGO_CUOTAS', 'VENTA_CERRADA'];
 const ETAPAS = ['NUEVO', 'CONTACTADO', 'VISITA', 'RESERVADO', 'PERDIDO'];
@@ -31,11 +35,35 @@ const COLUMNA = `CASE WHEN upper(l.status) IN (${lista(ESTADOS_CLIENTE)}) THEN '
                       ELSE 'NUEVO' END`;
 const POR_COLUMNA = 40;
 
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const hoyEnChile = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+function restarDias(fecha: string, dias: number) {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Rango pedido, siempre dentro de [FECHA_MINIMA, hoy]. */
+function rangoDe(params: URLSearchParams) {
+  const hoy = hoyEnChile();
+  let desde = params.get('desde') || '';
+  let hasta = params.get('hasta') || '';
+  if (!FECHA.test(desde) || !FECHA.test(hasta)) {
+    const dias = Math.min(Math.max(parseInt(params.get('dias') || '30', 10) || 30, 1), 365);
+    desde = restarDias(hoy, dias - 1);
+    hasta = hoy;
+  }
+  if (desde < FECHA_MINIMA) desde = FECHA_MINIMA;
+  if (hasta > hoy) hasta = hoy;
+  if (desde > hasta) desde = hasta;
+  return { desde, hasta };
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const pedido = url.searchParams.get('asesor') || '';
   const asesores = pedido && ASESORES.includes(pedido) ? [pedido] : ASESORES;
-  const dias = Math.min(Math.max(parseInt(url.searchParams.get('dias') || '30', 10) || 30, 1), 365);
+  const { desde, hasta } = rangoDe(url.searchParams);
 
   try {
     const existe = await queryMain(`SELECT to_regclass('public.lead_etapa_historial') IS NOT NULL AS ok`);
@@ -44,9 +72,10 @@ export async function GET(request: Request) {
     // Solo leads que generamos nosotros (web, Meta, chat, cargados a mano): las
     // importaciones de la base antigua quedan fuera, igual que en el lead score.
     const filtro = `l."assignedToId" = ANY($1::text[])
-                    AND l."etapaDesde" > (now() AT TIME ZONE 'UTC') - make_interval(days => $2)
+                    AND l."createdAt" >= (($2::date)::timestamp AT TIME ZONE 'America/Santiago') AT TIME ZONE 'UTC'
+                    AND l."createdAt" <  (($3::date + 1)::timestamp AT TIME ZONE 'America/Santiago') AT TIME ZONE 'UTC'
                     AND lower(trim(COALESCE(l.source, ''))) NOT IN (${lista(FUENTES_IMPORTADAS)})`;
-    const p = [asesores, dias];
+    const p = [asesores, desde, hasta];
 
     const [nombres, columnas, tarjetas] = await Promise.all([
       queryMain(`SELECT id, name FROM "User" WHERE id = ANY($1::text[]) ORDER BY name`, [ASESORES]),
@@ -71,7 +100,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       listo: true,
-      dias,
+      desde,
+      hasta,
+      fechaMinima: FECHA_MINIMA,
+      hoy: hoyEnChile(),
       porColumna: POR_COLUMNA,
       asesores: nombres.rows,
       columnas: columnas.rows,
