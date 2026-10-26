@@ -24,6 +24,7 @@ const ASESORES = [
 const ESTADOS_CLIENTE = ['RESERVA_POR_FIRMAR', 'RESERVA_PAGADA', 'PIE_POR_PAGAR', 'PAGO_CUOTAS', 'VENTA_CERRADA'];
 const ETAPAS = ['NUEVO', 'CONTACTADO', 'VISITA', 'RESERVADO', 'PERDIDO'];
 const lista = (xs: string[]) => xs.map((x) => `'${x}'`).join(',');
+const FUENTES_IMPORTADAS = ['kommo', 'csv import', 'old-db', 'instagram', 'clientify'];
 
 const COLUMNA = `CASE WHEN upper(l.status) IN (${lista(ESTADOS_CLIENTE)}) THEN 'RESERVADO'
                       WHEN upper(l.status) IN (${lista(ETAPAS)}) THEN upper(l.status)
@@ -40,8 +41,11 @@ export async function GET(request: Request) {
     const existe = await queryMain(`SELECT to_regclass('public.lead_etapa_historial') IS NOT NULL AS ok`);
     if (!existe.rows[0]?.ok) return NextResponse.json({ listo: false });
 
+    // Solo leads que generamos nosotros (web, Meta, chat, cargados a mano): las
+    // importaciones de la base antigua quedan fuera, igual que en el lead score.
     const filtro = `l."assignedToId" = ANY($1::text[])
-                    AND l."etapaDesde" > (now() AT TIME ZONE 'UTC') - make_interval(days => $2)`;
+                    AND l."etapaDesde" > (now() AT TIME ZONE 'UTC') - make_interval(days => $2)
+                    AND lower(trim(COALESCE(l.source, ''))) NOT IN (${lista(FUENTES_IMPORTADAS)})`;
     const p = [asesores, dias];
 
     const [nombres, columnas, tarjetas] = await Promise.all([
