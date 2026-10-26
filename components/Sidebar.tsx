@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Globe,
   QrCode,
-  Flame
+  Flame,
+  Kanban
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -40,6 +41,7 @@ const navItems = [
       { name: 'Firmas de Email 🖋️', href: '/campaigns/signatures' }
     ]
   },
+  { name: 'Pipeline', href: '/pipeline', icon: Kanban },
   { name: 'Lead Score', href: '/lead-score', icon: Flame },
   { name: 'Mapeo Web', href: '/mapeo-web', icon: Globe },
   { name: 'Creador de QR', href: '/qr', icon: QrCode },

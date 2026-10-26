@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMain } from '@/lib/db';
+import { mainDb, queryMain } from '@/lib/db';
 import { MOCK_LEADS } from '@/lib/mock_db';
 import { retroactiveLinkLeads } from '@/lib/evolution_sync';
 import { normalizeStatus } from '@/lib/lead_status';
@@ -119,7 +119,25 @@ export async function PATCH(
       RETURNING *
     `;
 
-    const res = await queryMain(query, values);
+    // Un cambio de etapa queda en lead_etapa_historial (trigger de la base); el
+    // origen se le dice en la misma transacción para que no figure como automático.
+    let res;
+    if (statusEntrante) {
+      const cliente = await mainDb.connect();
+      try {
+        await cliente.query('BEGIN');
+        await cliente.query(`SELECT set_config('alimin.origen', 'CRM_WEB', true)`);
+        res = await cliente.query(query, values);
+        await cliente.query('COMMIT');
+      } catch (e) {
+        await cliente.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        cliente.release();
+      }
+    } else {
+      res = await queryMain(query, values);
+    }
     if (res.rowCount === 0) {
       return NextResponse.json({ message: 'Contacto no encontrado en la base de datos.' }, { status: 404 });
     }

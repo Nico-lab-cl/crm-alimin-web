@@ -11,7 +11,7 @@
  * falta: todas las consultas del repo comparan con ILIKE.
  */
 
-export const LEAD_STATUSES = ['NUEVO', 'CONTACTADO', 'VISITA', 'RESERVADO'] as const;
+export const LEAD_STATUSES = ['NUEVO', 'CONTACTADO', 'VISITA', 'RESERVADO', 'PERDIDO'] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
