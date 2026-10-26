@@ -33,7 +33,10 @@ interface Conversacion {
 interface Mensaje {
   id: string;
   text: string;
+  /** "visitor", "advisor" o "ali" (la asistente con IA del chat web). */
   emisor: string;
+  /** "HANDOFF" cuando es el mensaje con que Ali pidió un asesor. */
+  origen: string | null;
   autor: string | null;
   creado: string;
   /** Metadatos del adjunto, si el mensaje trae uno. El archivo se pide aparte. */
@@ -440,7 +443,11 @@ export default function ChatWebPage() {
                 </div>
                 <p className="text-xs text-slate-500 truncate mt-1">
                   <span className="font-bold uppercase text-[10px] mr-1">
-                    {c.ultimo_emisor === 'advisor' ? 'Asesor:' : 'Cliente:'}
+                    {c.ultimo_emisor === 'advisor'
+                      ? 'Asesor:'
+                      : c.ultimo_emisor === 'ali'
+                        ? 'Ali (IA):'
+                        : 'Cliente:'}
                   </span>
                   {c.ultimo_texto || 'Sin mensajes'}
                 </p>
@@ -496,15 +503,25 @@ export default function ChatWebPage() {
               <div ref={hiloRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                 {mensajes.map((m) => {
                   const esAsesor = m.emisor === 'advisor';
+                  // Ali va del lado del equipo, con otro color para no
+                  // confundirla con un asesor.
+                  const esAli = m.emisor === 'ali';
                   return (
                     <div
                       key={m.id}
                       className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${
-                        esAsesor
+                        esAli
+                          ? 'self-end bg-violet-50 text-[#33475b] border border-violet-200 rounded-br-sm'
+                          : esAsesor
                           ? 'self-end bg-emerald-600 text-white rounded-br-sm'
                           : 'self-start bg-slate-100 text-[#33475b] rounded-bl-sm'
                       }`}
                     >
+                      {esAli && (
+                        <span className="block text-[10px] font-bold uppercase text-violet-600 mb-0.5">
+                          {m.origen === 'HANDOFF' ? 'Ali (IA) · pidió un asesor' : 'Ali (IA)'}
+                        </span>
+                      )}
                       {esAsesor && m.autor && (
                         <span className="block text-[10px] font-bold uppercase opacity-80 mb-0.5">
                           {m.autor}

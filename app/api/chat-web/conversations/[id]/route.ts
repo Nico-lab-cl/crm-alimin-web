@@ -40,6 +40,7 @@ export async function GET(
         m.id,
         m.text,
         m."senderType" AS emisor,
+        m."sourceType" AS origen,
         m."createdAt"  AS creado,
         u.name         AS autor,
         mm.id          AS adjunto_id,
