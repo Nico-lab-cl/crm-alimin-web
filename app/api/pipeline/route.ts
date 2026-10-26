@@ -137,7 +137,7 @@ export async function GET(request: Request) {
               AND NOT (origen_salida = 'RECONSTRUIDO' AND a <> 'NUEVO')
               AND a IN ('NUEVO', 'CONTACTADO', 'VISITA')
             GROUP BY 1`,
-          [asesor]
+          p
         ),
 
         queryMain(
