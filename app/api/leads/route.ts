@@ -550,11 +550,21 @@ export async function POST(request: Request) {
     const emailColName = columns.find(c => c.toLowerCase() === 'email') || 'Email';
     const updateClauses: string[] = [];
     
+    // Con un lead que ya existe, el formulario solo completa datos de contacto
+    // que falten. Antes se pisaba todo: cualquier formulario de aliminspa.cl
+    // (13 llaman a AliminCRM.identify) devolvía a NUEVO a un lead en Visita o a
+    // un cliente, le cambiaba el origen (un lead de Meta pasaba a "Sitio Web")
+    // y le movía la fecha de llegada. La etapa la llevan los asesores y el
+    // portal de pagos; el reingreso lo decide el CRM móvil, que recibe el mismo
+    // envío. Tampoco se vuelve a suscribir a quien se dio de baja.
+    const SOLO_SI_VACIO = ['firstname', 'lastname', 'name', 'phone', 'project', 'lote', 'etapa'];
     insertColumns.forEach((col) => {
-      if (col.replace(/"/g, '').toLowerCase() !== 'email') {
-        updateClauses.push(`${col} = EXCLUDED.${col}`);
+      if (SOLO_SI_VACIO.includes(col.replace(/"/g, '').toLowerCase())) {
+        updateClauses.push(`${col} = COALESCE(NULLIF("Lead".${col}, ''), EXCLUDED.${col})`);
       }
     });
+    // DO UPDATE necesita al menos una asignación para devolver la fila con RETURNING.
+    if (updateClauses.length === 0) updateClauses.push(`"${emailColName}" = EXCLUDED."${emailColName}"`);
 
     const query = `
       INSERT INTO "Lead" (${insertColumns.join(', ')})
