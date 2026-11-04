@@ -164,6 +164,78 @@ Va a quien recibió 4 o más correos en 120 días sin abrir ninguno. Si tampoco 
 
 ---
 
+## Después de la visita y ebooks (agregado el 04-11-2026): 9 diseños nuevos
+
+Tres secuencias nuevas, que **nacen apagadas** como las demás:
+
+| Secuencia | Qué la dispara | Paso 1 | Paso 2 | Paso 3 | Paso 4 |
+|---|---|---|---|---|---|
+| Después de la visita · Lomas / Arena (4 en 9 días) | El asesor pasa el lead a **Visita** en el CRM | 9 Gracias por visitarnos (a las 3 h) | 4 Financiamiento *(reusa)* | 3 Urbanización *(reusa)* | 10 Terrenos disponibles |
+| Ebook: terreno urbano o parcela rural (4 en 9 días) | Descargó ese ebook en aliminspa.cl | E1 Tu guía de uso de suelo (al tiro) | E3 Cómo revisar un terreno | R2 ¿Lomas o Arena? *(reusa)* | E5 Ven a conocerlos |
+| Ebook: las preguntas que todos nos hacen (4 en 9 días) | Descargó ese ebook | E2 Tu guía de preguntas (al tiro) | R2 ¿Lomas o Arena? *(reusa)* | E4 Lo que viene urbanizado | E5 Ven a conocerlos |
+
+La de después de la visita **depende solo de que el asesor marque la etapa**. Si la marca al agendar y la visita es en unos días, el primer correo espera a la fecha de la visita. Sale cuando el lead pasa a Reservado, a cliente o a Perdido.
+
+Los leads de ebook **no van a la rueda de asesores** (decisión de Nicolás del 04-11-2026): reciben solo esta secuencia. Pasan a un asesor si después cotizan, agendan o escriben.
+
+Los PDF: `https://aliminspa.cl/ebooks/pdf/terreno-urbano-o-parcela-rural.pdf` y `https://aliminspa.cl/ebooks/pdf/preguntas-frecuentes.pdf`.
+
+### SEC · Lomas · 9 Gracias por visitarnos
+- **Asunto:** Gracias por visitar Lomas del Mar 🌲
+- **Preheader:** Te dejamos los valores del terreno que conociste.
+- **Imagen:** vista aérea del proyecto. Titular: "Gracias por venir a conocer Lomas del Mar". Las dos tarjetas de la bienvenida (200 m² con pie de $5.500.000 y 390 m² con pie de $7.500.000, cuotas de $550.000, 0% interés). Debajo: "¿Te quedó alguna duda? Tu asesor te responde por WhatsApp".
+- **Botón:** Ver el proyecto otra vez → página del proyecto
+
+### SEC · Lomas · 10 Terrenos disponibles
+- **Asunto:** Los terrenos que quedan en Lomas 📍
+- **Preheader:** Revisa en el mapa cuáles siguen disponibles.
+- **Imagen:** captura del mapa 3D con lotes disponibles y vendidos. Titular: "Elige el tuyo en el mapa". Sin número de lotes, porque cambia todos los días.
+- **Botón:** Ver disponibilidad → agenda (mapa 3D)
+
+### SEC · Arena · 9 Gracias por visitarnos
+- **Asunto:** Gracias por visitar Arena y Sol 🌊
+- **Preheader:** Te dejamos los valores del terreno que conociste.
+- **Imagen:** foto del proyecto con clientes cercando. Titular: "Gracias por venir a conocer Arena y Sol". Tarjeta: 200 m², pie $20.000.000, cuota referencial $500.000, contado $39.000.000. Debajo: "Entrega inmediata · Tu asesor te responde por WhatsApp".
+- **Botón:** Ver el proyecto otra vez → página del proyecto
+
+### SEC · Arena · 10 Terrenos disponibles
+- **Asunto:** Últimos terrenos en Arena y Sol 📍
+- **Preheader:** Revisa en el mapa cuáles siguen disponibles.
+- **Imagen:** captura del mapa con lotes disponibles y vendidos. Titular: "Últimos terrenos con entrega inmediata". Sin número de lotes.
+- **Botón:** Ver disponibilidad → agenda (mapa)
+
+### SEC · Ebook · E1 Tu guía de uso de suelo
+- **Asunto:** Tu guía: terreno urbano o parcela rural 📘
+- **Preheader:** Descárgala aquí y léela con calma.
+- **Imagen:** la portada del ebook. Titular: "Aquí está tu guía". Debajo: "Qué diferencia un terreno urbano de una parcela rural y por qué importa el rol propio".
+- **Botón:** Descargar la guía → PDF de uso de suelo
+
+### SEC · Ebook · E2 Tu guía de preguntas
+- **Asunto:** Tu guía: lo que todos nos preguntan 📘
+- **Preheader:** Precio, pago, construcción, visitas y más.
+- **Imagen:** la portada del ebook. Titular: "Aquí está tu guía". Debajo: "Las respuestas a lo que más nos preguntan antes de comprar".
+- **Botón:** Descargar la guía → PDF de preguntas
+
+### SEC · Ebook · E3 Cómo revisar un terreno
+- **Asunto:** Antes de comprar un terreno, revisa esto 🔍
+- **Preheader:** Los documentos que tienes que pedir.
+- **Imagen:** lámina con los pasos del artículo "Cómo verificar la legalidad de un terreno" del blog (sacarlos de ahí, no inventar otros). Titular: "Cómo verificar un terreno antes de comprar".
+- **Botón:** Leer la guía completa → `https://aliminspa.cl/blog/como-verificar-legalidad-terreno-antes-de-comprar`
+
+### SEC · Ebook · E4 Lo que viene urbanizado
+- **Asunto:** Lo que trae tu terreno en El Tabo ✅
+- **Preheader:** Rol propio, agua, luz y acceso controlado.
+- **Imagen:** la lámina "Más valores para tu inversión" (los íconos de "3 Urbanización"), con los dos proyectos al pie: Lomas del Mar y Arena y Sol.
+- **Botón:** Ver los proyectos → `https://aliminspa.cl/proyectos`
+
+### SEC · Ebook · E5 Ven a conocerlos
+- **Asunto:** Conoce los terrenos en persona 📍
+- **Preheader:** Agenda tu visita a El Tabo el día que te acomode.
+- **Imagen:** foto de una visita con asesor. Titular: "Lo mejor es verlo con tus propios ojos". Los dos proyectos lado a lado.
+- **Botón:** Agendar visita → `https://aliminspa.cl/agendar-visita`
+
+---
+
 ## Antes de la prueba: revisar cada correo
 
 1. **La imagen tiene link.** En el editor: clic en la imagen → Acción → "Abrir sitio web" → la URL de la ficha. Sin link, el clic no lleva a nada y no se mide; **el CRM no deja encender** una secuencia con un correo así y lo marca en amarillo en la página. Ojo: hoy hay campañas sin ningún link (Portal, Arena Whats App, Lomas Whatsapp Oct, Lomas Agendamoento oct, Lamas directo whatsapp).

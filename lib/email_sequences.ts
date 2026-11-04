@@ -13,6 +13,11 @@
  *   - REACTIVACION            no abre nada hace 120 días. Si tampoco abre la
  *                             reactivación, sale de los envíos masivos
  *                             (tabla email_sunset).
+ *   - POST_VISITA             el asesor lo pasó a la etapa Visita (72 h). Es la
+ *                             única que nutre a quien ya visitó; sale si reserva
+ *                             o se marca perdido.
+ *   - EBOOK_SUELO /           descargó un ebook en aliminspa.cl (evento
+ *     EBOOK_PREGUNTAS         EBOOK_DOWNLOAD, 72 h). El primer correo lleva el PDF.
  *
  * Reglas comunes:
  *   - Solo leads: los clientes del portal de pagos, los reservados y los que ya
@@ -45,7 +50,15 @@ import {
 // Definiciones
 // ---------------------------------------------------------------------------
 
-export type Disparador = 'NUEVO_META' | 'NUEVO_WEB' | 'ABANDONO_AGENDA' | 'VOLVIO' | 'REACTIVACION';
+export type Disparador =
+  | 'NUEVO_META'
+  | 'NUEVO_WEB'
+  | 'ABANDONO_AGENDA'
+  | 'VOLVIO'
+  | 'REACTIVACION'
+  | 'POST_VISITA'
+  | 'EBOOK_SUELO'
+  | 'EBOOK_PREGUNTAS';
 export type Proyecto = 'LOMAS' | 'ARENA';
 export type Ventana = 'INMEDIATA' | 'OPTIMA';
 
@@ -102,6 +115,39 @@ const REACTIVACION: PasoBase[] = [
   { nombre: 'Los dos proyectos en El Tabo', esperaHoras: 96, ventana: 'OPTIMA' },
   { nombre: 'Último correo: ¿te seguimos escribiendo?', esperaHoras: 168, ventana: 'OPTIMA' },
 ];
+
+/**
+ * Después de la visita: el momento de más intención. Gracias + el lote que vio,
+ * después las dos objeciones que más frenan (cómo se paga y si es seguro) y al
+ * final la disponibilidad real, que la ve con el asesor.
+ */
+const POST_VISITA: PasoBase[] = [
+  { nombre: 'Gracias por visitarnos: tu terreno y los números', esperaHoras: 3, ventana: 'INMEDIATA' },
+  { nombre: 'Crédito directo: cómo se paga', esperaHoras: 48, ventana: 'OPTIMA' },
+  { nombre: 'Rol propio y lo que se entrega', esperaHoras: 72, ventana: 'OPTIMA' },
+  { nombre: 'Disponibilidad: habla con tu asesor', esperaHoras: 96, ventana: 'OPTIMA' },
+];
+
+/** El primer correo entrega el PDF apenas lo pide; el resto lo lleva de lo general al proyecto. */
+const EBOOK_SUELO: PasoBase[] = [
+  { nombre: 'Tu ebook: terreno urbano o parcela rural', esperaHoras: 0, ventana: 'INMEDIATA' },
+  { nombre: 'Cómo revisar el rol de un terreno', esperaHoras: 48, ventana: 'OPTIMA' },
+  { nombre: 'Terrenos urbanos con rol propio en El Tabo', esperaHoras: 72, ventana: 'OPTIMA' },
+  { nombre: 'Invitación a visitar', esperaHoras: 96, ventana: 'OPTIMA' },
+];
+
+const EBOOK_PREGUNTAS: PasoBase[] = [
+  { nombre: 'Tu ebook: las preguntas que todos nos hacen', esperaHoras: 0, ventana: 'INMEDIATA' },
+  { nombre: 'Cuánto cuesta y cómo se paga', esperaHoras: 48, ventana: 'OPTIMA' },
+  { nombre: 'Lo que viene urbanizado', esperaHoras: 72, ventana: 'OPTIMA' },
+  { nombre: 'Invitación a visitar', esperaHoras: 96, ventana: 'OPTIMA' },
+];
+
+/** Valor de details.ebook en el evento EBOOK_DOWNLOAD que manda aliminspa.cl. */
+const EBOOK_DE: Record<'EBOOK_SUELO' | 'EBOOK_PREGUNTAS', string> = {
+  EBOOK_SUELO: 'terreno-urbano-o-parcela-rural',
+  EBOOK_PREGUNTAS: 'preguntas-frecuentes',
+};
 
 const NOMBRE_PROYECTO: Record<Proyecto, string> = { LOMAS: 'Lomas del Mar', ARENA: 'Arena y Sol' };
 
@@ -163,6 +209,38 @@ export const SECUENCIAS_BASE: SecuenciaBase[] = [
     prioridad: 4,
     topeDiario: 3000,
     pasos: REACTIVACION,
+  },
+  ...porProyecto({
+    clave: 'post-visita',
+    nombre: 'Después de la visita',
+    descripcion:
+      'El asesor lo pasó a Visita. 4 correos en 9 días: gracias y su terreno, cómo se paga, rol propio y disponibilidad con el asesor. Sale si reserva o se marca perdido.',
+    disparador: 'POST_VISITA',
+    prioridad: 1,
+    topeDiario: 0,
+    pasos: POST_VISITA,
+  }),
+  {
+    clave: 'ebook-suelo',
+    nombre: 'Ebook: terreno urbano o parcela rural',
+    descripcion:
+      'Descargó el ebook de uso de suelo en aliminspa.cl. El primero lleva el PDF; después, cómo revisar un terreno, los proyectos y la visita. 4 correos en 9 días.',
+    disparador: 'EBOOK_SUELO',
+    proyecto: null,
+    prioridad: 2,
+    topeDiario: 0,
+    pasos: EBOOK_SUELO,
+  },
+  {
+    clave: 'ebook-preguntas',
+    nombre: 'Ebook: las preguntas que todos nos hacen',
+    descripcion:
+      'Descargó el ebook de preguntas frecuentes en aliminspa.cl. El primero lleva el PDF; después, precio y pago, urbanización y la visita. 4 correos en 9 días.',
+    disparador: 'EBOOK_PREGUNTAS',
+    proyecto: null,
+    prioridad: 2,
+    topeDiario: 0,
+    pasos: EBOOK_PREGUNTAS,
   },
 ];
 
@@ -659,6 +737,57 @@ async function candidatosReactivacion(limite: number): Promise<Candidato[]> {
   return out;
 }
 
+/** Cuando la etapa dice que ya visitó (o el portal lo hizo cliente), deja de ser para nutrir. */
+const ESTADOS_FIN_POST_VISITA = [...ESTADOS_CLIENTE, 'RESERVADO', 'PERDIDO'];
+
+function puedeRecibirCorreo(l: LeadFila): boolean {
+  return isValidEmailSyntax(l.email) && l.emailEnabled !== false && l.emailBounced !== true;
+}
+
+/**
+ * Leads que el asesor pasó a Visita en las últimas 72 h. "Visita" a veces se
+ * marca al agendar: si la fecha de la visita todavía no llega, la espera del
+ * primer correo corre desde esa fecha y no desde el cambio de etapa.
+ */
+async function candidatosPostVisita(): Promise<Candidato[]> {
+  const res = await queryMain(
+    `SELECT ${COLUMNAS_LEAD}, ("etapaDesde" AT TIME ZONE 'UTC') AS etapa_desde FROM "Lead"
+      WHERE upper(COALESCE(status, '')) = 'VISITA'
+        AND "etapaDesde" IS NOT NULL
+        AND ("etapaDesde" AT TIME ZONE 'UTC') > now() - make_interval(hours => $1)`,
+    [CAPTURA_NUEVO_HORAS]
+  );
+  return res.rows
+    .filter((l: LeadFila) => puedeRecibirCorreo(l))
+    .map((l: LeadFila & { etapa_desde: Date }) => {
+      const desde = Math.max(new Date(l.etapa_desde).getTime(), l.visita ? new Date(l.visita).getTime() : 0);
+      return { lead: l, proyecto: proyectoDe(l), desde: new Date(desde) };
+    });
+}
+
+/** Descargas del ebook en aliminspa.cl (el sitio manda EBOOK_DOWNLOAD ya identificado). */
+async function candidatosEbook(disparador: 'EBOOK_SUELO' | 'EBOOK_PREGUNTAS'): Promise<Candidato[]> {
+  const res = await queryMarketing(
+    `SELECT lead_id::text AS lead_id, max(created_at) AS ultima
+       FROM lead_activities
+      WHERE lead_id IS NOT NULL AND event_type = 'EBOOK_DOWNLOAD'
+        AND details::jsonb ->> 'ebook' = $1
+        -- Ley 21.719: los correos de seguimiento son marketing y piden la
+        -- casilla aparte. Sin ella, el PDF lo bajó en la página y nada más.
+        AND details::jsonb ->> 'marketing' = 'true'
+        AND created_at > now() - make_interval(hours => $2)
+      GROUP BY 1`,
+    [EBOOK_DE[disparador], CAPTURA_NUEVO_HORAS]
+  );
+  const leads = await leadsPorId(res.rows.map((r) => r.lead_id));
+  const out: Candidato[] = [];
+  for (const r of res.rows) {
+    const l = leads.get(r.lead_id);
+    if (l && esLeadParaNutrir(l)) out.push({ lead: l, proyecto: null, desde: new Date(r.ultima) });
+  }
+  return out;
+}
+
 async function candidatosDe(s: SecuenciaFila, cupo: number): Promise<Candidato[]> {
   switch (s.disparador) {
     case 'NUEVO_META':
@@ -670,6 +799,11 @@ async function candidatosDe(s: SecuenciaFila, cupo: number): Promise<Candidato[]
       return candidatosVolvio();
     case 'REACTIVACION':
       return candidatosReactivacion(cupo);
+    case 'POST_VISITA':
+      return candidatosPostVisita();
+    case 'EBOOK_SUELO':
+    case 'EBOOK_PREGUNTAS':
+      return candidatosEbook(s.disparador);
     default:
       return [];
   }
@@ -785,10 +919,14 @@ async function revisarSalidas(): Promise<number> {
   for (const r of activas.rows) {
     const l = leads.get(r.lead_id);
     let motivo: string | null = null;
+    const postVisita = r.disparador === 'POST_VISITA';
     if (!l) motivo = 'El lead ya no existe';
     else if (l.emailEnabled === false) motivo = 'Se desuscribió';
     else if (l.emailBounced === true) motivo = 'El correo rebotó';
-    else if (ESTADOS_FUERA.includes((l.status || '').toUpperCase())) motivo = `Avanzó a ${l.status}`;
+    else if (postVisita) {
+      // Esta secuencia es para quien ya visitó: solo sale si reserva o se pierde.
+      if (ESTADOS_FIN_POST_VISITA.includes((l.status || '').toUpperCase())) motivo = `Pasó a ${l.status}`;
+    } else if (ESTADOS_FUERA.includes((l.status || '').toUpperCase())) motivo = `Avanzó a ${l.status}`;
     else if (l.visita && new Date(l.visita) >= new Date(new Date(r.inscrito_at).getTime() - 24 * 3600 * 1000))
       motivo = 'Agendó visita';
     if (motivo) {

@@ -68,6 +68,9 @@ const DISPARADOR: Record<string, string> = {
   ABANDONO_AGENDA: 'Abrió la agenda y no agendó',
   VOLVIO: 'Volvió a interesarse',
   REACTIVACION: 'Dormido 120 días',
+  POST_VISITA: 'El asesor lo pasó a Visita',
+  EBOOK_SUELO: 'Descargó el ebook de uso de suelo',
+  EBOOK_PREGUNTAS: 'Descargó el ebook de preguntas frecuentes',
 };
 
 const PROYECTO: Record<string, string> = { LOMAS: 'Lomas del Mar', ARENA: 'Arena y Sol' };
