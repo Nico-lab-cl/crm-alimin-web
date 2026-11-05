@@ -7,8 +7,10 @@
  * pone a la imagen (en el HTML y en el diseño de Unlayer, para que el editor
  * lo muestre igual), con texto alternativo y preheader.
  *
- * El enlace lleva a la página del ebook y no al PDF: ahí la descarga queda
- * registrada, se pide el consentimiento y la persona entra a su secuencia.
+ * El enlace va directo al PDF: quien recibe el correo ya es lead y no tiene
+ * que volver a llenar el formulario. El clic queda en campaign_logs (y
+ * dispara la secuencia "Volvió a interesarse"). La página con formulario
+ * queda para el sitio, el popup y los anuncios.
  *
  * Las mismas campañas son el paso "ebook" de las secuencias de nutrición:
  * comparten campaign_id, así que quien ya lo recibió por el masivo no lo
@@ -32,6 +34,7 @@ export type ClaveEbook = 'preguntas-frecuentes' | 'terreno-urbano-o-parcela-rura
 interface CampanaEbook {
   /** id de la campaña que diseñó el equipo en el panel. */
   id: string;
+  /** El PDF. */
   url: string;
   alt: string;
   preheader: string;
@@ -47,14 +50,14 @@ interface CampanaEbook {
 export const CAMPANAS_EBOOK: Record<ClaveEbook, CampanaEbook> = {
   'preguntas-frecuentes': {
     id: 'a842a432-f913-4fbd-8fd9-d9b2352b3c2d',
-    url: `${SITIO}/ebooks/preguntas-frecuentes`,
+    url: `${SITIO}/ebooks/pdf/preguntas-frecuentes.pdf`,
     alt: 'Guía gratuita: las preguntas que todos nos hacen. Precio, construcción, formas de pago, entrega y ubicación. Descarga la guía gratuita.',
     preheader: 'Precio, formas de pago, construcción, entrega y más. Descarga la guía gratis.',
     programadoPara: '2026-11-05T20:45:00-03:00',
   },
   'terreno-urbano-o-parcela-rural': {
     id: '69629228-6823-49cb-9dee-eec418ae1052',
-    url: `${SITIO}/ebooks/terreno-urbano-o-parcela-rural`,
+    url: `${SITIO}/ebooks/pdf/terreno-urbano-o-parcela-rural.pdf`,
     alt: 'Guía gratuita: antes de elegir un terreno, ¿sabes realmente qué estás adquiriendo? Uso de suelo, rol propio y checklist. Descarga la guía gratuita.',
     preheader: 'Uso de suelo, rol propio y qué revisar antes de comprar. Descarga la guía gratis.',
     programadoPara: '2026-11-07T10:00:00-03:00',
@@ -124,8 +127,12 @@ async function preparar(): Promise<Record<ClaveEbook, string>> {
       console.error(`[masivos] No está la campaña ${c.id} del ebook ${clave}.`);
       continue;
     }
-    // Enlace: solo si el correo todavía no lleva a la página del ebook.
+    // Enlace: solo si el correo todavía no lleva al PDF. Si llevaba a la
+    // página del ebook (primera versión), se cambia por el PDF.
     if (!String(fila.html_content || '').includes(c.url)) {
+      fila.html_content = String(fila.html_content || '')
+        .split(`${SITIO}/ebooks/${clave}"`)
+        .join(`${c.url}"`);
       const diseno = typeof fila.mjml_content === 'string' ? JSON.parse(fila.mjml_content) : fila.mjml_content;
       const nuevoDiseno = ajustarDiseno(diseno, c.url, c.alt, c.preheader);
       await queryMarketing(
