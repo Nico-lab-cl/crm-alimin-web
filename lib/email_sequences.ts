@@ -473,6 +473,8 @@ export async function asegurarTablas() {
     }
   }
   await agregarPasosEbook();
+  const { prepararSecuenciasEbook } = await import('./correos_secuencias_ebook');
+  await prepararSecuenciasEbook();
   tablasListas = true;
 }
 
