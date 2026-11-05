@@ -29,6 +29,19 @@ export async function register() {
       iniciarSecuencias(pasadaSinSolapar);
     }
 
+    // Masivos programados (campanas_ebook.ts): una revisión por minuto.
+    const { lanzarProgramados } = await import('./lib/campanas_ebook');
+    const revisarMasivos = async () => {
+      try {
+        await lanzarProgramados();
+      } catch (error) {
+        console.error('[masivos] Falló la revisión de programados:', error);
+      }
+    };
+    setTimeout(revisarMasivos, PRIMERA_PASADA_MS).unref?.();
+    setInterval(revisarMasivos, 60 * 1000).unref?.();
+    console.log('[masivos] Programados activos: una revisión por minuto.');
+
     if (process.env.LEAD_SCORE_DESACTIVADO === 'true') {
       console.log('[lead-score] Desactivado por LEAD_SCORE_DESACTIVADO.');
       return;

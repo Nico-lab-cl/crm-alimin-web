@@ -472,7 +472,99 @@ export async function asegurarTablas() {
       );
     }
   }
+  await agregarPasosEbook();
   tablasListas = true;
+}
+
+/**
+ * Paso "ebook" en las secuencias de nutrición (pedido del 05-11-2026): el
+ * correo invita a descargar la guía en aliminspa.cl. Usa la misma campaña que
+ * el masivo del ebook, así que a quien ya le llegó se le salta el paso.
+ */
+const PASOS_EBOOK: Array<{
+  claves: string[];
+  posicion: number;
+  ebook: 'preguntas-frecuentes' | 'terreno-urbano-o-parcela-rural';
+  asunto: string;
+}> = [
+  {
+    claves: ['bienvenida-meta-lomas', 'bienvenida-meta-arena'],
+    posicion: 3,
+    ebook: 'preguntas-frecuentes',
+    asunto: '{nombre}, lo que todos nos preguntan antes de comprar',
+  },
+  {
+    claves: ['bienvenida-web-lomas', 'bienvenida-web-arena'],
+    posicion: 3,
+    ebook: 'terreno-urbano-o-parcela-rural',
+    asunto: '{nombre}, ¿terreno urbano o parcela rural?',
+  },
+  {
+    claves: ['volvio-lomas', 'volvio-arena'],
+    posicion: 2,
+    ebook: 'terreno-urbano-o-parcela-rural',
+    asunto: '{nombre}, antes de elegir terreno revisa esto',
+  },
+  {
+    claves: ['reactivacion'],
+    posicion: 2,
+    ebook: 'preguntas-frecuentes',
+    asunto: '{nombre}, te dejamos una guía gratis',
+  },
+];
+
+const NOMBRE_PASO_EBOOK = {
+  'preguntas-frecuentes': 'Ebook: las preguntas que todos nos hacen',
+  'terreno-urbano-o-parcela-rural': 'Ebook: terreno urbano o parcela rural',
+} as const;
+
+/**
+ * Inserta el paso una sola vez por secuencia (tabla email_sequence_migraciones):
+ * si el equipo lo quita después desde el panel, no vuelve. Corre los pasos que
+ * siguen y a los inscritos que ya pasaron ese punto, para que no repitan uno.
+ */
+async function agregarPasosEbook() {
+  await queryMarketing(`
+    CREATE TABLE IF NOT EXISTS email_sequence_migraciones (
+      clave TEXT PRIMARY KEY,
+      aplicada_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  const { asegurarCampanasEbook } = await import('./campanas_ebook');
+  const campanas = await asegurarCampanasEbook();
+
+  for (const grupo of PASOS_EBOOK) {
+    for (const clave of grupo.claves) {
+      const marca = `paso-ebook:${clave}`;
+      const ya = await queryMarketing(`SELECT 1 FROM email_sequence_migraciones WHERE clave = $1`, [marca]);
+      if (ya.rows.length) continue;
+      const seq = await queryMarketing(`SELECT id FROM email_sequences WHERE clave = $1`, [clave]);
+      const id = seq.rows[0]?.id;
+      if (!id) continue;
+      const p = grupo.posicion;
+      // En dos tiempos por el UNIQUE (sequence_id, posicion).
+      await queryMarketing(
+        `UPDATE email_sequence_steps SET posicion = posicion + 1000 WHERE sequence_id = $1 AND posicion >= $2`,
+        [id, p]
+      );
+      await queryMarketing(
+        `UPDATE email_sequence_steps SET posicion = posicion - 999 WHERE sequence_id = $1 AND posicion >= 1000`,
+        [id]
+      );
+      await queryMarketing(
+        `INSERT INTO email_sequence_steps (sequence_id, posicion, nombre, espera_horas, ventana, campaign_id, asunto)
+         VALUES ($1, $2, $3, 48, 'OPTIMA', $4, $5)`,
+        [id, p, NOMBRE_PASO_EBOOK[grupo.ebook], campanas[grupo.ebook], grupo.asunto]
+      );
+      // Quien ya recibió el paso que antes estaba en p sigue donde iba.
+      await queryMarketing(
+        `UPDATE email_sequence_enrollments SET pasos_enviados = pasos_enviados + 1, actualizado_at = now()
+          WHERE sequence_id = $1 AND estado = 'ACTIVA' AND pasos_enviados >= $2`,
+        [id, p]
+      );
+      await queryMarketing(`INSERT INTO email_sequence_migraciones (clave) VALUES ($1) ON CONFLICT DO NOTHING`, [marca]);
+      console.log(`[secuencias] Paso de ebook agregado a ${clave} en la posición ${p}.`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1282,6 +1374,24 @@ async function enviarPendientes(secuencias: SecuenciaFila[]): Promise<{ enviados
 
     const campana = paso.campaign_id ? campanas.get(paso.campaign_id) : undefined;
     if (!campana) continue; // secuencia mal armada: el panel no deja encenderla así
+
+    // Ya le llegó este mismo correo (p. ej. el masivo del ebook): se salta el paso.
+    const repetido = await queryMarketing(
+      `SELECT 1 FROM campaign_logs
+        WHERE campaign_id = $1 AND lower(email) = lower($2) AND is_test = FALSE AND status IN ('SENT', 'PENDING')
+        LIMIT 1`,
+      [campana.id, e.email]
+    );
+    if (repetido.rows.length) {
+      const siguiente = s.pasos[e.pasos_enviados + 1];
+      await queryMarketing(
+        `UPDATE email_sequence_enrollments
+            SET pasos_enviados = pasos_enviados + 1, proximo_envio_at = $2, actualizado_at = now()
+          WHERE id = $1`,
+        [e.id, siguiente ? siguienteEnVentana(new Date(), siguiente.ventana) : new Date()]
+      );
+      continue;
+    }
 
     if ((prioridadMinima.get(e.lead_id) ?? s.prioridad) < s.prioridad) {
       await correr(e.id, new Date(Date.now() + 12 * 3600 * 1000));

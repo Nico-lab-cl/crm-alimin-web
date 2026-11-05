@@ -2,6 +2,9 @@ import { queryMain, queryMarketing } from '@/lib/db';
 import { parseDateRobust } from '@/lib/date_utils';
 import { optimizeHtmlForDarkMode, appendUnsubscribeFooter, isValidEmailSyntax, getCampaignPreheader, insertPreheader, agregarUtm } from '@/lib/email_utils';
 import { emailsDormidos } from '@/lib/email_sequences';
+import { ESTADOS_CLIENTE } from '@/lib/lead_score';
+
+const ESTADOS_NO_NUTRIBLES = [...ESTADOS_CLIENTE, 'RESERVADO', 'VISITA'];
 
 // ============================================================
 // Constants
@@ -84,6 +87,12 @@ interface BatchExecuteOptions {
   batchSize?: number;    // default 50
   delayMs?: number;      // delay between batches in ms, default 5000
   dailyLimit?: number;   // default 50000 (Amazon SES)
+  /**
+   * Fuera clientes, reservados, los que ya tienen visita y los que rebotaron:
+   * los mismos que no reciben nutrición (email_sequences). Lo usan los masivos
+   * programados de campanas_ebook.ts.
+   */
+  excluirNoNutribles?: boolean;
 }
 
 function generateJobId(): string {
@@ -110,6 +119,7 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
     batchSize = 50, 
     delayMs = 5000,
     dailyLimit = SES_DAILY_LIMIT,
+    excluirNoNutribles = false,
   } = options;
 
   // 1. Check daily quota
@@ -164,6 +174,15 @@ export async function startBatchExecution(options: BatchExecuteOptions): Promise
   }
 
   const params: (string | number | Date | string[])[] = [];
+
+  if (excluirNoNutribles) {
+    if (columns.includes(statusCol.replace(/"/g, ''))) {
+      params.push(ESTADOS_NO_NUTRIBLES);
+      whereClauses.push(`upper(COALESCE(${statusCol}, '')) <> ALL($${params.length})`);
+    }
+    const bouncedCol = findCol('emailBounced') || '"emailBounced"';
+    if (columns.includes(bouncedCol.replace(/"/g, ''))) whereClauses.push(`${bouncedCol} IS NOT TRUE`);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filtersAny = leadFilters as any;
