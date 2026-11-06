@@ -292,8 +292,10 @@ export async function prepararSecuenciasEbook(): Promise<void> {
     }
     const ins = await queryMarketing(
       `INSERT INTO campaigns (name, title, subject, html_content, mjml_content, status)
-       VALUES ($1, $1, $2, $3, NULL, 'DRAFT') RETURNING id`,
-      [c.nombre, c.asunto, c.html]
+       VALUES ($1, $2, $3, $4, NULL, 'DRAFT') RETURNING id`,
+      // name y title tienen tipos distintos: un mismo $1 en los dos falla
+      // ("inconsistent types deduced for parameter $1").
+      [c.nombre, c.nombre, c.asunto, c.html]
     );
     ids[clave] = ins.rows[0].id;
     console.log(`[secuencias] Correo "${c.nombre}" creado.`);
