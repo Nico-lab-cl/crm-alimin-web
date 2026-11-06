@@ -38,8 +38,10 @@ interface CampanaEbook {
   url: string;
   alt: string;
   preheader: string;
-  /** Primera programación del masivo (hora de Chile, UTC-3 en noviembre). */
+  /** Hora del masivo (Chile, UTC-3 en noviembre). */
   programadoPara: string;
+  /** La hora que tenía antes: si sigue pendiente con esa hora, se mueve a programadoPara. */
+  programadoAntes?: string;
 }
 
 /**
@@ -53,7 +55,8 @@ export const CAMPANAS_EBOOK: Record<ClaveEbook, CampanaEbook> = {
     url: `${SITIO}/ebooks/pdf/preguntas-frecuentes.pdf`,
     alt: 'Guía gratuita: las preguntas que todos nos hacen. Precio, construcción, formas de pago, entrega y ubicación. Descarga la guía gratuita.',
     preheader: 'Precio, formas de pago, construcción, entrega y más. Descarga la guía gratis.',
-    programadoPara: '2026-11-05T20:45:00-03:00',
+    programadoPara: '2026-11-05T21:20:00-03:00',
+    programadoAntes: '2026-11-05T20:45:00-03:00',
   },
   'terreno-urbano-o-parcela-rural': {
     id: '69629228-6823-49cb-9dee-eec418ae1052',
@@ -151,6 +154,13 @@ async function preparar(): Promise<Record<ClaveEbook, string>> {
         [c.id, c.programadoPara]
       );
       console.log(`[masivos] Ebook ${clave} programado para ${c.programadoPara}.`);
+    } else if (fila.programado_estado === 'PENDIENTE' && c.programadoAntes) {
+      // Cambio de hora pedido después de programar: solo si sigue con la hora vieja.
+      await queryMarketing(
+        `UPDATE campaigns SET programado_para = $2
+          WHERE id = $1 AND programado_estado = 'PENDIENTE' AND programado_para = $3`,
+        [c.id, c.programadoPara, c.programadoAntes]
+      );
     }
   }
   return ids;
