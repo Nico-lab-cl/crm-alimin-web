@@ -18,6 +18,52 @@ function getEvolutionPool(): Pool {
 }
 
 /**
+ * Instancias de Evolution cuyas conversaciones NO se muestran en el CRM
+ * (por defecto `nico`, el WhatsApp personal de Nicolás). No se sincronizan,
+ * se borra la copia local que exista y se filtran en todas las lecturas.
+ * Configurable con WHATSAPP_HIDDEN_INSTANCES (separadas por coma).
+ */
+export const HIDDEN_INSTANCE_NAMES: string[] = (process.env.WHATSAPP_HIDDEN_INSTANCES ?? 'nico')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
+
+export function isHiddenInstanceName(name: string | null | undefined): boolean {
+  return HIDDEN_INSTANCE_NAMES.includes((name || '').trim().toLowerCase());
+}
+
+/**
+ * Condición SQL que excluye los mensajes de instancias ocultas.
+ * `paramIndex` es el número del parámetro ($n) donde va HIDDEN_INSTANCE_NAMES.
+ */
+export function hiddenAdvisorFilter(paramIndex: number): string {
+  return `LOWER(TRIM(COALESCE(advisor_name, ''))) <> ALL($${paramIndex}::text[])`;
+}
+
+/**
+ * Borra de la copia local del CRM los mensajes de instancias ocultas.
+ * Solo toca la tabla whatsapp_messages del CRM; Evolution conserva los originales.
+ */
+async function purgeHiddenInstances(instancesMap: Map<string, string>) {
+  if (HIDDEN_INSTANCE_NAMES.length === 0) return;
+  const hiddenIds = Array.from(instancesMap.entries())
+    .filter(([, name]) => isHiddenInstanceName(name))
+    .map(([id]) => id);
+  try {
+    const res = await queryMarketing(`
+      DELETE FROM whatsapp_messages
+      WHERE instance_id = ANY($1::text[])
+         OR LOWER(TRIM(COALESCE(advisor_name, ''))) = ANY($2::text[])
+    `, [hiddenIds, HIDDEN_INSTANCE_NAMES]);
+    if (res.rowCount) {
+      console.log(`[WhatsApp Sync] Se quitaron ${res.rowCount} mensajes de instancias ocultas del CRM.`);
+    }
+  } catch (e) {
+    console.warn('[WhatsApp Sync] No se pudieron quitar los mensajes de instancias ocultas:', (e as Error).message);
+  }
+}
+
+/**
  * Inicializa la tabla whatsapp_messages en el CRM si no existe.
  */
 export async function initWhatsappTable() {
@@ -331,6 +377,7 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
     // 2. Obtener mapa de instancias
     const instancesMap = await getAdvisorInstancesMap(pool);
     console.log('✓ Instancias encontradas en Evolution API:', Array.from(instancesMap.entries()));
+    await purgeHiddenInstances(instancesMap);
 
     const isBigIntType = await checkIsBigIntColumn(client, schema.tableName, schema.timestampCol);
     let totalSynced = 0;
@@ -402,6 +449,7 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
     // Caso 2: Sincronización general (sin JID). Iteramos por cada instancia para evitar hambruna.
     else if (instancesMap.size > 0) {
       for (const [instanceId, instanceName] of Array.from(instancesMap.entries())) {
+        if (isHiddenInstanceName(instanceName)) continue;
         try {
           let sinceTimestamp: Date | null = null;
           
@@ -547,7 +595,10 @@ export async function syncEvolutionChats(jid?: string, hoursBack?: number) {
  * Procesa las filas devueltas por la base de datos de Evolution API, resuelve JID -> Lead ID e inserta.
  */
 async function processAndInsertMessages(rows: any[], instancesMap: Map<string, string>): Promise<number> {
-  const reversedRows = [...rows].reverse();
+  // Nunca guardar mensajes de instancias ocultas (cubre la sync por JID y la global)
+  const reversedRows = [...rows]
+    .reverse()
+    .filter(r => !isHiddenInstanceName(instancesMap.get(r.instance_id) || r.instance_id));
   const uniqueJids = Array.from(new Set(reversedRows.map(r => r.remote_jid)));
   const jidToLeadIdMap = new Map<string, string>();
 
@@ -884,6 +935,7 @@ export async function getEvolutionAdvisors(): Promise<string[]> {
     const instancesMap = await getAdvisorInstancesMap(pool);
     const advisors = new Set<string>();
     for (const name of Array.from(instancesMap.values())) {
+      if (isHiddenInstanceName(name)) continue;
       const advName = getAdvisorNameFromInstance(name);
       if (advName && advName !== 'WhatsApp Sistema') {
         advisors.add(advName);

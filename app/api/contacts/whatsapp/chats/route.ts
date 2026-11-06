@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { syncEvolutionChats, getEvolutionAdvisors, normalizeAdvisorName } from '@/lib/evolution_sync';
+import { syncEvolutionChats, getEvolutionAdvisors, normalizeAdvisorName, hiddenAdvisorFilter, HIDDEN_INSTANCE_NAMES } from '@/lib/evolution_sync';
 import { queryMain, queryMarketing } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -63,10 +63,11 @@ export async function GET() {
         advisor_name,
         push_name
       FROM whatsapp_messages
+      WHERE ${hiddenAdvisorFilter(1)}
       ORDER BY remote_jid, timestamp DESC
     `;
 
-    const res = await queryMarketing(query);
+    const res = await queryMarketing(query, [HIDDEN_INSTANCE_NAMES]);
     const rawChats = res.rows;
 
     // 4. Mapear nombres de Leads a los chats vinculados

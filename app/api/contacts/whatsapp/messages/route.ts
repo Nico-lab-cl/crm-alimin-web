@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { syncEvolutionChats, normalizeAdvisorName } from '@/lib/evolution_sync';
+import { syncEvolutionChats, normalizeAdvisorName, hiddenAdvisorFilter, HIDDEN_INSTANCE_NAMES } from '@/lib/evolution_sync';
 import { queryMain, queryMarketing } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +39,11 @@ export async function GET(request: Request) {
     const query = `
       SELECT id, message_id, lead_id, remote_jid, from_me, body, timestamp, instance_id, advisor_name
       FROM whatsapp_messages
-      WHERE remote_jid = $1
+      WHERE remote_jid = $1 AND ${hiddenAdvisorFilter(2)}
       ORDER BY timestamp ASC
     `;
 
-    const res = await queryMarketing(query, [jid]);
+    const res = await queryMarketing(query, [jid, HIDDEN_INSTANCE_NAMES]);
 
     // 3. Ejecutar sincronización incremental en SEGUNDO PLANO (sin bloquear la respuesta)
     // Solo sincroniza las últimas 24 horas para este JID específico

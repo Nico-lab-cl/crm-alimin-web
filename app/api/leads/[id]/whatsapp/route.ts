@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { syncEvolutionChats, normalizeAdvisorName } from '@/lib/evolution_sync';
+import { syncEvolutionChats, normalizeAdvisorName, hiddenAdvisorFilter, HIDDEN_INSTANCE_NAMES } from '@/lib/evolution_sync';
 import { queryMain, queryMarketing } from '@/lib/db';
 
 interface WhatsappMessage {
@@ -95,11 +95,12 @@ export async function GET(
       const query = `
         SELECT id, message_id, lead_id, remote_jid, from_me, body, timestamp, instance_id, advisor_name
         FROM whatsapp_messages
-        WHERE lead_id = $1 ${jid ? 'OR remote_jid = $2' : ''}
+        WHERE (lead_id = $1 ${jid ? 'OR remote_jid = $3' : ''})
+          AND ${hiddenAdvisorFilter(2)}
         ORDER BY timestamp ASC
       `;
-      
-      const queryParams = jid ? [id, jid] : [id];
+
+      const queryParams = jid ? [id, HIDDEN_INSTANCE_NAMES, jid] : [id, HIDDEN_INSTANCE_NAMES];
       const res = await queryMarketing(query, queryParams);
       messages = res.rows;
     } catch (e) {
