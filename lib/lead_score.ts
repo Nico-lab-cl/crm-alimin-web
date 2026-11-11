@@ -534,6 +534,13 @@ export async function recalcularScores() {
     for (const l of res.rows) leads.set(l.id, l);
   }
 
+  // Pie que el cliente dijo en el chat (calificador IA): cuenta como el del formulario.
+  const { leadsConPieSegunIA } = await import('./calificador_ia');
+  for (const id of await leadsConPieSegunIA()) {
+    const lead = leads.get(id);
+    if (lead && !respondioQueSi(lead.pie)) lead.pie = 'Sí (dicho en el chat)';
+  }
+
   const previos = await queryMain(`SELECT lead_id, banda FROM public.lead_score`);
   const bandaPrevia = new Map<string, Banda>(previos.rows.map((r: { lead_id: string; banda: Banda }) => [r.lead_id, r.banda]));
 

@@ -9,8 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@types/pg": "^8.18.0",
     "@types/qrcode": "^1.5.6",
+    "@xyflow/react": "^12.12.1",
     "grapesjs": "^0.22.14",
     "grapesjs-mjml": "^1.0.8",
     "grapesjs-preset-webpage": "^1.0.3",

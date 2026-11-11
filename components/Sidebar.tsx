@@ -12,7 +12,8 @@ import {
   Globe,
   QrCode,
   Flame,
-  Kanban
+  Kanban,
+  Bot
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -43,6 +44,7 @@ const navItems = [
   },
   { name: 'Pipeline', href: '/pipeline', icon: Kanban },
   { name: 'Lead Score', href: '/lead-score', icon: Flame },
+  { name: 'Agentes IA', href: '/agentes-ia', icon: Bot },
   { name: 'Mapeo Web', href: '/mapeo-web', icon: Globe },
   { name: 'Creador de QR', href: '/qr', icon: QrCode },
   { name: 'Métricas', href: '/metrics', icon: BarChart3 },

@@ -42,6 +42,29 @@ export async function register() {
     setInterval(revisarMasivos, 60 * 1000).unref?.();
     console.log('[masivos] Programados activos: una revisión por minuto.');
 
+    // Calificador IA (lib/calificador_ia.ts): sin CALIFICADOR_ACTIVO=true no corre.
+    const { calificadorConfigurado, pasadaCalificadorSinSolapar } = await import('./lib/calificador_ia');
+    if (calificadorConfigurado()) {
+      const calificar = async () => {
+        try {
+          const r = await pasadaCalificadorSinSolapar();
+          if (r.revisadas || r.motivo) {
+            console.log(
+              `[calificador] ${r.calificadas}/${r.revisadas} calificadas, ${r.errores} errores, US$${r.costoUSD.toFixed(4)}${r.motivo ? ` (${r.motivo})` : ''}.`
+            );
+          }
+        } catch (error) {
+          // Nunca se relanza: mataría el temporizador hasta el próximo reinicio.
+          console.error('[calificador] Falló la pasada:', error);
+        }
+      };
+      setTimeout(calificar, PRIMERA_PASADA_MS * 3).unref?.();
+      setInterval(calificar, 10 * 60 * 1000).unref?.();
+      console.log('[calificador] Activo: una pasada cada 10 minutos.');
+    } else {
+      console.log('[calificador] Apagado (falta CALIFICADOR_ACTIVO=true o ANTHROPIC_API_KEY_CALIFICADOR).');
+    }
+
     if (process.env.LEAD_SCORE_DESACTIVADO === 'true') {
       console.log('[lead-score] Desactivado por LEAD_SCORE_DESACTIVADO.');
       return;
