@@ -75,7 +75,7 @@ export const AGENTES_BASE: Record<AgenteId, AgenteBase> = {
     herramientas: [
       { nombre: 'leer_conversacion', descripcion: 'Lee los mensajes del cliente en el chat web, Instagram o Facebook.', fija: true },
       { nombre: 'guardar_calificacion', descripcion: 'Guarda pie, forma de pago, plazo, uso, objeciones y puntaje en la ficha.', fija: true },
-      { nombre: 'sumar_al_lead_score', descripcion: 'Suma "Tiene pie" al lead score cuando el cliente lo dice en el chat.' },
+      { nombre: 'sumar_al_lead_score', descripcion: 'Suma al lead score lo que el cliente dice en el chat: tiene pie (+6), quiere visitar (+10), compraría en menos de 3 meses (+8) y calificado (+6).' },
     ],
   },
   cierre: {

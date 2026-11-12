@@ -68,6 +68,11 @@ export const PUNTOS = {
   aperturaCorreo: 3,
   aperturaCorreoMax: 2,
   botonInteres: 4,
+  // Lo que el calificador IA le escuchó decir en el chat (Nicolás, 12-11-2026).
+  // Son interacción: decaen con el tiempo como el resto.
+  iaQuiereVisitar: 10,
+  iaPlazoCorto: 8,
+  iaCalificado: 6,
 } as const;
 
 const TOPE_PERFIL = 10;
@@ -141,6 +146,14 @@ export type Senales = {
   clicsCorreo: Date[];
   web: EventoWeb[];
   mensajes: { fecha: Date; plataforma: string | null }[];
+  /** Señales del calificador IA (ia_calificacion), con la fecha en que las detectó. */
+  ia?: SenalesIA;
+};
+
+export type SenalesIA = {
+  quiereVisitar: Date | null;
+  plazoCorto: Date | null;
+  calificado: Date | null;
 };
 
 export type ResultadoScore = {
@@ -366,6 +379,11 @@ export function calcularScore(
     sumar(PUNTOS.botonInteres, botones[0].fecha, `Clic en "${nombre}" ${haceCuanto(botones[0].fecha, ahora)}`);
   }
 
+  const ia = senales.ia;
+  if (ia?.quiereVisitar) sumar(PUNTOS.iaQuiereVisitar, ia.quiereVisitar, 'Quiere visitar (lo dijo en el chat)');
+  if (ia?.plazoCorto) sumar(PUNTOS.iaPlazoCorto, ia.plazoCorto, 'Compraría en menos de 3 meses (lo dijo en el chat)');
+  if (ia?.calificado) sumar(PUNTOS.iaCalificado, ia.calificado, 'Calificado por la IA');
+
   // Las visitas web sin puntos igual cuentan como última interacción.
   for (const e of web) fechas.push(e.fecha);
 
@@ -543,10 +561,17 @@ export async function recalcularScores() {
   }
 
   // Pie que el cliente dijo en el chat (calificador IA): cuenta como el del formulario.
-  const { leadsConPieSegunIA } = await import('./calificador_ia');
+  const { leadsConPieSegunIA, senalesIAPorLead } = await import('./calificador_ia');
   for (const id of await leadsConPieSegunIA()) {
     const lead = leads.get(id);
     if (lead && !respondioQueSi(lead.pie)) lead.pie = 'Sí (dicho en el chat)';
+  }
+  // Quiere visitar, plazo corto y calificado: suman como interacción.
+  for (const [id, ia] of Array.from((await senalesIAPorLead()).entries())) {
+    if (!leads.has(id)) continue;
+    let s = senales.get(id);
+    if (!s) senales.set(id, (s = vacias()));
+    s.ia = ia;
   }
 
   const previos = await queryMain(`SELECT lead_id, banda FROM public.lead_score`);

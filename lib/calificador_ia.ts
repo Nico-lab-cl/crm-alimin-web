@@ -218,6 +218,11 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
           Math.max(0, Math.min(100, Math.round(f.puntaje || 0))), String(f.resumen || '').slice(0, 600), c.ultimo,
         ]
       );
+      if (c.lead_id) {
+        await escribirEnFicha(c.lead_id, c.platform, f).catch((error) =>
+          console.error(`[calificador] No se pudo escribir en la ficha del lead ${c.lead_id}:`, error)
+        );
+      }
       resultado.calificadas++;
     } catch (error) {
       resultado.errores++;
@@ -225,6 +230,104 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
     }
   }
   return resultado;
+}
+
+const USO: Record<string, string> = { vivir: 'para vivir', veraneo: 'para veranear', inversion: 'como inversión' };
+const CANAL: Record<string, string> = { web: 'chat web', instagram: 'Instagram', facebook: 'Facebook' };
+/** Marca de las notas del calificador en lead_seguimientos (resultado). No cuentan como seguimiento de un asesor. */
+export const RESULTADO_IA = 'IA';
+/** Una nota de la IA por lead cada este rato: si vuelve a calificar antes, actualiza la misma. */
+const HORAS_POR_NOTA = 12;
+
+/**
+ * Lo que aprendió el calificador, en la ficha del lead para que el asesor lo
+ * vea (Nicolás, 12-11-2026: "sí, sin pisar nada"). Llena el pie y el interés
+ * solo si están vacíos y deja el resumen como nota del historial, marcada
+ * como de la IA. Nunca cambia lo que escribió un asesor.
+ */
+async function escribirEnFicha(leadId: string, canal: string, f: Calificacion) {
+  const pie =
+    f.tiene_pie === 'si'
+      ? f.pie_monto > 0
+        ? `$${Math.round(f.pie_monto).toLocaleString('es-CL')} (dicho en el chat)`
+        : 'Sí (dicho en el chat)'
+      : null;
+  const proyecto = f.proyecto && f.proyecto !== NO_DICE ? f.proyecto : null;
+  const interes = [proyecto, USO[f.uso]].filter(Boolean).join(' ') || null;
+
+  await queryMain(
+    `UPDATE "Lead"
+        SET pie = CASE WHEN COALESCE(trim(pie), '') = '' AND $2::text IS NOT NULL THEN $2 ELSE pie END,
+            interests = CASE WHEN COALESCE(trim(interests), '') = '' AND $3::text IS NOT NULL THEN $3 ELSE interests END
+      WHERE id = $1`,
+    [leadId, pie, interes]
+  );
+
+  const resumen = String(f.resumen || '').trim();
+  if (!resumen) return;
+  const nota = `Calificador IA (${CANAL[canal] || canal}, ${f.categoria}): ${resumen}`.slice(0, 700);
+  const actualizada = await queryMain(
+    `UPDATE lead_seguimientos SET nota = $2, created_at = LOCALTIMESTAMP
+      WHERE id = (SELECT id FROM lead_seguimientos
+                   WHERE lead_id = $1 AND resultado = $3 AND usuario_id IS NULL
+                     AND created_at > LOCALTIMESTAMP - make_interval(hours => $4::int)
+                   ORDER BY created_at DESC LIMIT 1)`,
+    [leadId, nota, RESULTADO_IA, HORAS_POR_NOTA]
+  );
+  if (!actualizada.rowCount) {
+    await queryMain(
+      `INSERT INTO lead_seguimientos (lead_id, usuario_id, tipo, resultado, nota) VALUES ($1, NULL, 'NOTA', $2, $3)`,
+      [leadId, RESULTADO_IA, nota]
+    );
+  }
+}
+
+/**
+ * Señales del calificador que suman al lead score como interacción: quiere
+ * visitar, compraría en menos de 3 meses y calificado. Con la fecha en que se
+ * detectaron para que decaigan. Solo con "sumar_al_lead_score" prendida.
+ */
+export async function senalesIAPorLead(): Promise<Map<string, { quiereVisitar: Date | null; plazoCorto: Date | null; calificado: Date | null }>> {
+  const resultado = new Map<string, { quiereVisitar: Date | null; plazoCorto: Date | null; calificado: Date | null }>();
+  try {
+    await asegurarTablas();
+    const agente = await obtenerAgente('calificador');
+    const prendida = agente?.activo && agente.herramientas.find((h) => h.nombre === 'sumar_al_lead_score')?.activa;
+    if (!prendida) return resultado;
+    const r = await queryMarketing(
+      `SELECT lead_id,
+              max(updated_at) FILTER (WHERE quiere_visitar IS TRUE) AS quiere_visitar,
+              max(updated_at) FILTER (WHERE plazo_compra = 'menos_de_3_meses') AS plazo_corto,
+              max(updated_at) FILTER (WHERE categoria = 'calificado') AS calificado
+         FROM ia_calificacion WHERE lead_id IS NOT NULL GROUP BY lead_id`
+    );
+    const fecha = (v: unknown) => (v ? new Date(v as string) : null);
+    for (const x of r.rows) {
+      const s = { quiereVisitar: fecha(x.quiere_visitar), plazoCorto: fecha(x.plazo_corto), calificado: fecha(x.calificado) };
+      if (s.quiereVisitar || s.plazoCorto || s.calificado) resultado.set(x.lead_id, s);
+    }
+  } catch (error) {
+    console.error('[calificador] No se pudieron leer las señales para el lead score:', error);
+  }
+  return resultado;
+}
+
+/**
+ * Lo que el calificador sabe de una persona, para la memoria de Ali (webhook
+ * /api/webhooks/ia/calificacion). Por lead si lo hay; si no, por conversación.
+ */
+export async function calificacionesDe({ leadId, conversacionId }: { leadId?: string | null; conversacionId?: string | null }) {
+  if (!leadId && !conversacionId) return [];
+  await asegurarTablas();
+  const r = await queryMarketing(
+    `SELECT canal, tiene_pie, pie_monto, forma_pago, plazo_compra, uso, proyecto, quiere_visitar,
+            objeciones, categoria, puntaje, resumen, updated_at
+       FROM ia_calificacion
+      WHERE ($1::text IS NOT NULL AND lead_id = $1) OR ($2::text IS NOT NULL AND conversacion_id = $2)
+      ORDER BY updated_at DESC LIMIT 3`,
+    [leadId || null, conversacionId || null]
+  );
+  return r.rows;
 }
 
 let corriendo = false;
