@@ -650,6 +650,68 @@ export async function conteoConocimiento() {
   return conteo;
 }
 
+/* ── Métricas de Ali por canal ────────────────────────────────────────── */
+
+export interface MetricaCanal {
+  canal: 'web' | 'instagram' | 'facebook';
+  conversaciones: number;
+  conTelefono: number;
+  leads: number;
+  visitas: number;
+}
+
+const FUENTE_LEADS: Record<MetricaCanal['canal'], string> = {
+  web: 'Chat web aliminspa.cl',
+  instagram: 'Instagram - IA',
+  facebook: 'Facebook - IA',
+};
+
+/**
+ * Conversaciones que atendió Ali, % con teléfono, leads que creó y
+ * conversaciones con visita, en los últimos `dias`. Misma definición que
+ * lib/metricasIA.ts del CRM móvil (resumen del grupo): si cambia una, cambiar la otra.
+ */
+export async function metricasCanales(dias = 7): Promise<MetricaCanal[]> {
+  const conv = await queryMain(
+    `WITH atendidas AS (
+       SELECT DISTINCT c.id, c.platform, c."leadId"
+         FROM "Conversation" c
+         JOIN "Message" m ON m."conversationId" = c.id
+        WHERE c.platform IN ('web', 'instagram', 'facebook')
+          AND m."senderType" = 'ali' AND m."sourceType" IN ('DIRECT', 'HANDOFF')
+          AND (m."createdAt" AT TIME ZONE 'UTC') >= now() - make_interval(days => $1)
+     )
+     SELECT a.platform,
+            COUNT(*)::int AS conversaciones,
+            COUNT(*) FILTER (WHERE COALESCE(l.phone, '') <> '')::int AS con_telefono,
+            COUNT(*) FILTER (
+              WHERE l."bookingId" IS NOT NULL
+                 OR EXISTS (SELECT 1 FROM "Message" e WHERE e."conversationId" = a.id
+                              AND e."sourceType" = 'EVENTO' AND e.text LIKE '📅 Ali agendó%')
+            )::int AS visitas
+       FROM atendidas a
+       LEFT JOIN "Lead" l ON l.id = a."leadId"
+      GROUP BY a.platform`,
+    [dias]
+  );
+  const leads = await queryMain(
+    `SELECT source, COUNT(*)::int AS n FROM "Lead"
+      WHERE source = ANY($1) AND ("createdAt" AT TIME ZONE 'UTC') >= now() - make_interval(days => $2)
+      GROUP BY source`,
+    [Object.values(FUENTE_LEADS), dias]
+  );
+  return (['web', 'instagram', 'facebook'] as const).map((canal) => {
+    const c = conv.rows.find((x) => x.platform === canal);
+    return {
+      canal,
+      conversaciones: c?.conversaciones ?? 0,
+      conTelefono: c?.con_telefono ?? 0,
+      leads: leads.rows.find((x) => x.source === FUENTE_LEADS[canal])?.n ?? 0,
+      visitas: c?.visitas ?? 0,
+    };
+  });
+}
+
 /** Últimas calificaciones, para el panel del calificador. */
 export async function ultimasCalificaciones(limite = 20) {
   await asegurarTablas();

@@ -169,6 +169,18 @@ export const CONOCIMIENTO_INICIAL: FilaInicial[] = [
     orden: 110,
   },
   {
+    tipo: 'regla',
+    tema: 'Protocolo de comentarios difíciles',
+    como_lo_dice: '"Estafadores", "es mentira lo del rol", insultos, reclamos públicos.',
+    respuesta: '',
+    menciones: 142,
+    fuente: 'Pendiente (Nico, 11-11-2026)',
+    nota:
+      'Por ahora Ali no responde estos comentarios ni en público ni por privado: deja una nota para que lo vea una persona. Falta definir: ¿se responde en público?, ¿con qué texto?, ¿se oculta?, ¿quién lo revisa?',
+    agentes: ATRACCION,
+    orden: 115,
+  },
+  {
     tipo: 'dato',
     tema: 'Gastos comunes',
     como_lo_dice: '¿Se pagan gastos comunes?',

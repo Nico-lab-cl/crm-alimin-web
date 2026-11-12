@@ -16,6 +16,7 @@ import '@xyflow/react/dist/style.css';
 import { Bot, BookOpen, Loader2, RefreshCcw, Wrench, X, Globe, Camera, MessagesSquare, Mail, MessageCircle, Users, Save } from 'lucide-react';
 import PanelAgente from './PanelAgente';
 import Conocimiento from './Conocimiento';
+import MetricasCanales from './MetricasCanales';
 import { modeloCorto, pedir, usd, type Agente, type AgenteId, type Gasto, type Precio } from './tipos';
 
 interface Datos {
@@ -169,7 +170,7 @@ export default function AgentesIA() {
 
   const aristas = useMemo<Edge[]>(
     () => [
-      { id: 'c-a', source: 'canales', target: 'atraccion', label: 'mensaje nuevo', animated: true, markerEnd: flecha, ...etiqueta },
+      { id: 'c-a', source: 'canales', target: 'atraccion', label: 'conversa y pide datos', animated: true, markerEnd: flecha, ...etiqueta },
       { id: 'a-q', source: 'atraccion', target: 'calificador', label: 'en silencio', animated: true, markerEnd: flecha, ...etiqueta },
       { id: 'q-c', source: 'calificador', target: 'cierre', label: 'visitó · se enfrió', markerEnd: flecha, style: { strokeDasharray: '6 4' }, ...etiqueta },
       { id: 'c-h', source: 'cierre', target: 'asesores', label: 'negociación', markerEnd: flecha, style: { strokeDasharray: '6 4' }, ...etiqueta },
@@ -268,7 +269,7 @@ export default function AgentesIA() {
         <div className="rounded-xl border border-[#cbd6e2] bg-white p-5">
           <p className="font-bold text-[#33475b] flex items-center gap-2"><Wrench className="w-4 h-4" /> Cómo se pasan la pelota</p>
           <ul className="text-sm text-[#516f90] mt-2 space-y-1.5 list-disc pl-5">
-            <li><b>Ali</b> responde por chat web, Instagram y Facebook, y agenda la visita.</li>
+            <li><b>Ali</b> responde por chat web, Instagram y Facebook y agenda la visita. En Instagram y Facebook pide nombre, teléfono y correo, y con eso se crea el lead (origen «Instagram - IA» o «Facebook - IA»).</li>
             <li>El <b>Calificador</b> lee cada conversación sin escribirle al cliente y deja en la ficha pie, plazo, uso y puntaje.</li>
             <li>El <b>Cierre</b> (en construcción) retoma a los que visitaron, a los indecisos y a los que quieren reservar.</li>
             <li>Los <b>asesores</b> guían la visita y reciben reclamos, postventa y lo que la IA no puede resolver.</li>
@@ -276,6 +277,8 @@ export default function AgentesIA() {
         </div>
         {g && <Precios precios={g.precios} fecha={g.preciosFecha} onGuardado={cargar} />}
       </div>
+
+      <MetricasCanales />
 
       {agenteAbierto && (
         <PanelAgente agente={agenteAbierto} gasto={g || null} onCerrar={() => setAbierto(null)} onGuardado={cargar} />
