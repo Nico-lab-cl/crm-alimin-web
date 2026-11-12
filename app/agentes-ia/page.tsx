@@ -269,7 +269,8 @@ export default function AgentesIA() {
         <div className="rounded-xl border border-[#cbd6e2] bg-white p-5">
           <p className="font-bold text-[#33475b] flex items-center gap-2"><Wrench className="w-4 h-4" /> Cómo se pasan la pelota</p>
           <ul className="text-sm text-[#516f90] mt-2 space-y-1.5 list-disc pl-5">
-            <li><b>Ali</b> responde por chat web, Instagram y Facebook y agenda la visita. En Instagram y Facebook pide nombre, teléfono y correo, y con eso se crea el lead (origen «Instagram - IA» o «Facebook - IA»).</li>
+            <li><b>Ali</b> responde por chat web, Instagram y Facebook y agenda la visita. A quien comenta se le manda el brochure por privado y los precios en público; quien escribe por inbox conversa con Ali desde el primer mensaje, sin enlaces. Ali pide nombre, teléfono y correo y crea el lead («Instagram - IA» o «Facebook - IA») a cargo de Nicolás, con aviso al grupo de leads.</li>
+            <li>El lead de Ali <b>pasa a un asesor</b> de la rueda, con aviso, al llegar a 28 puntos de lead score, al agendar una visita o si pide una persona.</li>
             <li>El <b>Calificador</b> lee cada conversación sin escribirle al cliente y deja en la ficha pie, plazo, uso y puntaje.</li>
             <li>El <b>Cierre</b> (en construcción) retoma a los que visitaron, a los indecisos y a los que quieren reservar.</li>
             <li>Los <b>asesores</b> guían la visita y reciben reclamos, postventa y lo que la IA no puede resolver.</li>

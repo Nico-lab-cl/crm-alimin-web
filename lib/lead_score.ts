@@ -97,6 +97,13 @@ export const ASESORES_RUEDA = [
   '77cea468-b4a5-44e6-aaa5-0a3f376affb1', // Bárbara
 ];
 
+/**
+ * Leads que crea Ali en Instagram/Facebook. Mientras los atiende Ali son de
+ * Nicolás (no de la rueda), pero igual se puntúan: con 28 puntos el CRM móvil
+ * los pasa a un asesor (aliRedes.ts → revisarPasesAlAsesor).
+ */
+const FUENTES_ALI = ['Instagram - IA', 'Facebook - IA'];
+
 /** Orígenes de importaciones: la base antigua. */
 const FUENTES_IMPORTADAS = ['kommo', 'csv import', 'old-db', 'instagram', 'clientify'];
 
@@ -519,8 +526,8 @@ export async function recalcularScores() {
       WHERE "createdAt" >= $1
         AND lower(COALESCE(source, '')) <> ALL($2)
         AND upper(COALESCE(status, '')) <> ALL($3)
-        AND "assignedToId" = ANY($4)`,
-    [LEADS_DESDE, FUENTES_IMPORTADAS, ESTADOS_CLIENTE, ASESORES_RUEDA]
+        AND ("assignedToId" = ANY($4) OR source = ANY($5))`,
+    [LEADS_DESDE, FUENTES_IMPORTADAS, ESTADOS_CLIENTE, ASESORES_RUEDA, FUENTES_ALI]
   );
   const leads = new Map<string, LeadParaScore>(vivos.rows.map((l: LeadParaScore) => [l.id, l]));
 
@@ -528,8 +535,9 @@ export async function recalcularScores() {
   for (let i = 0; i < conSenales.length; i += 5000) {
     const res = await queryMain(
       `SELECT ${COLUMNAS_LEAD} FROM "Lead"
-        WHERE id = ANY($1) AND upper(COALESCE(status, '')) <> ALL($2) AND "assignedToId" = ANY($3)`,
-      [conSenales.slice(i, i + 5000), ESTADOS_CLIENTE, ASESORES_RUEDA]
+        WHERE id = ANY($1) AND upper(COALESCE(status, '')) <> ALL($2)
+          AND ("assignedToId" = ANY($3) OR source = ANY($4))`,
+      [conSenales.slice(i, i + 5000), ESTADOS_CLIENTE, ASESORES_RUEDA, FUENTES_ALI]
     );
     for (const l of res.rows) leads.set(l.id, l);
   }
