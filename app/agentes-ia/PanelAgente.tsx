@@ -153,6 +153,11 @@ function Instrucciones({ agente, onGuardar }: { agente: Agente; onGuardar: (c: R
           Este agente todavía no corre: se puede ir escribiendo su criterio, pero no se puede encender.
         </p>
       )}
+      {agente.id === 'cierre' && (
+        <p className="text-xs text-[#516f90]">
+          Atiende el chat (web, Instagram y Facebook) de quien llegó a la visita y no ha reservado. Usa el mismo motor que Ali, con sus reglas de cierre que viven en el sitio; lo de aquí se suma encima. Cuando la persona quiere reservar, pasa al asesor. Si está apagado, esas personas las sigue atendiendo Ali.
+        </p>
+      )}
       {agente.id === 'atraccion' && (
         <p className="text-xs text-[#516f90]">
           Esto se suma a las reglas base de Ali que viven en el sitio (estilo, precios vigentes, lo que nunca dice). Si lo de aquí o una respuesta aprobada las contradice, Ali usa lo de aquí. Ali lo lee cada 5 minutos.

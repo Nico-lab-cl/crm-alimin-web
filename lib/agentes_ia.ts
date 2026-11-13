@@ -81,21 +81,16 @@ export const AGENTES_BASE: Record<AgenteId, AgenteBase> = {
   cierre: {
     id: 'cierre',
     nombre: 'Cierre',
-    rol: 'Hace el seguimiento después de la visita, rescata a los indecisos y manda el link de reserva o pago.',
+    rol: 'Atiende a quien ya llegó a la visita y no ha reservado: retoma la visita, resuelve dudas y objeciones y lo lleva a reservar con su asesor.',
     modelo: 'claude-haiku-5-5',
-    enConstruccion: true,
-    instrucciones: [
-      'En construcción. Tres casos:',
-      '- Visita realizada sin reserva: volver a escribir y resolver lo que quedó pendiente.',
-      '- Indeciso ("lo veo con mi pareja") o 3 días sin responder: retomar con una pregunta concreta.',
-      '- Quiere reservar: mandar el link de reserva o pago.',
-    ].join('\n'),
+    // Las reglas base están en el sitio (INSTRUCCIONES_CIERRE en conocimiento.ts);
+    // lo que se escriba aquí se suma encima, como con Ali.
+    instrucciones: '',
     herramientas: [
-      { nombre: 'enviar_correo', descripcion: 'Escribe por correo usando las secuencias existentes.' },
-      { nombre: 'responder_instagram_facebook', descripcion: 'Escribe por Instagram o Facebook dentro de la ventana de 24 h.' },
-      { nombre: 'enviar_link_reserva', descripcion: 'Manda el link de reserva o pago del pie. Falta definir cuál.' },
-      { nombre: 'agendar_visita', descripcion: 'Reagenda una visita que no se hizo.' },
-      { nombre: 'derivar_a_asesor', descripcion: 'Pasa la conversación al asesor.', fija: true },
+      { nombre: 'agendar_visita', descripcion: 'Agenda una segunda visita (por ejemplo, para venir con la pareja).' },
+      { nombre: 'horarios_disponibles', descripcion: 'Consulta los horarios libres para la segunda visita.' },
+      { nombre: 'lotes_disponibles', descripcion: 'Revisa qué terrenos quedan disponibles.' },
+      { nombre: 'derivar_a_asesor', descripcion: 'Pasa al asesor cuando quiere reservar o pide una persona.', fija: true },
     ],
   },
 };
@@ -210,6 +205,12 @@ export async function asegurarTablas() {
       [a.id, a.modelo, !a.enConstruccion, a.instrucciones, JSON.stringify(herramientas)]
     );
   }
+  // El agente de Cierre se creó "en construcción" con un texto de ejemplo y
+  // apagado (11-11-2026). Ese texto no son instrucciones: se limpia una vez
+  // para que no llegue al prompt. Sigue apagado hasta que el equipo lo prenda.
+  await queryMarketing(
+    `UPDATE ia_agentes SET instrucciones = '' WHERE id = 'cierre' AND instrucciones LIKE 'En construcción%'`
+  );
   for (const p of PRECIOS_BASE) {
     await queryMarketing(
       `INSERT INTO ia_precios (modelo, entrada, salida, cache_lectura, cache_escritura)

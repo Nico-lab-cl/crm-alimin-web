@@ -172,7 +172,7 @@ export default function AgentesIA() {
     () => [
       { id: 'c-a', source: 'canales', target: 'atraccion', label: 'conversa y pide datos', animated: true, markerEnd: flecha, ...etiqueta },
       { id: 'a-q', source: 'atraccion', target: 'calificador', label: 'en silencio', animated: true, markerEnd: flecha, ...etiqueta },
-      { id: 'q-c', source: 'calificador', target: 'cierre', label: 'visitó · se enfrió', markerEnd: flecha, style: { strokeDasharray: '6 4' }, ...etiqueta },
+      { id: 'q-c', source: 'calificador', target: 'cierre', label: 'llegó a la visita', markerEnd: flecha, style: { strokeDasharray: '6 4' }, ...etiqueta },
       { id: 'c-h', source: 'cierre', target: 'asesores', label: 'negociación', markerEnd: flecha, style: { strokeDasharray: '6 4' }, ...etiqueta },
       {
         id: 'a-h',
@@ -272,7 +272,7 @@ export default function AgentesIA() {
             <li><b>Ali</b> responde por chat web, Instagram y Facebook y agenda la visita. A quien comenta se le manda el brochure por privado y los precios en público; quien escribe por inbox conversa con Ali desde el primer mensaje, sin enlaces. Ali pide nombre, teléfono y correo y crea el lead («Instagram - IA» o «Facebook - IA») a cargo de Nicolás, sin avisos.</li>
             <li>El lead de Ali <b>pasa a un asesor</b> de la rueda, con aviso, al llegar a 28 puntos de lead score, al agendar una visita o si pide una persona.</li>
             <li>El <b>Calificador</b> lee cada conversación sin escribirle al cliente y deja en la ficha pie, plazo, uso y puntaje.</li>
-            <li>El <b>Cierre</b> (en construcción) retoma a los que visitaron, a los indecisos y a los que quieren reservar.</li>
+            <li>El <b>Cierre</b> atiende el chat de quien ya llegó a la visita y no reservó: resuelve dudas y objeciones y lo pasa al asesor para reservar.</li>
             <li>Los <b>asesores</b> guían la visita y reciben reclamos, postventa y lo que la IA no puede resolver.</li>
           </ul>
         </div>
