@@ -330,6 +330,24 @@ export async function calificacionesDe({ leadId, conversacionId }: { leadId?: st
   return r.rows;
 }
 
+/**
+ * Leads que el calificador marcó como "calificado" en las últimas horas, para
+ * avisarle al asesor a cargo (webhook /api/webhooks/ia/calificados, lo pide el
+ * CRM móvil cada 10 minutos). El CRM móvil decide a quién avisar y no repite.
+ */
+export async function calificadosRecientes(horas: number) {
+  await asegurarTablas();
+  const r = await queryMarketing(
+    `SELECT DISTINCT ON (lead_id) lead_id, canal, proyecto, resumen, puntaje, updated_at
+       FROM ia_calificacion
+      WHERE categoria = 'calificado' AND lead_id IS NOT NULL
+        AND updated_at > now() - make_interval(hours => $1::int)
+      ORDER BY lead_id, updated_at DESC`,
+    [Math.max(1, Math.min(48, Math.round(horas)))]
+  );
+  return r.rows;
+}
+
 let corriendo = false;
 export async function pasadaCalificadorSinSolapar(opciones?: { forzar?: boolean; limite?: number }) {
   if (corriendo) return { revisadas: 0, calificadas: 0, errores: 0, costoUSD: 0, motivo: 'Ya hay una pasada corriendo' };
