@@ -848,29 +848,25 @@ function puedeRecibirCorreo(l: LeadFila): boolean {
  * primer correo corre desde esa fecha y no desde el cambio de etapa.
  */
 async function candidatosPostVisita(): Promise<Candidato[]> {
-  // Solo quien LLEGÓ a la visita (12-11-2026). "visited" se marca al agendar:
-  // el dato real es la marca del asesor en la app (lead_seguimientos, tipo
-  // VISITA; ver visitaRealizada.ts del CRM móvil). Sin marca, se asume que
-  // llegó 24 h después de la hora de la visita. Cuenta desde que se supo.
+  // Solo quien el asesor marcó que LLEGÓ a la visita (lead_seguimientos, tipo
+  // VISITA, "Llegó a la visita"; ver visitaRealizada.ts del CRM móvil).
+  // "visited" se marca al agendar y no sirve. Sin marca no se asume nada
+  // (Nicolás, 14-11-2026: "mejor que no asuma"). Cuenta desde la marca.
   const res = await queryMain(
-    `SELECT ${COLUMNAS_LEAD},
-            COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours') AS realizada
+    `SELECT ${COLUMNAS_LEAD}, llego.cuando AS realizada
        FROM "Lead" l
-       LEFT JOIN LATERAL (
+       JOIN LATERAL (
          SELECT max(s.created_at AT TIME ZONE 'UTC') AS cuando FROM lead_seguimientos s
           WHERE s.lead_id = l.id AND s.tipo = 'VISITA' AND s.resultado = 'Llegó a la visita'
             AND s.created_at >= l."visitDate" - interval '3 hours'
-       ) llego ON true
+       ) llego ON llego.cuando IS NOT NULL
       WHERE upper(COALESCE(l.status, '')) = 'VISITA'
         AND l."visitDate" IS NOT NULL
-        AND (l."visitDate" AT TIME ZONE 'UTC') < now()
         AND NOT EXISTS (
           SELECT 1 FROM lead_seguimientos s
            WHERE s.lead_id = l.id AND s.tipo = 'VISITA' AND s.resultado = 'No llegó a la visita'
-             AND s.created_at >= l."visitDate" - interval '3 hours')
-        AND COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours') <= now()
-        AND COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours')
-            > now() - make_interval(hours => $1)`,
+             AND (s.created_at AT TIME ZONE 'UTC') > llego.cuando)
+        AND llego.cuando > now() - make_interval(hours => $1)`,
     [CAPTURA_NUEVO_HORAS]
   );
   return res.rows
