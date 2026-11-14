@@ -97,7 +97,11 @@ async function contextoDelLead(leadId: string) {
   if (!l) return null;
 
   const lineas: string[] = [];
-  if (l.visita) lineas.push(`Visitó ${l.visitProject || 'el proyecto'} el ${fecha(new Date(l.visita))}.`);
+  // Con el día de la semana escrito: sin él, la IA lo adivinaba (y erraba).
+  if (l.visita) {
+    const dia = new Date(l.visita).toLocaleDateString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'long' });
+    lineas.push(`Visitó ${l.visitProject || 'el proyecto'} el ${dia}.`);
+  }
   // Solo lotes con número: en el CRM hay lotes como "H" o "B" que no son el
   // número del lote y la IA los citaba tal cual (prueba del 14-11-2026).
   if (l.lote && /\d/.test(String(l.lote))) {
