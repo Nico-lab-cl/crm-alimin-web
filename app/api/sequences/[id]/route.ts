@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryMarketing } from '@/lib/db';
 import { leerSecuencias, pasosSinCorreo, tieneEnlaceWeb } from '@/lib/email_sequences';
+import { esCampanaIA } from '@/lib/correo_cierre_ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +77,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         ]);
         const sinEnlace = actual.pasos.filter((p) => {
           const c = correos.rows.find((x) => x.id === p.campaign_id);
+          // Los pasos de la IA de Cierre se escriben al enviar y llevan el
+          // botón de WhatsApp (correo_cierre_ia.ts): el marcador no tiene link.
+          if (esCampanaIA(c)) return false;
           return !c || !tieneEnlaceWeb(c.html_content);
         });
         if (sinEnlace.length > 0) {

@@ -8,6 +8,7 @@ import {
   pasosSinCorreo,
   tieneEnlaceWeb,
 } from '@/lib/email_sequences';
+import { esCampanaIA } from '@/lib/correo_cierre_ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,11 @@ export async function GET() {
         })),
       })),
       // El HTML no viaja al panel: solo si tiene enlace.
-      campanas: campanas.rows.map(({ html_content, ...c }) => ({ ...c, conEnlace: tieneEnlaceWeb(html_content) })),
+      // Los pasos de la IA de Cierre se arman al enviar, con botón de WhatsApp.
+      campanas: campanas.rows.map(({ html_content, ...c }) => ({
+        ...c,
+        conEnlace: esCampanaIA(c) || tieneEnlaceWeb(html_content),
+      })),
       fueraDeMasivos: sunset.rows[0]?.n || 0,
       recientes: recientes.rows,
     });
