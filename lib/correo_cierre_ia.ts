@@ -98,10 +98,15 @@ async function contextoDelLead(leadId: string) {
 
   const lineas: string[] = [];
   if (l.visita) lineas.push(`Visitó ${l.visitProject || 'el proyecto'} el ${fecha(new Date(l.visita))}.`);
-  if (l.lote) lineas.push(`Lote que le interesó: ${corto(l.lote, 40)}${l.etapa ? `, etapa ${corto(l.etapa, 20)}` : ''}.`);
+  // Solo lotes con número: en el CRM hay lotes como "H" o "B" que no son el
+  // número del lote y la IA los citaba tal cual (prueba del 14-11-2026).
+  if (l.lote && /\d/.test(String(l.lote))) {
+    lineas.push(`Lote que le interesó: ${corto(l.lote, 40)}${l.etapa && /\d/.test(String(l.etapa)) ? `, etapa ${corto(l.etapa, 20)}` : ''}.`);
+  }
   if (l.interests) lineas.push(`Intereses: ${corto(l.interests, 160)}.`);
   if (l.pie) lineas.push(`Pie: ${corto(l.pie, 60)}.`);
-  if (l.notes) lineas.push(`Notas del asesor: ${corto(l.notes, 300)}`);
+  // La nota automática de la visita ("Visita programada: … - Lote H, Etapa H") ya está arriba.
+  if (l.notes && !/^Visita programada/i.test(String(l.notes))) lineas.push(`Notas del asesor: ${corto(l.notes, 300)}`);
 
   const calif = await queryMarketing(
     `SELECT proyecto, forma_pago, plazo_compra, uso, objeciones, resumen FROM ia_calificacion
