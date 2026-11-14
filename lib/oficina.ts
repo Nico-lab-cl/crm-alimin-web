@@ -49,3 +49,25 @@ export function calificadorDice(c: { quiere_visitar: string; plazo_compra: strin
 export function calificadorDescansa() {
   enviar('/api/heartbeat', { agent: 'calificador', name: 'Calificador', state: 'idle', task: null });
 }
+
+// --- Investigadores (Ali - Competencia, Ali - Anuncios, Ali - Mercado) ---
+// Investigan la web pública: los avisos dicen qué encontraron, sin datos de clientes.
+
+export type InvestigadorOficina = 'competencia' | 'anuncios' | 'mercado';
+const NOMBRE_INVESTIGADOR: Record<InvestigadorOficina, string> = {
+  competencia: 'Ali - Competencia',
+  anuncios: 'Ali - Anuncios',
+  mercado: 'Ali - Mercado',
+};
+
+export function investigadorTrabaja(agente: InvestigadorOficina, tarea: string) {
+  enviar('/api/heartbeat', { agent: agente, name: NOMBRE_INVESTIGADOR[agente], state: 'working', task: tarea.slice(0, 120) });
+}
+
+export function investigadorDice(agente: InvestigadorOficina, mensaje: string) {
+  enviar('/api/act', { agent: agente, action: { type: 'speak', message: mensaje.slice(0, 160) } });
+}
+
+export function investigadorDescansa(agente: InvestigadorOficina) {
+  enviar('/api/heartbeat', { agent: agente, name: NOMBRE_INVESTIGADOR[agente], state: 'idle', task: null });
+}

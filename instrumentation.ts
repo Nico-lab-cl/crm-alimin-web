@@ -65,6 +65,27 @@ export async function register() {
       console.log('[calificador] Apagado (falta CALIFICADOR_ACTIVO=true o ANTHROPIC_API_KEY_CALIFICADOR).');
     }
 
+    // Investigadores (lib/investigacion): Competencia 08:00 y Mercado 08:30
+    // todos los días, informe semanal con IA los lunes. Se apaga con
+    // INVESTIGACION_ACTIVA=false.
+    const { investigacionActiva, pasadaInvestigacion } = await import('./lib/investigacion/investigacion');
+    if (investigacionActiva()) {
+      const investigar = async () => {
+        try {
+          const hechos = await pasadaInvestigacion();
+          if (hechos.length) console.log(`[investigacion] Listo: ${hechos.join(', ')}.`);
+        } catch (error) {
+          // Nunca se relanza: mataría el temporizador hasta el próximo reinicio.
+          console.error('[investigacion] Falló la pasada:', error);
+        }
+      };
+      setTimeout(investigar, PRIMERA_PASADA_MS * 4).unref?.();
+      setInterval(investigar, 15 * 60 * 1000).unref?.();
+      console.log('[investigacion] Activa: revisión cada 15 minutos.');
+    } else {
+      console.log('[investigacion] Apagada por INVESTIGACION_ACTIVA=false.');
+    }
+
     if (process.env.LEAD_SCORE_DESACTIVADO === 'true') {
       console.log('[lead-score] Desactivado por LEAD_SCORE_DESACTIVADO.');
       return;
