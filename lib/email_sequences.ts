@@ -37,6 +37,7 @@
 
 import { queryMain, queryMarketing } from './db';
 import { ESTADOS_CLIENTE } from './lead_score';
+import { correoCierreParaLead, esCampanaIA } from './correo_cierre_ia';
 import {
   agregarUtm,
   appendUnsubscribeFooter,
@@ -475,6 +476,9 @@ export async function asegurarTablas() {
   await agregarPasosEbook();
   const { prepararSecuenciasEbook } = await import('./correos_secuencias_ebook');
   await prepararSecuenciasEbook();
+  // Post-visita: los 4 correos los escribe la IA de Cierre (correo_cierre_ia.ts).
+  const { prepararPostVisitaIA } = await import('./correo_cierre_ia');
+  await prepararPostVisitaIA();
   tablasListas = true;
 }
 
@@ -844,19 +848,34 @@ function puedeRecibirCorreo(l: LeadFila): boolean {
  * primer correo corre desde esa fecha y no desde el cambio de etapa.
  */
 async function candidatosPostVisita(): Promise<Candidato[]> {
+  // Solo quien LLEGÓ a la visita (12-11-2026). "visited" se marca al agendar:
+  // el dato real es la marca del asesor en la app (lead_seguimientos, tipo
+  // VISITA; ver visitaRealizada.ts del CRM móvil). Sin marca, se asume que
+  // llegó 24 h después de la hora de la visita. Cuenta desde que se supo.
   const res = await queryMain(
-    `SELECT ${COLUMNAS_LEAD}, ("etapaDesde" AT TIME ZONE 'UTC') AS etapa_desde FROM "Lead"
-      WHERE upper(COALESCE(status, '')) = 'VISITA'
-        AND "etapaDesde" IS NOT NULL
-        AND ("etapaDesde" AT TIME ZONE 'UTC') > now() - make_interval(hours => $1)`,
+    `SELECT ${COLUMNAS_LEAD},
+            COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours') AS realizada
+       FROM "Lead" l
+       LEFT JOIN LATERAL (
+         SELECT max(s.created_at AT TIME ZONE 'UTC') AS cuando FROM lead_seguimientos s
+          WHERE s.lead_id = l.id AND s.tipo = 'VISITA' AND s.resultado = 'Llegó a la visita'
+            AND s.created_at >= l."visitDate" - interval '3 hours'
+       ) llego ON true
+      WHERE upper(COALESCE(l.status, '')) = 'VISITA'
+        AND l."visitDate" IS NOT NULL
+        AND (l."visitDate" AT TIME ZONE 'UTC') < now()
+        AND NOT EXISTS (
+          SELECT 1 FROM lead_seguimientos s
+           WHERE s.lead_id = l.id AND s.tipo = 'VISITA' AND s.resultado = 'No llegó a la visita'
+             AND s.created_at >= l."visitDate" - interval '3 hours')
+        AND COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours') <= now()
+        AND COALESCE(llego.cuando, ("visitDate" AT TIME ZONE 'UTC') + interval '24 hours')
+            > now() - make_interval(hours => $1)`,
     [CAPTURA_NUEVO_HORAS]
   );
   return res.rows
     .filter((l: LeadFila) => puedeRecibirCorreo(l))
-    .map((l: LeadFila & { etapa_desde: Date }) => {
-      const desde = Math.max(new Date(l.etapa_desde).getTime(), l.visita ? new Date(l.visita).getTime() : 0);
-      return { lead: l, proyecto: proyectoDe(l), desde: new Date(desde) };
-    });
+    .map((l: LeadFila & { realizada: Date }) => ({ lead: l, proyecto: proyectoDe(l), desde: new Date(l.realizada) }));
 }
 
 /** Descargas del ebook en aliminspa.cl (el sitio manda EBOOK_DOWNLOAD ya identificado). */
@@ -1420,12 +1439,33 @@ async function enviarPendientes(secuencias: SecuenciaFila[]): Promise<{ enviados
       continue;
     }
 
+    // Post-visita: el correo lo escribe la IA de Cierre para esta persona
+    // (correo_cierre_ia.ts). Si el sitio no responde, se reintenta en 2 h.
+    let aEnviar = campana;
+    let pasoAEnviar = paso;
+    if (esCampanaIA(campana)) {
+      const generado = await correoCierreParaLead(
+        e.lead_id,
+        { posicion: paso.posicion, total: s.pasos.length },
+        s.proyecto
+      ).catch((error) => {
+        console.error(`[secuencias] La IA de Cierre no pudo escribir el correo de ${e.email}:`, error);
+        return null;
+      });
+      if (!generado) {
+        await correr(e.id, new Date(Date.now() + 2 * 3600 * 1000));
+        continue;
+      }
+      aEnviar = { ...campana, subject: generado.asunto, html_content: generado.html, mjml_content: null };
+      pasoAEnviar = { ...paso, asunto: generado.asunto, preheader: generado.preheader || null };
+    }
+
     try {
       const ok = await enviarPaso(
-        campana,
+        aEnviar,
         { id: e.lead_id, email: e.email, nombre: fresco.firstName },
         { campaign: s.clave, content: `paso-${paso.posicion}` },
-        paso,
+        pasoAEnviar,
         indice++ % 5
       );
       yaEnEstaPasada.add(e.lead_id);
