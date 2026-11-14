@@ -85,7 +85,7 @@ function proyectos(): string {
       '200 m² · Últimos terrenos',
       'Pie de <b>$20.000.000</b>',
       'Cuotas de <b>$500.000</b>',
-      'Entrega inmediata, a 8 minutos de la playa',
+      'Entrega a fines de 2026, a 8 minutos de la playa',
     ])}
   </tr></table>`;
 }
