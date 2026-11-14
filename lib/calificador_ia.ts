@@ -158,6 +158,7 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
 
   const lista = (await candidatas()).slice(0, Math.max(1, Math.min(limite, MAX_POR_PASADA)));
   const resultado: ResultadoCalificador = { ...vacio, revisadas: lista.length };
+  const conRespaldo = !/haiku/i.test(agente.modelo);
 
   for (const c of lista) {
     try {
@@ -168,8 +169,9 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
       const respuesta = await anthropic().beta.messages.create({
         model: agente.modelo,
         max_tokens: 4000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
+        // Haiku 5.5 no tiene modelo de respaldo: si se le pide, la API responde
+        // 400 (pasó al cambiarlo a Haiku desde el panel, 14-11-2026).
+        ...(conRespaldo ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         system: [{ type: 'text', text: sistema, cache_control: { type: 'ephemeral' } }],
         output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA as unknown as Record<string, unknown> } },
         messages: [{ role: 'user', content: `Canal: ${c.platform}\n\nConversación:\n${texto}` }],
