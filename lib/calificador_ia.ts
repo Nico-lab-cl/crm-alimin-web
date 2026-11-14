@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { queryMain, queryMarketing } from '@/lib/db';
 import { asegurarTablas, listarConocimiento, obtenerAgente, registrarUso } from '@/lib/agentes_ia';
+import { calificadorDescansa, calificadorDice, calificadorTrabaja } from '@/lib/oficina';
 
 /**
  * Calificador: lee en silencio las conversaciones del chat web, Instagram y
@@ -163,6 +164,7 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
       const texto = await transcripcion(c.id);
       if (!texto.trim()) continue;
 
+      calificadorTrabaja(c.platform);
       const respuesta = await anthropic().beta.messages.create({
         model: agente.modelo,
         max_tokens: 4000,
@@ -224,11 +226,13 @@ export async function pasadaCalificador({ forzar = false, limite = MAX_POR_PASAD
         );
       }
       resultado.calificadas++;
+      calificadorDice(f);
     } catch (error) {
       resultado.errores++;
       console.error(`[calificador] Falló la conversación ${c.id}:`, error);
     }
   }
+  if (lista.length) setTimeout(calificadorDescansa, 6000);
   return resultado;
 }
 
