@@ -86,6 +86,27 @@ export async function register() {
       console.log('[investigacion] Apagada por INVESTIGACION_ACTIVA=false.');
     }
 
+    // Director de la Oficina IA (lib/oficina_director.ts): cada 15 minutos de
+    // día, Haiku decide qué piensan y de qué conversan los agentes en la
+    // oficina. Se apaga con OFICINA_DIRECTOR_ACTIVO=false.
+    const { directorActivo, pasadaDirectorSiToca } = await import('./lib/oficina_director');
+    if (directorActivo()) {
+      const dirigir = async () => {
+        try {
+          const r = await pasadaDirectorSiToca();
+          if (r) console.log(`[oficina] Director: ${r.charlas} charlas, ${r.notas} notas, US$${r.costoUSD.toFixed(5)}.`);
+        } catch (error) {
+          // Nunca se relanza: mataría el temporizador hasta el próximo reinicio.
+          console.error('[oficina] Falló el director:', error);
+        }
+      };
+      setTimeout(dirigir, PRIMERA_PASADA_MS * 2).unref?.();
+      setInterval(dirigir, 60 * 1000).unref?.();
+      console.log('[oficina] Director activo: cada 15 minutos entre 08:00 y 23:00.');
+    } else {
+      console.log('[oficina] Director apagado (OFICINA_DIRECTOR_ACTIVO=false, o falta OFICINA_IA_URL, IA_SECRET o la key).');
+    }
+
     if (process.env.LEAD_SCORE_DESACTIVADO === 'true') {
       console.log('[lead-score] Desactivado por LEAD_SCORE_DESACTIVADO.');
       return;
