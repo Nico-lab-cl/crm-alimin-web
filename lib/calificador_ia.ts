@@ -8,7 +8,7 @@ import { calificadorDescansa, calificadorDice, calificadorTrabaja } from '@/lib/
  * Facebook y deja en ia_calificacion lo que el cliente dijo de su pie, forma
  * de pago, plazo, uso y objeciones, con un puntaje.
  *
- * Usa Claude Sonnet 5.5 con su propia API key (ANTHROPIC_API_KEY_CALIFICADOR)
+ * Usa el modelo elegido en /agentes-ia (Haiku 5.5 desde el 14-11-2026) con su propia API key (ANTHROPIC_API_KEY_CALIFICADOR)
  * para que su consumo se vea aparte en la consola de Anthropic. Corre solo con
  * CALIFICADOR_ACTIVO=true y el agente encendido en /agentes-ia; si no, la
  * pasada no hace nada. Nunca le escribe al cliente.
@@ -76,7 +76,15 @@ Reglas:
 - Nunca inventes objeciones: usa solo los temas de la lista que se te da, con su nombre exacto.
 - El resumen es para el asesor: corto, concreto, sin adjetivos.`;
 
-/** Conversaciones con mensajes nuevos del cliente que ya se asentaron. */
+/**
+ * Conversaciones con mensajes nuevos del cliente que ya se asentaron.
+ *
+ * Solo de leads con teléfono o correo (Nicolás, 15-11-2026): sin un dato de
+ * contacto el asesor no tiene cómo seguirlo, así que no se gasta en
+ * calificarlo. Cuando la persona deja su teléfono o correo, ese mensaje es
+ * nuevo y la conversación entera se califica en la pasada siguiente (dentro
+ * de la ventana de VENTANA_DIAS).
+ */
 async function candidatas() {
   const r = await queryMain(
     `SELECT c.id, c.platform, c."leadId" AS lead_id,
@@ -85,8 +93,9 @@ async function candidatas() {
             COUNT(*)::int AS mensajes_cliente
        FROM "Conversation" c
        JOIN "Message" m ON m."conversationId" = c.id
-       LEFT JOIN "Lead" l ON l.id = c."leadId"
+       JOIN "Lead" l ON l.id = c."leadId"
       WHERE c.platform IN ('web', 'instagram', 'facebook')
+        AND (COALESCE(trim(l.phone), '') <> '' OR COALESCE(trim(l.email), '') <> '')
         AND m."senderType" IN ('meta', 'visitor')
         AND m."sourceType" <> 'COMMENT'
         AND (m."createdAt" AT TIME ZONE 'UTC') > now() - make_interval(days => $1)
