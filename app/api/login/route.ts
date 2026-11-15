@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { queryMarketing } from '@/lib/db';
+import { COOKIE_SESION, DURACION_SESION_S, crearSesion } from '@/lib/sesion';
+
+/** Deja la cookie firmada (lib/sesion.ts). Sin clave en el servidor no hay sesión. */
+async function abrirSesion() {
+  const valor = await crearSesion();
+  if (!valor) return false;
+  cookies().set(COOKIE_SESION, valor, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: DURACION_SESION_S,
+    path: '/',
+  });
+  return true;
+}
+
+const sinClave = () =>
+  NextResponse.json({ message: 'El servidor no tiene clave de sesión (SESSION_SECRET o ADMIN_PASSWORD).' }, { status: 500 });
 
 export async function POST(request: Request) {
   try {
@@ -9,14 +27,7 @@ export async function POST(request: Request) {
 
     // 1. Verificar contra la variable de entorno (Master simple)
     if (adminPassword && password === adminPassword) {
-      const cookieStore = cookies();
-      cookieStore.set('crm_auth_session', 'authenticated', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-        path: '/',
-      });
+      if (!(await abrirSesion())) return sinClave();
       return NextResponse.json({ message: 'Login exitoso' });
     }
 
@@ -28,14 +39,7 @@ export async function POST(request: Request) {
       );
       
       if (userRes && (userRes.rowCount ?? 0) > 0) {
-        const cookieStore = cookies();
-        cookieStore.set('crm_auth_session', 'authenticated', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7,
-          path: '/',
-        });
+        if (!(await abrirSesion())) return sinClave();
         return NextResponse.json({ message: 'Login exitoso' });
       }
     } catch (dbError) {

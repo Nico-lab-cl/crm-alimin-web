@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { COOKIE_SESION, sesionValida } from '@/lib/sesion';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Permitir acceso a las rutas de tracking y webhooks sin autenticación
@@ -21,10 +22,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Verificar la cookie de sesión
-  const session = request.cookies.get('crm_auth_session');
-
-  if (!session || session.value !== 'authenticated') {
+  // Verificar la cookie de sesión: firmada y sin vencer (lib/sesion.ts).
+  if (!(await sesionValida(request.cookies.get(COOKIE_SESION)?.value))) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

@@ -9,9 +9,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token') || '';
-    const expectedToken = process.env.ADMIN_PASSWORD || 'chris.2026';
+    const expectedToken = process.env.ADMIN_PASSWORD;
 
-    if (token !== expectedToken) {
+    if (!expectedToken || token !== expectedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,9 +41,9 @@ export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.replace('Bearer ', '').trim();
-    const expectedToken = process.env.ADMIN_PASSWORD || 'chris.2026';
+    const expectedToken = process.env.ADMIN_PASSWORD;
 
-    if (token !== expectedToken) {
+    if (!expectedToken || token !== expectedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
