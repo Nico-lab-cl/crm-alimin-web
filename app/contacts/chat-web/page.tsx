@@ -111,6 +111,12 @@ export default function ChatWebPage() {
   const inputArchivo = useRef<HTMLInputElement>(null);
 
   const hiloRef = useRef<HTMLDivElement>(null);
+  // Si el asesor subió a leer mensajes anteriores, el refresco cada 5 s no
+  // debe devolverlo al final. Sólo se baja solo cuando ya estaba abajo, al
+  // abrir una conversación o al enviar algo.
+  const pegadoAbajo = useRef(true);
+  const [mensajesNuevos, setMensajesNuevos] = useState(false);
+  const ultimoIdVisto = useRef<string | null>(null);
 
   // Sin MediaRecorder no tiene sentido mostrar el botón de micrófono.
   useEffect(() => {
@@ -176,11 +182,33 @@ export default function ChatWebPage() {
     return () => clearInterval(intervalo);
   }, [seleccionada, cargarConversaciones, cargarHilo]);
 
+  const irAlFinal = useCallback(() => {
+    const hilo = hiloRef.current;
+    if (!hilo) return;
+    hilo.scrollTop = hilo.scrollHeight;
+    pegadoAbajo.current = true;
+    setMensajesNuevos(false);
+  }, []);
+
+  const alDesplazar = () => {
+    const hilo = hiloRef.current;
+    if (!hilo) return;
+    pegadoAbajo.current = hilo.scrollHeight - hilo.scrollTop - hilo.clientHeight < 80;
+    if (pegadoAbajo.current) setMensajesNuevos(false);
+  };
+
   useEffect(() => {
-    if (hiloRef.current) hiloRef.current.scrollTop = hiloRef.current.scrollHeight;
-  }, [mensajes]);
+    const ultimoId = mensajes.length ? mensajes[mensajes.length - 1].id : null;
+    const llegoAlgoNuevo = ultimoId !== ultimoIdVisto.current;
+    ultimoIdVisto.current = ultimoId;
+
+    if (pegadoAbajo.current) irAlFinal();
+    else if (llegoAlgoNuevo && ultimoId) setMensajesNuevos(true);
+  }, [mensajes, irAlFinal]);
 
   const abrir = (id: string) => {
+    pegadoAbajo.current = true;
+    setMensajesNuevos(false);
     setSeleccionada(id);
     setMensajes([]);
     setCabecera(null);
@@ -224,6 +252,7 @@ export default function ChatWebPage() {
       }
 
       setTexto('');
+      pegadoAbajo.current = true;
       await cargarHilo(seleccionada);
       cargarConversaciones();
     } catch {
@@ -263,6 +292,7 @@ export default function ChatWebPage() {
       }
 
       setTexto('');
+      pegadoAbajo.current = true;
       await cargarHilo(seleccionada);
       cargarConversaciones();
     } catch {
@@ -500,7 +530,12 @@ export default function ChatWebPage() {
                 )}
               </div>
 
-              <div ref={hiloRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
+              <div className="relative flex-1 min-h-0 flex flex-col">
+              <div
+                ref={hiloRef}
+                onScroll={alDesplazar}
+                className="flex-1 overflow-y-auto p-5 flex flex-col gap-3"
+              >
                 {mensajes.map((m) => {
                   const esAsesor = m.emisor === 'advisor';
                   // Ali va del lado del equipo, con otro color para no
@@ -570,6 +605,17 @@ export default function ChatWebPage() {
                     </div>
                   );
                 })}
+              </div>
+
+              {mensajesNuevos && (
+                <button
+                  type="button"
+                  onClick={irAlFinal}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-semibold shadow-md hover:bg-emerald-700 transition-colors"
+                >
+                  Mensajes nuevos ↓
+                </button>
+              )}
               </div>
 
               <form onSubmit={responder} className="p-4 border-t border-slate-100 flex gap-2">
