@@ -654,7 +654,7 @@ export async function conteoConocimiento() {
 /* ── Métricas de Ali por canal ────────────────────────────────────────── */
 
 export interface MetricaCanal {
-  canal: 'web' | 'instagram' | 'facebook';
+  canal: 'web' | 'instagram' | 'facebook' | 'whatsapp';
   conversaciones: number;
   conTelefono: number;
   leads: number;
@@ -665,6 +665,7 @@ const FUENTE_LEADS: Record<MetricaCanal['canal'], string> = {
   web: 'Chat web aliminspa.cl',
   instagram: 'Instagram - IA',
   facebook: 'Facebook - IA',
+  whatsapp: 'WhatsApp - IA',
 };
 
 /**
@@ -678,7 +679,7 @@ export async function metricasCanales(dias = 7): Promise<MetricaCanal[]> {
        SELECT DISTINCT c.id, c.platform, c."leadId"
          FROM "Conversation" c
          JOIN "Message" m ON m."conversationId" = c.id
-        WHERE c.platform IN ('web', 'instagram', 'facebook')
+        WHERE c.platform IN ('web', 'instagram', 'facebook', 'whatsapp')
           AND m."senderType" = 'ali' AND m."sourceType" IN ('DIRECT', 'HANDOFF')
           AND (m."createdAt" AT TIME ZONE 'UTC') >= now() - make_interval(days => $1)
      )
@@ -701,7 +702,7 @@ export async function metricasCanales(dias = 7): Promise<MetricaCanal[]> {
       GROUP BY source`,
     [Object.values(FUENTE_LEADS), dias]
   );
-  return (['web', 'instagram', 'facebook'] as const).map((canal) => {
+  return (['web', 'instagram', 'facebook', 'whatsapp'] as const).map((canal) => {
     const c = conv.rows.find((x) => x.platform === canal);
     return {
       canal,
