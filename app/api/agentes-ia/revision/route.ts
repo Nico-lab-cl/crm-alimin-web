@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
-import { correrRevision, leerRevision, marcarEstado, revisionEnCurso, type EstadoError } from '@/lib/revision_ali';
+import {
+  correrRevision,
+  crearCasoDesdeRevision,
+  leerRevision,
+  marcarEstado,
+  revisionEnCurso,
+  type EstadoError,
+} from '@/lib/revision_ali';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +22,35 @@ export async function GET(request: Request) {
 }
 
 /**
- * POST → corre la revisión ahora (sin esperar al lunes). Corre en segundo
- * plano porque puede tardar varios minutos; el panel consulta GET hasta que
- * enCurso vuelva a false.
+ * POST { accion: 'correr' | 'rehacer' } → corre la revisión ahora, en segundo
+ * plano (puede tardar varios minutos; el panel consulta GET hasta que enCurso
+ * vuelva a false). "rehacer" revisa todo de nuevo con la ficha actual de Ali.
+ *
+ * POST { accion: 'caso', id, debe: string[] } → convierte un error real en caso
+ * de prueba.
  */
-export async function POST() {
+export async function POST(request: Request) {
+  const cuerpo = (await request.json().catch(() => ({}))) as { accion?: string; id?: number; debe?: string[] };
+
+  if (cuerpo.accion === 'caso') {
+    try {
+      if (!cuerpo.id) return NextResponse.json({ error: 'Falta el id' }, { status: 400 });
+      const caso = await crearCasoDesdeRevision(Number(cuerpo.id), Array.isArray(cuerpo.debe) ? cuerpo.debe : []);
+      return NextResponse.json({ ok: true, caso });
+    } catch (error) {
+      console.error('[revision-ali] No se pudo crear el caso:', error);
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'No se pudo crear el caso' }, { status: 400 });
+    }
+  }
+
   if (revisionEnCurso()) return NextResponse.json({ ok: true, enCurso: true });
-  correrRevision()
-    .then((r) => console.log(`[revision-ali] Manual, semana ${r.semana}: ${r.revisadas} revisadas, ${r.conErrores} con errores${r.motivo ? ` (${r.motivo})` : ''}.`))
+  const rehacer = cuerpo.accion === 'rehacer';
+  correrRevision({ rehacer })
+    .then((r) =>
+      console.log(
+        `[revision-ali] ${rehacer ? 'Rehecha' : 'Manual'}, semana ${r.semana}: ${r.revisadas} revisadas, ${r.conErrores} con errores${r.motivo ? ` (${r.motivo})` : ''}.`
+      )
+    )
     .catch((error) => console.error('[revision-ali] Falló la revisión manual:', error));
   return NextResponse.json({ ok: true, enCurso: true });
 }

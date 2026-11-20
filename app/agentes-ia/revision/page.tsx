@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Loader2, Play, RefreshCcw, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, FlaskConical, Loader2, Play, RefreshCcw, RotateCcw, X } from 'lucide-react';
 import { pedir } from '../tipos';
 
 /**
@@ -48,6 +48,7 @@ interface Fila {
   transcripcion: string;
   estado: 'pendiente' | 'real' | 'falso';
   ultimo_mensaje_at: string | null;
+  caso_id?: number | null;
 }
 interface Semana {
   semana: string;
@@ -69,7 +70,73 @@ const boton = (activo: boolean) =>
   `text-sm font-semibold rounded-xl px-3 py-1.5 border ${activo ? 'bg-[#2d544c] text-white border-[#2d544c]' : 'bg-white text-[#2d544c] border-[#9fc79b] hover:bg-[#e8f3e6]'}`;
 const colorNota = (n: number) => (n >= 85 ? 'text-emerald-700' : n >= 60 ? 'text-amber-700' : 'text-rose-700');
 
-function FilaConversacion({ f, onEstado }: { f: Fila; onEstado: (id: number, estado: Fila['estado']) => void }) {
+/**
+ * Convierte un error real en caso de prueba (Fase 2): la conversación se corta
+ * antes del error y la prueba le pide a Ali responder de nuevo ese momento.
+ * "Lo que debía hacer" parte con lo que dijo el juez y se puede corregir.
+ */
+function CrearCaso({ f, onCreado }: { f: Fila; onCreado: (id: number, casoId: number) => void }) {
+  const [texto, setTexto] = useState(() => f.errores.map((e) => e.explicacion).join('\n'));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (f.caso_id) {
+    return (
+      <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 inline-flex items-center gap-1.5">
+        <FlaskConical className="w-4 h-4" /> Ya es el caso de prueba #{f.caso_id}: entra en el banco de pruebas de Ali.
+      </p>
+    );
+  }
+  const crear = async () => {
+    setGuardando(true);
+    setError(null);
+    try {
+      const debe = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+      const r = await pedir<{ caso: { id: number } }>('/api/agentes-ia/revision', {
+        method: 'POST',
+        body: JSON.stringify({ accion: 'caso', id: f.id, debe }),
+      });
+      onCreado(f.id, r.caso.id);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+  return (
+    <div className="rounded-lg border border-[#9fc79b] bg-[#f3f8f2] p-3 space-y-2">
+      <p className="text-sm font-bold text-[#2d544c] inline-flex items-center gap-1.5">
+        <FlaskConical className="w-4 h-4" /> Convertir en caso de prueba
+      </p>
+      <p className="text-xs text-[#516f90]">
+        Lo que Ali debía hacer en ese momento, una idea por línea. Cada cambio a Ali se va a probar contra esto antes de quedar publicado.
+      </p>
+      <textarea
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        rows={Math.min(6, Math.max(2, texto.split('\n').length + 1))}
+        className="w-full text-sm rounded-lg border border-[#cbd6e2] px-3 py-2 bg-white text-[#33475b]"
+      />
+      {error && <p className="text-xs text-rose-700">{error}</p>}
+      <button
+        onClick={crear}
+        disabled={guardando || !texto.trim()}
+        className="text-sm font-bold rounded-lg px-3 py-1.5 bg-[#2d544c] text-white hover:bg-[#244640] disabled:opacity-60 inline-flex items-center gap-1.5"
+      >
+        {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />} Crear caso de prueba
+      </button>
+    </div>
+  );
+}
+
+function FilaConversacion({
+  f,
+  onEstado,
+  onCaso,
+}: {
+  f: Fila;
+  onEstado: (id: number, estado: Fila['estado']) => void;
+  onCaso: (id: number, casoId: number) => void;
+}) {
   const [abierta, setAbierta] = useState(false);
   const alta = f.errores.some((e) => e.gravedad === 'alta');
   return (
@@ -82,6 +149,7 @@ function FilaConversacion({ f, onEstado }: { f: Fila; onEstado: (id: number, est
             <p className="text-sm font-semibold text-[#33475b] truncate">
               {f.nombre || 'Sin nombre'} <span className="font-normal text-[#516f90]">· {CANAL[f.canal] || f.canal}</span>
               {f.abandono && <span className="ml-2 text-[11px] font-bold text-rose-700">dejó de responder</span>}
+              {f.caso_id && <span className="ml-2 text-[11px] font-bold text-emerald-700">caso de prueba #{f.caso_id}</span>}
             </p>
             <p className="text-xs text-[#516f90] truncate">
               {f.errores.length ? f.errores.map((e) => CRITERIOS[e.criterio] || e.criterio).join(' · ') : f.resumen || 'Sin errores'}
@@ -119,6 +187,7 @@ function FilaConversacion({ f, onEstado }: { f: Fila; onEstado: (id: number, est
               ))}
             </ul>
           )}
+          {f.estado === 'real' && <CrearCaso f={f} onCreado={onCaso} />}
           <details>
             <summary className="text-xs font-semibold text-[#516f90] cursor-pointer">Ver conversación</summary>
             <pre className="mt-2 text-xs text-[#33475b] whitespace-pre-wrap bg-[#f5f8fa] rounded-lg p-3 max-h-[28rem] overflow-y-auto font-sans">
@@ -162,14 +231,18 @@ export default function RevisionPage() {
     return () => clearInterval(t);
   }, [datos?.enCurso, cargar]);
 
-  const correr = async () => {
+  const correr = async (rehacer = false) => {
+    if (rehacer && !confirm('Se revisan de nuevo todas las conversaciones de esta semana con la ficha actual de Ali, y las marcas vuelven a "por marcar". ¿Seguir?')) return;
     try {
-      await pedir('/api/agentes-ia/revision', { method: 'POST' });
+      await pedir('/api/agentes-ia/revision', { method: 'POST', body: JSON.stringify({ accion: rehacer ? 'rehacer' : 'correr' }) });
       setDatos((d) => (d ? { ...d, enCurso: true } : d));
     } catch (e) {
       setError((e as Error).message);
     }
   };
+
+  const casoCreado = (id: number, casoId: number) =>
+    setDatos((d) => d && { ...d, filas: d.filas.map((f) => (f.id === id ? { ...f, caso_id: casoId } : f)) });
 
   const marcar = async (id: number, estado: Fila['estado']) => {
     setDatos((d) => d && { ...d, filas: d.filas.map((f) => (f.id === id ? { ...f, estado } : f)) });
@@ -216,7 +289,15 @@ export default function RevisionPage() {
           </p>
         </div>
         <button
-          onClick={correr}
+          onClick={() => correr(true)}
+          disabled={datos?.enCurso || !datos?.semanas.length}
+          title="Revisar de nuevo toda la semana con la ficha actual de Ali"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold border border-[#2d544c] text-[#2d544c] bg-white hover:bg-[#f6f9fc] disabled:opacity-60 shrink-0"
+        >
+          <RotateCcw className="w-4 h-4" /> Rehacer
+        </button>
+        <button
+          onClick={() => correr(false)}
           disabled={datos?.enCurso}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold border border-[#2d544c] text-white bg-[#2d544c] hover:bg-[#244640] disabled:opacity-60 shrink-0"
         >
@@ -296,7 +377,7 @@ export default function RevisionPage() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {lista.map((f) => <FilaConversacion key={f.id} f={f} onEstado={marcar} />)}
+          {lista.map((f) => <FilaConversacion key={f.id} f={f} onEstado={marcar} onCaso={casoCreado} />)}
         </ul>
       )}
     </div>

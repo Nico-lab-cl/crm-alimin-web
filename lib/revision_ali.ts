@@ -65,35 +65,42 @@ const ESQUEMA = {
   },
 } as const;
 
-/*
- * Datos de Alimin que el juez usa para revisar precios y promesas. Si cambia un
- * precio en el sitio (src/lib/ali/conocimiento.ts), hay que cambiarlo aquí.
+/**
+ * Pauta del juez. Los datos de Alimin y las reglas de Ali NO van aquí: el juez
+ * lee la ficha real de Ali desde el sitio (/api/ali/ficha), así nunca queda
+ * desalineado con las mejoras que se le hacen a Ali (Nicolás, 20-11-2026: el
+ * juez marcaba como "dato que no está" lo que Ali sí tiene, como que en la
+ * etapa 1 de Lomas del Mar ya no quedan terrenos de 390 m²).
  */
-const SISTEMA = `Eres el revisor de calidad de Ali, la asistente virtual de Alimin (inmobiliaria que vende terrenos urbanos en El Tabo, Litoral Central). Lees una conversación real entre un cliente y Ali (a veces también un asesor) y anotas los errores de Ali. No le escribes a nadie.
+const PAUTA = `Eres el revisor de calidad de Ali, la asistente virtual de Alimin. Lees una conversación real entre un cliente y Ali (a veces también un asesor) y anotas los errores de Ali. No le escribes a nadie.
 
-Datos de Alimin (para revisar precios y promesas)
-- Lomas del Mar: terrenos de 200 m² ($35.000.000 al contado; crédito directo con pie de $5.500.000 y 60 cuotas de $550.000, $37.990.000 en total) y de 390 m² ($43.000.000 al contado; pie de $7.500.000 y 70 cuotas de $550.000, $45.990.000 en total). Entrega por etapas, la primera a fines de 2027 aproximadamente. A 10 minutos de la playa.
-- Arena y Sol: terrenos de 200 m², $39.000.000 al contado; pie de $20.000.000 y 44 cuotas de $500.000 ($42.000.000 en total). Entrega a fines de 2026 aproximadamente. A 8 minutos de la playa.
-- Lomas del Mar es un proyecto en 4 etapas (entregas aproximadas: etapa 1 fines de 2027, etapa 2 fines de 2028 o verano de 2029, etapa 3 fines de 2030, etapa 4 fines de 2031). En la etapa 1 ya no quedan terrenos de 390 m².
-- Arena y Sol NO tiene recepción final ni es de entrega inmediata; sus roles ya están asignados, pero la escritura se firma con la recepción final.
-- El rol propio, la escritura y los traspasos se dicen siempre en futuro ("se van a entregar con rol propio"). No hay descuentos ni promociones vigentes (la Mini Pie terminó).
-- Ali tiene una herramienta que consulta los lotes disponibles en tiempo real: cuántos terrenos quedan, en qué etapa y qué números de lote son datos reales, no inventados. No los marques como dato dudoso salvo que contradigan algo dicho en la misma conversación.
-- Si no estás seguro de que un dato sea falso, no lo marques: "dato dudoso" es solo para lo que contradice esta lista o lo que Ali promete sin respaldo (descuentos, fechas exactas, entrega inmediata, cosas en presente que van en futuro).
-
-Cómo debe atender Ali
-- Responde a lo que la persona dijo en su último mensaje. Un "gracias", "ok", "ya lo vi" o solo un emoji o sticker es un cierre: se responde con una línea cálida, sin precios ni preguntas, o no se responde si Ali ya se despidió.
-- Precio siempre completo: contado y crédito con el total. Si la persona no dijo el tamaño de Lomas del Mar, los dos tamaños, primero el de 200 m². Si ya vio los precios (por ejemplo, en el mensaje automático con el brochure), no los repite.
-- Si dice que es caro, valida, ofrece una vez la opción más accesible y no insiste.
-- Se presenta una sola vez y no repite la misma pregunta ni la misma despedida. Pide el nombre una vez; nunca pide el teléfono en WhatsApp (ya lo tiene).
-- Mensajes cortos, como en un chat; nada de frases de bot ("Estoy aquí para ayudarte", "¡Excelente pregunta!").
-- Un audio se escucha, no se lee: nunca "te leo" de un audio.
-- Deriva a un asesor si la persona lo pide, quiere reservar o cambiar una visita, o está molesta.
+Abajo están las instrucciones completas que sigue Ali. Son la única verdad sobre Alimin y sobre cómo debe atender:
+- Un dato que está en esas instrucciones NO es inventado. "Dato dudoso" es solo lo que contradice las instrucciones o lo que Ali promete sin respaldo en ellas.
+- Ali tiene herramientas que consultan datos reales (lotes disponibles, horarios de visita, documentos): lo que viene de ellas tampoco es inventado, salvo que contradiga algo dicho en la misma conversación.
+- Una regla que está en las instrucciones es la que manda: califica contra ella, no contra tu propio criterio.
+- Si no estás seguro de que algo sea un error según las instrucciones, no lo marques.
 
 Cómo calificas
 - Marca solo errores claros de Ali, con la cita exacta de su mensaje. Si Ali lo hizo bien, la lista de errores va vacía. No marques errores de los asesores ni de los mensajes automáticos.
 - Gravedad alta: puede hacer perder la venta o crear un reclamo (dato equivocado, insistir, vender en un cierre). Media: molesta o confunde. Baja: detalle de forma.
 - La nota es de 0 a 100: 90 o más si atendió bien; menos de 60 si hubo un error grave.
 - "abandono" es true solo si la persona dejó de responder justo después de un mensaje de Ali que probablemente lo causó (por ejemplo, un precio que nadie pidió o una insistencia). Si la conversación terminó bien, es false.`;
+
+const SITIO = (process.env.ALI_SITIO_URL || 'https://aliminspa.cl').replace(/\/+$/, '');
+
+/** La ficha completa de Ali (la misma que lee ella), desde el sitio. */
+async function fichaDeAli(): Promise<{ texto: string; version: string }> {
+  const secreto = process.env.IA_SECRET;
+  if (!secreto) throw new Error('Falta IA_SECRET para leer la ficha de Ali');
+  const res = await fetch(`${SITIO}/api/ali/ficha`, { headers: { 'x-ia-secret': secreto }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`El sitio no entregó la ficha de Ali (HTTP ${res.status})`);
+  const j = (await res.json()) as { texto?: string; version?: string };
+  if (!j.texto) throw new Error('La ficha de Ali llegó vacía');
+  return { texto: j.texto, version: j.version || '?' };
+}
+
+const sistemaConFicha = (ficha: { texto: string; version: string }) =>
+  `${PAUTA}\n\n# Instrucciones de Ali (versión ${ficha.version})\n${ficha.texto}`;
 
 interface Calificacion {
   nota: number;
@@ -149,6 +156,19 @@ async function asegurarTablas() {
       errores INT NOT NULL DEFAULT 0,
       costo_usd NUMERIC(10, 4) NOT NULL DEFAULT 0,
       error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await queryMarketing(`ALTER TABLE ia_revision_ali_corridas ADD COLUMN IF NOT EXISTS ficha_version TEXT`);
+  // Casos de prueba que salen de errores reales (Fase 2): los lee scripts/casos-ali.mjs del sitio.
+  await queryMarketing(`
+    CREATE TABLE IF NOT EXISTS ia_casos_ali (
+      id BIGSERIAL PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      canal TEXT NOT NULL,
+      mensajes JSONB NOT NULL,
+      debe JSONB NOT NULL DEFAULT '[]'::jsonb,
+      revision_id BIGINT UNIQUE,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   tablasListas = true;
@@ -217,11 +237,11 @@ async function transcripcion(conversacionId: string) {
   return texto;
 }
 
-async function calificar(canal: string, texto: string, conversacionId: string) {
+async function calificar(sistema: string, canal: string, texto: string, conversacionId: string) {
   const respuesta = await anthropic().beta.messages.create({
     model: MODELO,
     max_tokens: 2500,
-    system: [{ type: 'text', text: SISTEMA, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: sistema, cache_control: { type: 'ephemeral' } }],
     output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA as unknown as Record<string, unknown> } },
     messages: [{ role: 'user', content: `Canal: ${canal}\n\nConversación:\n${texto}` }],
   });
@@ -265,9 +285,11 @@ export interface ResultadoRevision {
 
 /**
  * Revisa las conversaciones de la semana. Una conversación ya revisada esta
- * semana solo se vuelve a revisar si tuvo mensajes nuevos.
+ * semana solo se vuelve a revisar si tuvo mensajes nuevos, salvo con
+ * `rehacer` (por ejemplo, después de mejorar a Ali o al juez): ahí se revisa
+ * todo de nuevo y las marcas vuelven a "pendiente".
  */
-export async function correrRevision(): Promise<ResultadoRevision> {
+export async function correrRevision({ rehacer = false } = {}): Promise<ResultadoRevision> {
   const semana = lunesDeEstaSemana();
   const vacio = { semana, revisadas: 0, conErrores: 0, fallidas: 0, costoUSD: 0 };
   if (!claveRevision()) return { ...vacio, motivo: 'Falta la API key (ANTHROPIC_API_KEY_REVISION)' };
@@ -276,6 +298,9 @@ export async function correrRevision(): Promise<ResultadoRevision> {
   const resultado: ResultadoRevision = { ...vacio };
   try {
     await asegurarTablas();
+    // Sin la ficha real de Ali no se revisa: un juez con datos viejos marca errores que no son.
+    const ficha = await fichaDeAli();
+    const sistema = sistemaConFicha(ficha);
     const lista = await candidatas();
     const ya = await queryMarketing(
       `SELECT conversacion_id, ultimo_mensaje_at FROM ia_revision_ali WHERE semana = $1 AND conversacion_id = ANY($2)`,
@@ -284,11 +309,11 @@ export async function correrRevision(): Promise<ResultadoRevision> {
     const vistas = new Map<string, number>(ya.rows.map((x) => [x.conversacion_id, new Date(x.ultimo_mensaje_at).getTime()]));
 
     for (const conv of lista) {
-      if ((vistas.get(conv.id) ?? 0) >= new Date(conv.ultimo).getTime()) continue;
+      if (!rehacer && (vistas.get(conv.id) ?? 0) >= new Date(conv.ultimo).getTime()) continue;
       try {
         const texto = await transcripcion(conv.id);
         if (!texto.trim()) continue;
-        const { c, costo } = await calificar(conv.platform, texto, conv.id);
+        const { c, costo } = await calificar(sistema, conv.platform, texto, conv.id);
         resultado.costoUSD += costo;
         resultado.revisadas++;
         if (c.errores.length) resultado.conErrores++;
@@ -300,10 +325,11 @@ export async function correrRevision(): Promise<ResultadoRevision> {
              nota = EXCLUDED.nota, errores = EXCLUDED.errores, resumen = EXCLUDED.resumen,
              abandono = EXCLUDED.abandono, transcripcion = EXCLUDED.transcripcion,
              ultimo_mensaje_at = EXCLUDED.ultimo_mensaje_at, nombre = EXCLUDED.nombre,
-             estado = CASE WHEN EXCLUDED.errores = '[]'::jsonb THEN 'pendiente' ELSE ia_revision_ali.estado END`,
+             estado = CASE WHEN $12 OR EXCLUDED.errores = '[]'::jsonb THEN 'pendiente' ELSE ia_revision_ali.estado END`,
           [
             semana, conv.id, conv.platform, conv.nombre || null, conv.lead_id || null, c.nota,
             JSON.stringify(c.errores), String(c.resumen || '').slice(0, 600), Boolean(c.abandono), texto, conv.ultimo,
+            rehacer,
           ]
         );
       } catch (error) {
@@ -311,15 +337,16 @@ export async function correrRevision(): Promise<ResultadoRevision> {
         console.error(`[revision-ali] Falló la conversación ${conv.id}:`, error);
       }
     }
+    // Los totales se cuentan desde la tabla: con "rehacer" no se suman dos veces.
     await queryMarketing(
-      `INSERT INTO ia_revision_ali_corridas (semana, revisadas, errores, costo_usd)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO ia_revision_ali_corridas (semana, revisadas, errores, costo_usd, ficha_version)
+       SELECT $1, COUNT(*), COUNT(*) FILTER (WHERE errores <> '[]'::jsonb), $2, $3
+         FROM ia_revision_ali WHERE semana = $1
        ON CONFLICT (semana) DO UPDATE SET
-         revisadas = ia_revision_ali_corridas.revisadas + EXCLUDED.revisadas,
-         errores = ia_revision_ali_corridas.errores + EXCLUDED.errores,
+         revisadas = EXCLUDED.revisadas, errores = EXCLUDED.errores,
          costo_usd = ia_revision_ali_corridas.costo_usd + EXCLUDED.costo_usd,
-         error = NULL, created_at = now()`,
-      [semana, resultado.revisadas, resultado.conErrores, resultado.costoUSD]
+         ficha_version = EXCLUDED.ficha_version, error = NULL, created_at = now()`,
+      [semana, resultado.costoUSD, ficha.version]
     );
     return resultado;
   } catch (error) {
@@ -361,13 +388,15 @@ export interface FilaRevision {
   transcripcion: string;
   estado: EstadoError;
   ultimo_mensaje_at: string | null;
+  /** Ya se convirtió en caso de prueba (ia_casos_ali). */
+  caso_id?: number | null;
 }
 
 export async function leerRevision(semanaPedida?: string) {
   await asegurarTablas();
   const semanas = (
     await queryMarketing(
-      `SELECT to_char(semana, 'YYYY-MM-DD') AS semana, revisadas, errores, costo_usd, error, created_at
+      `SELECT to_char(semana, 'YYYY-MM-DD') AS semana, revisadas, errores, costo_usd, error, ficha_version, created_at
          FROM ia_revision_ali_corridas ORDER BY semana DESC LIMIT 26`
     )
   ).rows as { semana: string; revisadas: number; errores: number; costo_usd: string; error: string | null; created_at: string }[];
@@ -375,8 +404,10 @@ export async function leerRevision(semanaPedida?: string) {
   if (!semana) return { semanas, semana: null, filas: [] as FilaRevision[], enCurso: corriendo };
   const filas = (
     await queryMarketing(
-      `SELECT id, conversacion_id, canal, nombre, nota, errores, resumen, abandono, transcripcion, estado, ultimo_mensaje_at
-         FROM ia_revision_ali WHERE semana = $1 ORDER BY nota ASC, id ASC`,
+      `SELECT r.id, r.conversacion_id, r.canal, r.nombre, r.nota, r.errores, r.resumen, r.abandono, r.transcripcion,
+              r.estado, r.ultimo_mensaje_at, c.id AS caso_id
+         FROM ia_revision_ali r LEFT JOIN ia_casos_ali c ON c.revision_id = r.id AND c.activo
+        WHERE r.semana = $1 ORDER BY r.nota ASC, r.id ASC`,
       [semana]
     )
   ).rows as FilaRevision[];
@@ -387,4 +418,65 @@ export async function marcarEstado(id: number, estado: EstadoError) {
   await asegurarTablas();
   if (!['pendiente', 'real', 'falso'].includes(estado)) throw new Error('Estado inválido');
   await queryMarketing(`UPDATE ia_revision_ali SET estado = $2 WHERE id = $1`, [id, estado]);
+}
+
+/* ── Casos de prueba desde errores reales (Fase 2) ─────────────────────── */
+
+type MensajeCaso = { de: 'cliente' | 'ali' | 'asesor'; texto: string };
+
+/** De vuelta de la transcripción guardada a mensajes, para el chat de prueba. */
+function mensajesDeTranscripcion(transcripcion: string): MensajeCaso[] {
+  const mensajes: MensajeCaso[] = [];
+  for (const linea of transcripcion.split('\n')) {
+    let m: RegExpMatchArray | null;
+    if ((m = linea.match(/^\[Mensaje automático con el brochure\]: (.*)$/))) mensajes.push({ de: 'ali', texto: `[Mensaje automático con el brochure] ${m[1]}` });
+    else if ((m = linea.match(/^Ali(?: \(deriva a un asesor\))?: (.*)$/))) mensajes.push({ de: 'ali', texto: m[1] });
+    else if ((m = linea.match(/^Asesor: (.*)$/))) mensajes.push({ de: 'asesor', texto: m[1] });
+    else if ((m = linea.match(/^Cliente(?: \(comentario en una publicación\))?: (.*)$/))) mensajes.push({ de: 'cliente', texto: m[1] });
+  }
+  return mensajes;
+}
+
+const normalizar = (t: string) => t.toLowerCase().replace(/^ali[^:]*:\s*/, '').replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Convierte una conversación marcada como "error real" en un caso de prueba:
+ * se corta justo antes del primer mensaje de Ali con error (y de las burbujas
+ * de Ali de ese mismo turno), para que la prueba le pida a Ali responder de
+ * nuevo ese momento. `debe` es lo que Ali tenía que hacer, en palabras simples.
+ */
+export async function crearCasoDesdeRevision(revisionId: number, debe: string[]) {
+  await asegurarTablas();
+  const r = await queryMarketing(`SELECT * FROM ia_revision_ali WHERE id = $1`, [revisionId]);
+  const fila = r.rows[0] as FilaRevision | undefined;
+  if (!fila) throw new Error('No encontré esa revisión');
+  const mensajes = mensajesDeTranscripcion(fila.transcripcion);
+  const citas = (fila.errores || []).map((e) => normalizar(e.cita).slice(0, 40)).filter((c) => c.length >= 8);
+  let corte = mensajes.findIndex((m) => m.de === 'ali' && citas.some((c) => normalizar(m.texto).includes(c)));
+  if (corte < 0) corte = mensajes.length;
+  const antes = mensajes.slice(0, corte);
+  // El caso tiene que terminar en un mensaje del cliente: se quitan las burbujas de Ali de ese turno.
+  while (antes.length && antes[antes.length - 1].de !== 'cliente') antes.pop();
+  if (!antes.length) throw new Error('No encontré un mensaje del cliente antes del error');
+  const lista = debe.map((d) => d.trim()).filter(Boolean).slice(0, 8);
+  if (!lista.length) throw new Error('Escribe al menos una cosa que Ali debía hacer');
+  const primerError = fila.errores[0];
+  const nombre = `${CRITERIOS[primerError?.criterio as Criterio] || 'Error real'} · ${fila.nombre || 'cliente'} (${fila.canal})`;
+  const ins = await queryMarketing(
+    `INSERT INTO ia_casos_ali (nombre, canal, mensajes, debe, revision_id)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (revision_id) DO UPDATE SET nombre = EXCLUDED.nombre, mensajes = EXCLUDED.mensajes, debe = EXCLUDED.debe, activo = TRUE
+     RETURNING id`,
+    [nombre.slice(0, 200), fila.canal === 'web' ? 'instagram' : fila.canal, JSON.stringify(antes.slice(-40)), JSON.stringify(lista), revisionId]
+  );
+  return { id: ins.rows[0].id as number, mensajes: antes.length };
+}
+
+/** Casos activos, para scripts/casos-ali.mjs del sitio (vía /api/webhooks/ia/casos-ali). */
+export async function listarCasos() {
+  await asegurarTablas();
+  const r = await queryMarketing(
+    `SELECT id, nombre, canal, mensajes, debe, revision_id, created_at FROM ia_casos_ali WHERE activo ORDER BY id`
+  );
+  return r.rows;
 }
