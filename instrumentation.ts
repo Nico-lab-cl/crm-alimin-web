@@ -86,6 +86,26 @@ export async function register() {
       console.log('[investigacion] Apagada por INVESTIGACION_ACTIVA=false.');
     }
 
+    // Revisión semanal de Ali (lib/revision_ali.ts): los lunes después de las
+    // 10:30, un juez (Haiku) califica las conversaciones de Ali de la semana.
+    // Se revisa en /agentes-ia/revision. Se apaga con REVISION_ALI_ACTIVA=false.
+    const { revisionActiva, pasadaRevision } = await import('./lib/revision_ali');
+    if (revisionActiva()) {
+      const revisar = async () => {
+        try {
+          const r = await pasadaRevision();
+          if (r) console.log(`[revision-ali] Semana ${r.semana}: ${r.revisadas} revisadas, ${r.conErrores} con errores, US$${r.costoUSD.toFixed(3)}${r.motivo ? ` (${r.motivo})` : ''}.`);
+        } catch (error) {
+          console.error('[revision-ali] Falló la pasada:', error);
+        }
+      };
+      setTimeout(revisar, PRIMERA_PASADA_MS * 5).unref?.();
+      setInterval(revisar, 15 * 60 * 1000).unref?.();
+      console.log('[revision-ali] Activa: los lunes después de las 10:30.');
+    } else {
+      console.log('[revision-ali] Apagada por REVISION_ALI_ACTIVA=false.');
+    }
+
     // Director de la Oficina IA (lib/oficina_director.ts): cada 15 minutos de
     // día, Haiku decide qué piensan y de qué conversan los agentes en la
     // oficina. Se apaga con OFICINA_DIRECTOR_ACTIVO=false.

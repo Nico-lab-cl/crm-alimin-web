@@ -13,7 +13,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Bot, BookOpen, Loader2, RefreshCcw, Wrench, X, Globe, Camera, MessagesSquare, Mail, MessageCircle, Users, Save, History, ThumbsUp } from 'lucide-react';
+import { Bot, BookOpen, Loader2, RefreshCcw, Wrench, X, Globe, Camera, MessagesSquare, Mail, MessageCircle, Users, Save, History, ThumbsUp, ClipboardCheck } from 'lucide-react';
 import PanelAgente from './PanelAgente';
 import Conocimiento from './Conocimiento';
 import MetricasCanales from './MetricasCanales';
@@ -209,6 +209,12 @@ export default function AgentesIA() {
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold border border-[#2d544c] text-[#2d544c] bg-white hover:bg-[#f6f9fc]"
         >
           <ThumbsUp className="w-4 h-4" /> Pruebas del equipo
+        </a>
+        <a
+          href="/agentes-ia/revision"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold border border-[#2d544c] text-[#2d544c] bg-white hover:bg-[#f6f9fc]"
+        >
+          <ClipboardCheck className="w-4 h-4" /> Revisión semanal
         </a>
         <a
           href="/agentes-ia/historial"
