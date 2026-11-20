@@ -278,6 +278,13 @@ const VENTANAS: Record<Ventana, Array<[number, number]>> = {
 /** Estados con los que el lead ya no es para nutrir: ya está con el asesor o es cliente. */
 const ESTADOS_FUERA = [...ESTADOS_CLIENTE, 'RESERVADO', 'VISITA'];
 const FUENTES_WEB = ['web', 'sitio web', 'newsletter', 'lomasdelmar'];
+/**
+ * Leads que crea Ali en Instagram, Facebook y WhatsApp (aliRedes.ts del CRM
+ * móvil). Llegan por publicaciones y anuncios de Meta: van a la bienvenida de
+ * Meta (Nicolás, 20-11-2026; antes no entraban a ninguna secuencia).
+ */
+const FUENTES_ALI = ['instagram - ia', 'facebook - ia', 'whatsapp - ia'];
+const esDeAli = (l: LeadFila) => FUENTES_ALI.includes((l.source || '').toLowerCase());
 /** UTM de anuncios: quien llega así a la web no es orgánico. */
 const UTM_PAGADO = ['meta', 'fb', 'facebook', 'ig', 'instagram'];
 const MEDIO_PAGADO = ['paid', 'paid_social', 'cpc'];
@@ -339,11 +346,13 @@ interface LeadFila {
   formId: string | null;
   emailEnabled: boolean | null;
   emailBounced: boolean | null;
+  /** Solo se lee en los leads de Ali: ahí anota lo que busca la persona ("Ali (Instagram): …"). */
+  notes: string | null;
   creado: Date;
   visita: Date | null;
 }
 
-const COLUMNAS_LEAD = `id::text AS id, email, "firstName", source, status, interests, "adName",
+const COLUMNAS_LEAD = `id::text AS id, email, "firstName", source, status, interests, "adName", notes,
   "utmCampaign", "utmSource", "utmMedium", "visitProject", "formId", "emailEnabled", "emailBounced",
   ("createdAt" AT TIME ZONE 'UTC') AS creado, ("visitDate" AT TIME ZONE 'UTC') AS visita`;
 
@@ -354,7 +363,9 @@ const COLUMNAS_LEAD = `id::text AS id, email, "firstName", source, status, inter
  */
 function proyectoDe(lead: LeadFila, paginas: string[] = []): Proyecto {
   const declarado = proyectoDeTexto(
-    [lead.visitProject, lead.interests, lead.adName, lead.utmCampaign].filter(Boolean).join(' ')
+    [lead.visitProject, lead.interests, lead.adName, lead.utmCampaign, esDeAli(lead) ? lead.notes : null]
+      .filter(Boolean)
+      .join(' ')
   );
   if (declarado) return declarado;
   if (lead.formId && FORMULARIOS[lead.formId]) return FORMULARIOS[lead.formId];
@@ -707,12 +718,13 @@ async function candidatosNuevos(disparador: 'NUEVO_META' | 'NUEVO_WEB'): Promise
     `SELECT ${COLUMNAS_LEAD} FROM "Lead"
       WHERE ("createdAt" AT TIME ZONE 'UTC') > now() - make_interval(hours => $1)
         AND (lower(COALESCE(source, '')) = 'meta'
-             OR lower(COALESCE(source, '')) = ANY($2) OR source ILIKE '%aliminspa%')`,
-    [CAPTURA_NUEVO_HORAS, FUENTES_WEB]
+             OR lower(COALESCE(source, '')) = ANY($2) OR source ILIKE '%aliminspa%'
+             OR lower(COALESCE(source, '')) = ANY($3))`,
+    [CAPTURA_NUEVO_HORAS, FUENTES_WEB, FUENTES_ALI]
   );
   const leads: LeadFila[] = res.rows.filter((l: LeadFila) => {
     if (!esLeadParaNutrir(l)) return false;
-    const deMeta = (l.source || '').toLowerCase() === 'meta' || vieneDeAnuncio(l);
+    const deMeta = (l.source || '').toLowerCase() === 'meta' || vieneDeAnuncio(l) || esDeAli(l);
     return disparador === 'NUEVO_META' ? deMeta : !deMeta;
   });
   const paginas = await paginasDe(
