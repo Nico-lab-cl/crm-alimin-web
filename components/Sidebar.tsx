@@ -28,7 +28,8 @@ const navItems = [
       { name: 'Base de Datos', href: '/contacts' },
       { name: 'Listas y Segmentos', href: '/contacts/lists' },
       { name: 'WhatsApp Evolution 💬', href: '/contacts/whatsapp' },
-      { name: 'Chat Web 🌐', href: '/contacts/chat-web' }
+      { name: 'Chat Web 🌐', href: '/contacts/chat-web' },
+      { name: 'WhatsApp Ali 🤖', href: '/contacts/whatsapp-ali' }
     ]
   },
   { 

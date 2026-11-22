@@ -217,7 +217,15 @@ export async function GET(
         [id]
       );
       const canal = (p: string | null) =>
-        p === 'instagram' ? 'Instagram' : p === 'facebook' ? 'Messenger' : p === 'tiktok' ? 'TikTok' : 'el chat de la web';
+        p === 'instagram'
+          ? 'Instagram'
+          : p === 'facebook'
+            ? 'Messenger'
+            : p === 'tiktok'
+              ? 'TikTok'
+              : p === 'whatsapp'
+                ? 'WhatsApp'
+                : 'el chat de la web';
       const ADJUNTO: Record<string, string> = { image: '📷 Imagen', audio: '🎤 Audio', video: '🎬 Video' };
 
       for (const m of msgs.rows) {
@@ -233,7 +241,11 @@ export async function GET(
             ? m.sourceType === 'COMMENT'
               ? `Comentó en una publicación de ${canal(m.platform)}`
               : `Escribió por ${canal(m.platform)}`
-            : `${m.asesor || 'El asesor'} respondió por ${canal(m.platform)}`,
+            : m.sourceType === 'EVENTO'
+              ? `Nota interna en ${canal(m.platform)}`
+              : m.senderType === 'ali'
+                ? `Ali (IA) respondió por ${canal(m.platform)}`
+                : `${m.asesor || 'El asesor'} respondió por ${canal(m.platform)}`,
           description: cuerpo || '(mensaje sin texto)',
           date: new Date(m.fecha).toISOString(),
           details: { platform: m.platform },
@@ -241,6 +253,63 @@ export async function GET(
       }
     } catch (e) {
       console.error('Error querying conversations:', e);
+    }
+
+    // 7b. Seguimientos del pipeline (llamadas, visitas, notas; también las
+    //     notas del calificador IA, que van con resultado "IA") y cambios de
+    //     etapa. Viven en la base crm (prisma/migrations_manual/2026-10-26_pipeline.sql
+    //     del CRM móvil); si las tablas no están, la ficha sigue sin ellos.
+    try {
+      const TIPO: Record<string, string> = {
+        LLAMADA: '📞 Llamada',
+        WHATSAPP: '💬 WhatsApp',
+        CORREO: '✉️ Correo',
+        VISITA: '📍 Visita',
+        REUNION: '🤝 Reunión',
+        NOTA: '📝 Nota',
+      };
+      const seguimientos = await queryMain(
+        `SELECT s.id, s.tipo, s.resultado, s.nota, s.proxima_accion, s.created_at, u.name AS usuario
+           FROM lead_seguimientos s
+           LEFT JOIN "User" u ON u.id = s.usuario_id
+          WHERE s.lead_id = $1
+          ORDER BY s.created_at DESC
+          LIMIT 200`,
+        [id]
+      );
+      for (const s of seguimientos.rows) {
+        const esIA = s.resultado === 'IA';
+        eventsList.push({
+          id: `seguimiento-${s.id}`,
+          type: esIA ? 'IA_NOTE' : 'FOLLOWUP',
+          title: esIA
+            ? '🤖 Nota de la IA'
+            : `${TIPO[s.tipo] || s.tipo}${s.resultado ? ` · ${s.resultado}` : ''}${s.usuario ? ` · ${s.usuario}` : ''}`,
+          description: [s.nota, s.proxima_accion && `Próxima acción: ${s.proxima_accion}`].filter(Boolean).join(' · ') || '(sin nota)',
+          date: new Date(s.created_at).toISOString(),
+        });
+      }
+
+      const etapas = await queryMain(
+        `SELECT h.id, h.de, h.a, h.origen, h.motivo, h.created_at, u.name AS usuario
+           FROM lead_etapa_historial h
+           LEFT JOIN "User" u ON u.id = h.usuario_id
+          WHERE h.lead_id = $1
+          ORDER BY h.created_at DESC
+          LIMIT 100`,
+        [id]
+      );
+      for (const h of etapas.rows) {
+        eventsList.push({
+          id: `etapa-${h.id}`,
+          type: 'STAGE_CHANGE',
+          title: h.de ? `Etapa: ${h.de} → ${h.a}` : `Entró en etapa ${h.a}`,
+          description: [h.usuario, h.origen, h.motivo].filter(Boolean).join(' · ') || 'Cambio de etapa',
+          date: new Date(h.created_at).toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('No se pudieron leer seguimientos o etapas del lead:', (e as Error).message);
     }
 
     // 8. Hitos del pipeline que quedan en el propio lead.
