@@ -17,6 +17,8 @@ interface Mensaje {
   texto: string;
   voto?: 'bien' | 'mal' | null;
   correccion?: string | null;
+  /** Chats reales: quién calificó este mensaje. */
+  autor?: string | null;
 }
 interface Prueba {
   id: string;
@@ -130,7 +132,7 @@ function MensajeAli({ prueba, i }: { prueba: Prueba; i: number }) {
       <p className="text-[#33475b] whitespace-pre-line">{m.texto}</p>
       {m.voto === 'mal' && (
         <div className="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2">
-          <p className="text-[11px] font-bold text-rose-800">Qué debió decir ({prueba.asesor})</p>
+          <p className="text-[11px] font-bold text-rose-800">Qué debió decir ({m.autor || prueba.asesor})</p>
           <p className="text-[#33475b] whitespace-pre-line">{m.correccion || <i className="text-[#516f90]">Sin comentario</i>}</p>
           {!regla && (
             <button onClick={() => setRegla(true)} className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[#2d544c] hover:underline">
@@ -154,6 +156,9 @@ function FilaPrueba({ p, onRevisada }: { p: Prueba; onRevisada: (id: string, v: 
           {abierta ? <ChevronDown className="w-4 h-4 text-[#516f90] shrink-0" /> : <ChevronRight className="w-4 h-4 text-[#516f90] shrink-0" />}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-[#33475b] truncate">
+              {p.id.startsWith('chat-') && (
+                <span className="mr-1.5 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#2d544c] text-white align-middle">Chat real</span>
+              )}
               {p.asesor} <span className="font-normal text-[#516f90]">· {CANAL[p.canal]} · {diaHora(p.updated_at)}</span>
             </p>
             <p className="text-xs text-[#516f90] truncate">{p.nota ? `📝 ${p.nota}` : `«${primera}»`}</p>
@@ -180,7 +185,7 @@ function FilaPrueba({ p, onRevisada }: { p: Prueba; onRevisada: (id: string, v: 
                 <li key={i} className="text-xs text-center text-[#6b5a2e] bg-[#f6f1e3] rounded-lg px-3 py-1">{m.texto}</li>
               ) : (
                 <li key={i} className="text-sm rounded-lg px-3 py-1.5 bg-white border border-[#eef2f6]">
-                  <span className="text-[11px] font-bold text-[#516f90]">Cliente (asesor probando)</span>
+                  <span className="text-[11px] font-bold text-[#516f90]">{p.id.startsWith('chat-') ? 'Cliente' : 'Cliente (asesor probando)'}</span>
                   <p className="text-[#33475b] whitespace-pre-line">{m.texto}</p>
                 </li>
               )
@@ -242,8 +247,8 @@ export default function PruebasPage() {
           </Link>
           <h1 className="text-2xl font-bold text-[#2d544c] mt-1">Pruebas del equipo</h1>
           <p className="text-sm text-[#516f90] mt-1">
-            Lo que los asesores conversan con Ali en el chat de prueba, con sus 👍/👎 y lo que Ali debió decir. Convierte una
-            corrección en regla y apruébala en el conocimiento.
+            Lo que los asesores conversan con Ali en el chat de prueba y lo que califican en los chats reales (marcados «Chat real»),
+            con sus 👍/👎 y lo que Ali debió decir. Convierte una corrección en regla y apruébala en el conocimiento.
           </p>
         </div>
         <a

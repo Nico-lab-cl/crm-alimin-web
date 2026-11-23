@@ -1,4 +1,4 @@
-import { queryMarketing } from '@/lib/db';
+import { queryMain, queryMarketing } from '@/lib/db';
 
 /**
  * Conversaciones de prueba con Ali que hace el equipo en aliminspa.cl/probar-ali
@@ -18,6 +18,9 @@ export interface MensajePrueba {
   texto: string;
   voto?: Voto | null;
   correccion?: string | null;
+  /** Solo chats reales: id del mensaje en el CRM y quién lo calificó. */
+  id?: string;
+  autor?: string | null;
 }
 
 export interface Prueba {
@@ -139,4 +142,84 @@ export async function listarPruebas(f: FiltroPruebas = {}) {
 export async function marcarRevisada(id: string, revisada: boolean) {
   await asegurarTabla();
   await queryMarketing(`UPDATE ia_pruebas SET revisada = $2 WHERE id = $1`, [id, revisada]);
+}
+
+/* ── Chats reales (Nicolás, 22-11-2026) ─────────────────────────────────── */
+/*
+ * Los asesores califican con 👍/👎 las respuestas de Ali en los chats reales,
+ * desde el CRM móvil o desde la bandeja WhatsApp Ali del CRM web. Cada chat
+ * calificado es una fila más de ia_pruebas, con id "chat-<conversación>", así
+ * la revisión y "Convertir en regla" de /agentes-ia/pruebas sirven igual.
+ * Los votos van por id de mensaje: si dos asesores califican mensajes
+ * distintos del mismo chat, se juntan; nadie pisa el voto de otro.
+ */
+
+export const PREFIJO_CHAT_REAL = 'chat-';
+
+export interface CalificacionReal {
+  conversationId: string;
+  messageId: string;
+  voto: Voto | null;
+  correccion?: string | null;
+  asesor: string;
+}
+
+/** Votos ya guardados de un chat real, por id de mensaje (para pintarlos en el chat). */
+export async function votosDeChat(conversationId: string): Promise<Record<string, { voto: Voto; correccion: string | null; autor: string | null }>> {
+  await asegurarTabla();
+  const r = await queryMarketing(`SELECT mensajes FROM ia_pruebas WHERE id = $1`, [PREFIJO_CHAT_REAL + conversationId]);
+  const votos: Record<string, { voto: Voto; correccion: string | null; autor: string | null }> = {};
+  for (const m of (r.rows[0]?.mensajes || []) as MensajePrueba[]) {
+    if (m.id && m.voto) votos[m.id] = { voto: m.voto, correccion: m.correccion || null, autor: m.autor || null };
+  }
+  return votos;
+}
+
+/**
+ * Guarda el 👍/👎 de un asesor sobre una respuesta de Ali en un chat real.
+ * Rearma la conversación desde la base (los últimos mensajes hasta el
+ * calificado, sin notas internas) y le pone encima todos los votos del chat.
+ */
+export async function calificarChatReal(c: CalificacionReal) {
+  await asegurarTabla();
+  const conv = await queryMain(`SELECT id, platform FROM "Conversation" WHERE id = $1`, [c.conversationId]);
+  if (!conv.rowCount) throw new Error('Conversación no encontrada');
+  const canal = CANALES.includes(conv.rows[0].platform) ? (conv.rows[0].platform as CanalPrueba) : null;
+  if (!canal) throw new Error('Solo se califican chats de Instagram, Facebook o WhatsApp');
+
+  const msgs = await queryMain(
+    `SELECT id, text, "senderType" AS emisor, "createdAt" AS creado
+       FROM "Message"
+      WHERE "conversationId" = $1 AND "sourceType" <> 'EVENTO'
+      ORDER BY "createdAt" ASC`,
+    [c.conversationId]
+  );
+  const todos = msgs.rows as { id: string; text: string; emisor: string }[];
+  const calificado = todos.find((m) => m.id === c.messageId);
+  if (!calificado || calificado.emisor !== 'ali') throw new Error('Solo se califican mensajes de Ali');
+
+  const votos = await votosDeChat(c.conversationId);
+  if (c.voto) {
+    votos[c.messageId] = { voto: c.voto, correccion: c.voto === 'mal' ? texto(c.correccion, 2000) || null : null, autor: c.asesor };
+  } else {
+    delete votos[c.messageId];
+  }
+
+  // Los últimos MAX_MENSAJES, pero sin dejar fuera ningún mensaje calificado.
+  const primeroVotado = todos.findIndex((m) => votos[m.id]);
+  const desde = Math.max(0, Math.min(todos.length - MAX_MENSAJES, primeroVotado < 0 ? Infinity : primeroVotado));
+  const mensajes: MensajePrueba[] = todos.slice(desde, desde + MAX_MENSAJES).flatMap((m): MensajePrueba[] => {
+    const t = texto(m.text, MAX_TEXTO);
+    if (!t) return [];
+    if (m.emisor === 'ali') {
+      const v = votos[m.id];
+      return [{ de: 'ali', texto: t, id: m.id, voto: v?.voto ?? null, correccion: v?.correccion ?? null, autor: v?.autor ?? null }];
+    }
+    if (m.emisor === 'advisor') return [{ de: 'aviso', texto: `Asesor: ${t}`, id: m.id }];
+    return [{ de: 'cliente', texto: t, id: m.id }];
+  });
+
+  const asesores = Array.from(new Set(Object.values(votos).map((v) => v.autor).filter(Boolean))).join(', ') || c.asesor;
+  await guardarPrueba({ id: PREFIJO_CHAT_REAL + c.conversationId, asesor: asesores.slice(0, 60), canal, mensajes, nota: null });
+  return votos;
 }

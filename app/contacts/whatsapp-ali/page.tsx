@@ -14,6 +14,8 @@ import {
   Save,
   Search,
   Send,
+  ThumbsDown,
+  ThumbsUp,
   X,
 } from 'lucide-react';
 
@@ -224,9 +226,102 @@ function sonarAviso() {
   }
 }
 
+/* ── Calificar a Ali (👍/👎), para retroalimentarla ────────────────────── */
+
+type VotoAli = { voto: 'bien' | 'mal'; correccion: string | null; autor: string | null };
+
+/**
+ * 👍/👎 bajo cada respuesta de Ali. Lo que se califica llega a Agentes IA →
+ * Pruebas del equipo (marcado "Chat real"), donde una corrección se convierte
+ * en regla para Ali (Nicolás, 22-11-2026).
+ */
+function CalificarAli({
+  actual,
+  onCalificar,
+}: {
+  actual: VotoAli | undefined;
+  onCalificar: (voto: 'bien' | 'mal' | null, correccion?: string) => Promise<boolean>;
+}) {
+  const [escribiendo, setEscribiendo] = useState(false);
+  const [correccion, setCorreccion] = useState(actual?.correccion || '');
+  const [guardando, setGuardando] = useState(false);
+
+  const votar = async (voto: 'bien' | 'mal' | null, texto?: string) => {
+    setGuardando(true);
+    const ok = await onCalificar(voto, texto);
+    setGuardando(false);
+    if (ok) setEscribiendo(false);
+  };
+
+  return (
+    <div className="mt-1.5 pt-1.5 border-t border-violet-200/70 text-[11px] text-slate-500">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={guardando}
+          onClick={() => votar(actual?.voto === 'bien' ? null : 'bien')}
+          title="Ali respondió bien"
+          className={`p-1 rounded ${actual?.voto === 'bien' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-violet-100'}`}
+        >
+          <ThumbsUp size={13} />
+        </button>
+        <button
+          type="button"
+          disabled={guardando}
+          onClick={() => {
+            if (actual?.voto === 'mal' && !escribiendo) return votar(null);
+            setEscribiendo(true);
+          }}
+          title="Ali respondió mal: escribe qué debió decir"
+          className={`p-1 rounded ${actual?.voto === 'mal' ? 'bg-rose-100 text-rose-700' : 'hover:bg-violet-100'}`}
+        >
+          <ThumbsDown size={13} />
+        </button>
+        {actual?.autor && <span>calificó {actual.autor}</span>}
+      </div>
+      {actual?.voto === 'mal' && actual.correccion && !escribiendo && (
+        <p className="mt-1 text-rose-700 whitespace-pre-wrap">Debió decir: {actual.correccion}</p>
+      )}
+      {escribiendo && (
+        <div className="mt-1.5 space-y-1.5">
+          <textarea
+            value={correccion}
+            onChange={(e) => setCorreccion(e.target.value)}
+            rows={2}
+            maxLength={2000}
+            placeholder="¿Qué debió decir Ali? (opcional, pero ayuda mucho)"
+            className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-[#33475b] outline-none focus:ring-2 focus:ring-rose-100"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={guardando}
+              onClick={() => votar('mal', correccion)}
+              className="px-2.5 py-1 rounded-md bg-rose-600 text-white font-semibold disabled:opacity-50"
+            >
+              {guardando ? 'Guardando...' : 'Guardar 👎'}
+            </button>
+            <button type="button" onClick={() => setEscribiendo(false)} className="px-2.5 py-1 rounded-md hover:bg-slate-100">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Burbuja de mensaje (se usa en el chat y en "otros canales") ─────── */
 
-function Burbuja({ m }: { m: Mensaje }) {
+function Burbuja({
+  m,
+  calificacion,
+  onCalificar,
+}: {
+  m: Mensaje;
+  calificacion?: VotoAli;
+  onCalificar?: (voto: 'bien' | 'mal' | null, correccion?: string) => Promise<boolean>;
+}) {
   if (m.origen === 'EVENTO') {
     return (
       <div className="self-center max-w-[85%] text-center text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 whitespace-pre-wrap">
@@ -293,6 +388,7 @@ function Burbuja({ m }: { m: Mensaje }) {
 
       {m.text}
       <span className="block text-[10px] opacity-60 mt-1">{hora(m.creado)}</span>
+      {esAli && onCalificar && <CalificarAli actual={calificacion} onCalificar={onCalificar} />}
     </div>
   );
 }
@@ -317,6 +413,7 @@ export default function WhatsappAliPage() {
   const [vistos, setVistos] = useState<Record<string, string>>({});
   const [menuDocs, setMenuDocs] = useState(false);
   const [otroCanal, setOtroCanal] = useState<string | null>(null);
+  const [votos, setVotos] = useState<Record<string, VotoAli>>({});
   const [, setReloj] = useState(0); // Para que la cuenta de las 24 h avance sola.
 
   const inputArchivo = useRef<HTMLInputElement>(null);
@@ -467,7 +564,40 @@ export default function WhatsappAliPage() {
     setHilo(null);
     setError(null);
     setMenuDocs(false);
+    setVotos({});
     cargarHilo(id);
+    fetch(`/api/whatsapp-ali/calificar?conversationId=${encodeURIComponent(id)}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (seleccionadaRef.current === id) setVotos(d.votos || {});
+      })
+      .catch(() => {});
+  };
+
+  /** 👍/👎 a una respuesta de Ali; queda en Agentes IA → Pruebas del equipo. */
+  const calificar = async (messageId: string, voto: 'bien' | 'mal' | null, correccion?: string) => {
+    if (!seleccionada) return false;
+    if (!nombreAsesor) {
+      setError('Elige arriba en "Respondo como…" quién eres, para firmar la calificación.');
+      return false;
+    }
+    try {
+      const res = await fetch('/api/whatsapp-ali/calificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: seleccionada, messageId, voto, correccion, asesor: nombreAsesor }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(d.error || 'No se pudo guardar la calificación.');
+        return false;
+      }
+      setVotos(d.votos || {});
+      return true;
+    } catch {
+      setError('No hay conexión con el servidor.');
+      return false;
+    }
   };
 
   const elegirAsesor = (id: string) => {
@@ -820,7 +950,14 @@ export default function WhatsappAliPage() {
                   {!hilo ? (
                     <p className="text-sm text-slate-400">Cargando mensajes...</p>
                   ) : (
-                    hilo.mensajes.map((m) => <Burbuja key={m.id} m={m} />)
+                    hilo.mensajes.map((m) => (
+                      <Burbuja
+                        key={m.id}
+                        m={m}
+                        calificacion={votos[m.id]}
+                        onCalificar={(voto, correccion) => calificar(m.id, voto, correccion)}
+                      />
+                    ))
                   )}
                 </div>
                 {mensajesNuevos && (
