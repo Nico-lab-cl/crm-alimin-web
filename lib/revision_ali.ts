@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { queryMain, queryMarketing } from '@/lib/db';
-import { registrarUso } from '@/lib/agentes_ia';
+import { actualizarConocimiento, crearConocimiento, registrarUso, type Conocimiento } from '@/lib/agentes_ia';
 
 /**
  * Revisión semanal de Ali (Fase 1 del roadmap, 20-11-2026).
@@ -171,6 +171,8 @@ async function asegurarTablas() {
       activo BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  // Regla que salió de este error (ia_conocimiento): así Ali aprende, no solo se prueba.
+  await queryMarketing(`ALTER TABLE ia_revision_ali ADD COLUMN IF NOT EXISTS regla_id UUID`);
   tablasListas = true;
 }
 
@@ -390,6 +392,9 @@ export interface FilaRevision {
   ultimo_mensaje_at: string | null;
   /** Ya se convirtió en caso de prueba (ia_casos_ali). */
   caso_id?: number | null;
+  /** Regla creada desde este error (ia_conocimiento) y su estado. */
+  regla_id?: string | null;
+  regla_estado?: string | null;
 }
 
 export async function leerRevision(semanaPedida?: string) {
@@ -405,8 +410,10 @@ export async function leerRevision(semanaPedida?: string) {
   const filas = (
     await queryMarketing(
       `SELECT r.id, r.conversacion_id, r.canal, r.nombre, r.nota, r.errores, r.resumen, r.abandono, r.transcripcion,
-              r.estado, r.ultimo_mensaje_at, c.id AS caso_id
-         FROM ia_revision_ali r LEFT JOIN ia_casos_ali c ON c.revision_id = r.id AND c.activo
+              r.estado, r.ultimo_mensaje_at, c.id AS caso_id, r.regla_id, k.estado AS regla_estado
+         FROM ia_revision_ali r
+         LEFT JOIN ia_casos_ali c ON c.revision_id = r.id AND c.activo
+         LEFT JOIN ia_conocimiento k ON k.id = r.regla_id
         WHERE r.semana = $1 ORDER BY r.nota ASC, r.id ASC`,
       [semana]
     )
@@ -470,6 +477,138 @@ export async function crearCasoDesdeRevision(revisionId: number, debe: string[])
     [nombre.slice(0, 200), fila.canal === 'web' ? 'instagram' : fila.canal, JSON.stringify(antes.slice(-40)), JSON.stringify(lista), revisionId]
   );
   return { id: ins.rows[0].id as number, mensajes: antes.length };
+}
+
+/* ── Regla desde un error real: Ali aprende (23-11-2026) ───────────────── */
+/*
+ * El caso de prueba solo comprueba; lo que cambia a Ali es una regla aprobada
+ * en ia_conocimiento (la lee el sitio cada ~5 minutos). Al marcar un error
+ * real, el juez propone la regla general (sin nombres ni datos del cliente) y
+ * Nicolás la aprueba con un clic. Nunca se aprueba sola: el juez también se
+ * equivoca, y una regla mala la sigue Ali con todos los clientes.
+ */
+
+export interface ReglaPropuesta {
+  /** La ficha ya dice esto: Ali no lo siguió, así que una regla más puede no bastar. */
+  ya_cubierta: boolean;
+  /** Qué parte de la ficha ya lo dice (vacío si no está). */
+  donde: string;
+  tema: string;
+  como_lo_dice: string;
+  respuesta: string;
+  /** Lo que Ali debía hacer en ese momento, para el caso de prueba. */
+  debe: string[];
+}
+
+const ESQUEMA_REGLA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ya_cubierta', 'donde', 'tema', 'como_lo_dice', 'respuesta', 'debe'],
+  properties: {
+    ya_cubierta: { type: 'boolean', description: 'true si las instrucciones de Ali ya dicen claramente lo que debía hacer.' },
+    donde: { type: 'string', description: 'Si ya_cubierta, la frase de las instrucciones que ya lo dice (corta). Si no, vacío.' },
+    tema: { type: 'string', description: 'Título corto de la regla, máximo 70 caracteres. Ej: "Clienta que ya compró y reclama".' },
+    como_lo_dice: { type: 'string', description: 'Cuándo aplica: la situación o lo que dice el cliente, en general (sin su nombre).' },
+    respuesta: { type: 'string', description: 'Lo que Ali debe hacer o responder, como instrucción directa y general, en 1 a 3 frases.' },
+    debe: { type: 'array', items: { type: 'string' }, description: 'De 1 a 4 cosas concretas que Ali debía hacer en ESE momento de la conversación.' },
+  },
+} as const;
+
+const PAUTA_REGLA = `Eres quien mejora a Ali, la asistente virtual de Alimin. Te paso una conversación real donde Ali se equivocó y los errores que encontró el revisor, ya confirmados por el equipo. Escribe UNA regla para que Ali no repita el error con ningún cliente.
+
+Cómo escribes la regla
+- General: nada de nombres, teléfonos ni detalles de este cliente. Sirve para cualquier persona en la misma situación.
+- Directa, en segunda persona ("Si…, deriva…"), en español de Chile neutro, sin modismos.
+- Solo sobre cómo atender. No inventes datos de Alimin (precios, plazos, obras, documentos): si el error fue un dato, la regla dice qué NO afirmar o que se use lo que está en las instrucciones.
+- Corta: de 1 a 3 frases.
+- Si las instrucciones de abajo ya dicen claramente lo que Ali debía hacer, marca ya_cubierta y cita dónde; igual escribe la regla, más específica para esta situación.`;
+
+export async function proponerRegla(revisionId: number): Promise<ReglaPropuesta> {
+  await asegurarTablas();
+  if (!claveRevision()) throw new Error('Falta la API key (ANTHROPIC_API_KEY_REVISION)');
+  const r = await queryMarketing(`SELECT * FROM ia_revision_ali WHERE id = $1`, [revisionId]);
+  const fila = r.rows[0] as FilaRevision | undefined;
+  if (!fila) throw new Error('No encontré esa revisión');
+  if (!fila.errores?.length) throw new Error('Esta conversación no tiene errores');
+  const ficha = await fichaDeAli();
+  const errores = fila.errores
+    .map((e) => `- ${CRITERIOS[e.criterio] || e.criterio} (gravedad ${e.gravedad}): «${e.cita}» → ${e.explicacion}`)
+    .join('\n');
+  const respuesta = await anthropic().beta.messages.create({
+    model: MODELO,
+    max_tokens: 1500,
+    system: [
+      { type: 'text', text: `${PAUTA_REGLA}\n\n# Instrucciones actuales de Ali (versión ${ficha.version})\n${ficha.texto}`, cache_control: { type: 'ephemeral' } },
+    ],
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA_REGLA as unknown as Record<string, unknown> } },
+    messages: [
+      { role: 'user', content: `Canal: ${fila.canal}\n\nErrores confirmados:\n${errores}\n\nConversación:\n${fila.transcripcion.slice(-8000)}` },
+    ],
+  });
+  const uso = respuesta.usage;
+  await registrarUso({
+    agente: 'revision',
+    canal: fila.canal,
+    conversacion_id: fila.conversacion_id,
+    modelo: respuesta.model || MODELO,
+    input_tokens: uso.input_tokens,
+    output_tokens: uso.output_tokens,
+    cache_read_input_tokens: uso.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens: uso.cache_creation_input_tokens ?? 0,
+  });
+  if (respuesta.stop_reason === 'refusal' || respuesta.stop_reason === 'max_tokens') {
+    throw new Error(`El juez terminó con ${respuesta.stop_reason}`);
+  }
+  const json = respuesta.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const p = JSON.parse(json) as ReglaPropuesta;
+  return {
+    ya_cubierta: Boolean(p.ya_cubierta),
+    donde: String(p.donde || '').slice(0, 400),
+    tema: String(p.tema || '').slice(0, 120),
+    como_lo_dice: String(p.como_lo_dice || ''),
+    respuesta: String(p.respuesta || ''),
+    debe: (Array.isArray(p.debe) ? p.debe : []).map(String).filter(Boolean).slice(0, 6),
+  };
+}
+
+/**
+ * Guarda la regla en el conocimiento de Ali (tipo "regla", fuente "Juez
+ * semanal") y la deja ligada al error. Con `aprobar`, queda aprobada de
+ * inmediato y Ali la usa en unos 5 minutos.
+ */
+export async function crearReglaDesdeRevision(
+  revisionId: number,
+  d: { tema: string; como_lo_dice?: string | null; respuesta: string; aprobar?: boolean }
+) {
+  await asegurarTablas();
+  const r = await queryMarketing(`SELECT id, nombre, canal, errores, regla_id FROM ia_revision_ali WHERE id = $1`, [revisionId]);
+  const fila = r.rows[0] as Pick<FilaRevision, 'id' | 'nombre' | 'canal' | 'errores' | 'regla_id'> | undefined;
+  if (!fila) throw new Error('No encontré esa revisión');
+  if (!d.tema?.trim() || !d.respuesta?.trim()) throw new Error('La regla necesita tema y qué debe hacer Ali');
+  const cita = fila.errores?.[0]?.cita ? `Ali había respondido: «${fila.errores[0].cita.slice(0, 300)}». ` : '';
+  const nota = `${cita}Revisión semanal #${fila.id} (${fila.nombre || 'cliente'}, ${fila.canal}).`;
+
+  let regla: Conocimiento;
+  if (fila.regla_id) {
+    // Ya había una: se corrige la misma en vez de duplicarla.
+    regla = await actualizarConocimiento(fila.regla_id, {
+      tema: d.tema, como_lo_dice: d.como_lo_dice ?? null, respuesta: d.respuesta, ...(d.aprobar ? { estado: 'aprobada' } : {}),
+    });
+  } else {
+    let tema = d.tema.trim();
+    // El tema es único por tipo: si ya existe uno igual, se le agrega el número de la revisión.
+    const igual = await queryMarketing(`SELECT 1 FROM ia_conocimiento WHERE tipo = 'regla' AND tema = $1`, [tema]);
+    if (igual.rowCount) tema = `${tema} (#${fila.id})`;
+    regla = await crearConocimiento({
+      tipo: 'regla', tema, como_lo_dice: d.como_lo_dice || null, respuesta: d.respuesta, fuente: 'Juez semanal', nota, agentes: ['atraccion'],
+    });
+    if (d.aprobar) regla = await actualizarConocimiento(regla.id, { estado: 'aprobada' });
+    await queryMarketing(`UPDATE ia_revision_ali SET regla_id = $2 WHERE id = $1`, [revisionId, regla.id]);
+  }
+  return { id: regla.id, estado: regla.estado };
 }
 
 /** Casos activos, para scripts/casos-ali.mjs del sitio (vía /api/webhooks/ia/casos-ali). */

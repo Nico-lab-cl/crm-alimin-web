@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, FlaskConical, Loader2, Play, RefreshCcw, RotateCcw, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, FlaskConical, GraduationCap, Loader2, Play, RefreshCcw, RotateCcw, X } from 'lucide-react';
 import { pedir } from '../tipos';
 
 /**
@@ -49,6 +49,8 @@ interface Fila {
   estado: 'pendiente' | 'real' | 'falso';
   ultimo_mensaje_at: string | null;
   caso_id?: number | null;
+  regla_id?: string | null;
+  regla_estado?: string | null;
 }
 interface Semana {
   semana: string;
@@ -70,60 +72,200 @@ const boton = (activo: boolean) =>
   `text-sm font-semibold rounded-xl px-3 py-1.5 border ${activo ? 'bg-[#2d544c] text-white border-[#2d544c]' : 'bg-white text-[#2d544c] border-[#9fc79b] hover:bg-[#e8f3e6]'}`;
 const colorNota = (n: number) => (n >= 85 ? 'text-emerald-700' : n >= 60 ? 'text-amber-700' : 'text-rose-700');
 
+interface Propuesta {
+  ya_cubierta: boolean;
+  donde: string;
+  tema: string;
+  como_lo_dice: string;
+  respuesta: string;
+  debe: string[];
+}
+
+const entrada = 'w-full text-sm rounded-lg border border-[#cbd6e2] px-3 py-2 bg-white text-[#33475b] focus:border-[#2d544c] focus:outline-none';
+
 /**
- * Convierte un error real en caso de prueba (Fase 2): la conversación se corta
- * antes del error y la prueba le pide a Ali responder de nuevo ese momento.
- * "Lo que debía hacer" parte con lo que dijo el juez y se puede corregir.
+ * Enseñarle a Ali (23-11-2026). Un error real se convierte en dos cosas:
+ * - una REGLA en el conocimiento de Ali (la propone el juez; al aprobarla, Ali
+ *   la usa en unos 5 minutos): esto es lo que la corrige;
+ * - un CASO DE PRUEBA (la conversación cortada antes del error): esto comprueba
+ *   que la corrección funcionó y que no vuelve a fallar.
  */
-function CrearCaso({ f, onCreado }: { f: Fila; onCreado: (id: number, casoId: number) => void }) {
-  const [texto, setTexto] = useState(() => f.errores.map((e) => e.explicacion).join('\n'));
+function EnsenarAli({ f, onCambio }: { f: Fila; onCambio: (id: number, cambios: Partial<Fila>) => void }) {
+  const [propuesta, setPropuesta] = useState<Propuesta | null>(null);
+  const [tema, setTema] = useState('');
+  const [como, setComo] = useState('');
+  const [respuesta, setRespuesta] = useState('');
+  const [debe, setDebe] = useState(() => f.errores.map((e) => e.explicacion).join('\n'));
+  const [pensando, setPensando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (f.caso_id) {
-    return (
-      <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 inline-flex items-center gap-1.5">
-        <FlaskConical className="w-4 h-4" /> Ya es el caso de prueba #{f.caso_id}: entra en el banco de pruebas de Ali.
-      </p>
-    );
-  }
-  const crear = async () => {
+
+  const proponer = useCallback(async () => {
+    setPensando(true);
+    setError(null);
+    try {
+      const r = await pedir<{ propuesta: Propuesta }>('/api/agentes-ia/revision', {
+        method: 'POST',
+        body: JSON.stringify({ accion: 'proponer_regla', id: f.id }),
+      });
+      setPropuesta(r.propuesta);
+      setTema(r.propuesta.tema);
+      setComo(r.propuesta.como_lo_dice);
+      setRespuesta(r.propuesta.respuesta);
+      if (r.propuesta.debe.length) setDebe(r.propuesta.debe.join('\n'));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPensando(false);
+    }
+  }, [f.id]);
+
+  // Sin regla todavía: el juez la propone apenas se marca el error real.
+  useEffect(() => {
+    if (!f.regla_id && !propuesta) proponer();
+  }, [f.regla_id, propuesta, proponer]);
+
+  const guardar = async (aprobar: boolean) => {
     setGuardando(true);
     setError(null);
     try {
-      const debe = texto.split('\n').map((l) => l.trim()).filter(Boolean);
-      const r = await pedir<{ caso: { id: number } }>('/api/agentes-ia/revision', {
+      const cambios: Partial<Fila> = {};
+      const r = await pedir<{ regla: { id: string; estado: string } }>('/api/agentes-ia/revision', {
         method: 'POST',
-        body: JSON.stringify({ accion: 'caso', id: f.id, debe }),
+        body: JSON.stringify({ accion: 'regla', id: f.id, regla: { tema, como_lo_dice: como || null, respuesta, aprobar } }),
       });
-      onCreado(f.id, r.caso.id);
+      cambios.regla_id = r.regla.id;
+      cambios.regla_estado = r.regla.estado;
+      if (!f.caso_id) {
+        const lineas = debe.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (lineas.length) {
+          const c = await pedir<{ caso: { id: number } }>('/api/agentes-ia/revision', {
+            method: 'POST',
+            body: JSON.stringify({ accion: 'caso', id: f.id, debe: lineas }),
+          });
+          cambios.caso_id = c.caso.id;
+        }
+      }
+      onCambio(f.id, cambios);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setGuardando(false);
     }
   };
+
+  const aprobarExistente = async () => {
+    if (!f.regla_id) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      await pedir(`/api/agentes-ia/conocimiento/${f.regla_id}`, { method: 'PATCH', body: JSON.stringify({ estado: 'aprobada' }) });
+      onCambio(f.id, { regla_estado: 'aprobada' });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const lineaCaso = f.caso_id ? (
+    <p className="text-sm text-emerald-800 inline-flex items-center gap-1.5">
+      <FlaskConical className="w-4 h-4" /> Caso de prueba #{f.caso_id}: comprueba que Ali ya no repite este error.
+    </p>
+  ) : null;
+
+  // Ya tiene regla: solo se muestra en qué quedó.
+  if (f.regla_id) {
+    const aprobada = f.regla_estado === 'aprobada';
+    return (
+      <div className="rounded-lg border border-[#9fc79b] bg-[#f3f8f2] p-3 space-y-2">
+        <p className={`text-sm font-bold inline-flex items-center gap-1.5 ${aprobada ? 'text-emerald-800' : 'text-amber-800'}`}>
+          <GraduationCap className="w-4 h-4" />
+          {aprobada
+            ? 'Regla aprobada: Ali ya la usa (tarda unos 5 minutos en tomarla).'
+            : f.regla_estado
+              ? `Regla «${f.regla_estado.replace('_', ' ')}»: Ali todavía no la usa.`
+              : 'La regla ya no existe en el conocimiento.'}
+        </p>
+        {!aprobada && f.regla_estado && (
+          <button
+            onClick={aprobarExistente}
+            disabled={guardando}
+            className="text-sm font-bold rounded-lg px-3 py-1.5 bg-[#2d544c] text-white hover:bg-[#244640] disabled:opacity-60 inline-flex items-center gap-1.5"
+          >
+            {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Aprobar regla
+          </button>
+        )}
+        {lineaCaso}
+        <p className="text-xs text-[#516f90]">
+          Para editarla o archivarla: <Link href="/agentes-ia" className="font-bold underline">Agentes IA → Todo el conocimiento</Link> (fuente «Juez semanal»).
+        </p>
+        {error && <p className="text-xs text-rose-700">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-[#9fc79b] bg-[#f3f8f2] p-3 space-y-2">
       <p className="text-sm font-bold text-[#2d544c] inline-flex items-center gap-1.5">
-        <FlaskConical className="w-4 h-4" /> Convertir en caso de prueba
+        <GraduationCap className="w-4 h-4" /> Enseñarle a Ali
       </p>
       <p className="text-xs text-[#516f90]">
-        Lo que Ali debía hacer en ese momento, una idea por línea. Cada cambio a Ali se va a probar contra esto antes de quedar publicado.
+        El juez propone una regla para que Ali no repita este error con nadie. Revísala, corrígela si hace falta y apruébala:
+        Ali la usa en unos 5 minutos. Además queda como caso de prueba para comprobar que funcionó.
       </p>
-      <textarea
-        value={texto}
-        onChange={(e) => setTexto(e.target.value)}
-        rows={Math.min(6, Math.max(2, texto.split('\n').length + 1))}
-        className="w-full text-sm rounded-lg border border-[#cbd6e2] px-3 py-2 bg-white text-[#33475b]"
-      />
+      {pensando ? (
+        <p className="text-sm text-[#516f90] inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> El juez está escribiendo la regla…</p>
+      ) : (
+        <>
+          {propuesta?.ya_cubierta && (
+            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Ojo: las instrucciones de Ali ya dicen esto{propuesta.donde ? <> («{propuesta.donde}»)</> : null} y no lo siguió. La regla
+              ayuda a reforzarlo, pero si el error se repite hay que arreglarlo en el código de Ali.
+            </p>
+          )}
+          <label className="block text-[11px] font-bold text-[#516f90]">
+            Tema
+            <input value={tema} onChange={(e) => setTema(e.target.value)} className={entrada} />
+          </label>
+          <label className="block text-[11px] font-bold text-[#516f90]">
+            Cuándo aplica
+            <textarea value={como} onChange={(e) => setComo(e.target.value)} rows={2} className={entrada} />
+          </label>
+          <label className="block text-[11px] font-bold text-[#516f90]">
+            Lo que Ali debe hacer (la regla)
+            <textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} rows={3} className={entrada} />
+          </label>
+          {f.caso_id ? (
+            lineaCaso
+          ) : (
+            <label className="block text-[11px] font-bold text-[#516f90]">
+              Caso de prueba: lo que Ali debía hacer en ese momento (una idea por línea)
+              <textarea value={debe} onChange={(e) => setDebe(e.target.value)} rows={Math.min(5, Math.max(2, debe.split('\n').length + 1))} className={entrada} />
+            </label>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => guardar(true)}
+              disabled={guardando || !tema.trim() || !respuesta.trim()}
+              className="text-sm font-bold rounded-lg px-3 py-1.5 bg-[#2d544c] text-white hover:bg-[#244640] disabled:opacity-60 inline-flex items-center gap-1.5"
+            >
+              {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Aprobar regla
+            </button>
+            <button
+              onClick={() => guardar(false)}
+              disabled={guardando || !tema.trim() || !respuesta.trim()}
+              className="text-sm font-semibold rounded-lg px-3 py-1.5 border border-[#9fc79b] bg-white text-[#2d544c] hover:bg-[#e8f3e6] disabled:opacity-60"
+            >
+              Dejar por revisar
+            </button>
+            <button onClick={proponer} disabled={guardando} className="text-xs font-semibold text-[#516f90] hover:underline inline-flex items-center gap-1">
+              <RotateCcw className="w-3.5 h-3.5" /> Proponer otra
+            </button>
+          </div>
+        </>
+      )}
       {error && <p className="text-xs text-rose-700">{error}</p>}
-      <button
-        onClick={crear}
-        disabled={guardando || !texto.trim()}
-        className="text-sm font-bold rounded-lg px-3 py-1.5 bg-[#2d544c] text-white hover:bg-[#244640] disabled:opacity-60 inline-flex items-center gap-1.5"
-      >
-        {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />} Crear caso de prueba
-      </button>
     </div>
   );
 }
@@ -131,11 +273,11 @@ function CrearCaso({ f, onCreado }: { f: Fila; onCreado: (id: number, casoId: nu
 function FilaConversacion({
   f,
   onEstado,
-  onCaso,
+  onCambio,
 }: {
   f: Fila;
   onEstado: (id: number, estado: Fila['estado']) => void;
-  onCaso: (id: number, casoId: number) => void;
+  onCambio: (id: number, cambios: Partial<Fila>) => void;
 }) {
   const [abierta, setAbierta] = useState(false);
   const alta = f.errores.some((e) => e.gravedad === 'alta');
@@ -149,6 +291,8 @@ function FilaConversacion({
             <p className="text-sm font-semibold text-[#33475b] truncate">
               {f.nombre || 'Sin nombre'} <span className="font-normal text-[#516f90]">· {CANAL[f.canal] || f.canal}</span>
               {f.abandono && <span className="ml-2 text-[11px] font-bold text-rose-700">dejó de responder</span>}
+              {f.regla_estado === 'aprobada' && <span className="ml-2 text-[11px] font-bold text-emerald-700">Ali aprendió</span>}
+              {f.regla_id && f.regla_estado !== 'aprobada' && <span className="ml-2 text-[11px] font-bold text-amber-700">regla por aprobar</span>}
               {f.caso_id && <span className="ml-2 text-[11px] font-bold text-emerald-700">caso de prueba #{f.caso_id}</span>}
             </p>
             <p className="text-xs text-[#516f90] truncate">
@@ -187,7 +331,7 @@ function FilaConversacion({
               ))}
             </ul>
           )}
-          {f.estado === 'real' && <CrearCaso f={f} onCreado={onCaso} />}
+          {f.estado === 'real' && <EnsenarAli f={f} onCambio={onCambio} />}
           <details>
             <summary className="text-xs font-semibold text-[#516f90] cursor-pointer">Ver conversación</summary>
             <pre className="mt-2 text-xs text-[#33475b] whitespace-pre-wrap bg-[#f5f8fa] rounded-lg p-3 max-h-[28rem] overflow-y-auto font-sans">
@@ -241,8 +385,8 @@ export default function RevisionPage() {
     }
   };
 
-  const casoCreado = (id: number, casoId: number) =>
-    setDatos((d) => d && { ...d, filas: d.filas.map((f) => (f.id === id ? { ...f, caso_id: casoId } : f)) });
+  const cambiarFila = (id: number, cambios: Partial<Fila>) =>
+    setDatos((d) => d && { ...d, filas: d.filas.map((f) => (f.id === id ? { ...f, ...cambios } : f)) });
 
   const marcar = async (id: number, estado: Fila['estado']) => {
     setDatos((d) => d && { ...d, filas: d.filas.map((f) => (f.id === id ? { ...f, estado } : f)) });
@@ -284,8 +428,8 @@ export default function RevisionPage() {
           <h1 className="text-2xl font-bold text-[#2d544c] mt-1">Revisión semanal de Ali</h1>
           <p className="text-sm text-[#516f90] mt-1">
             Cada lunes un juez revisa las conversaciones reales de Ali de los últimos 7 días con una pauta fija. Marca cada caso
-            como <b>error real</b> o <b>falso aviso</b>: los reales se convierten en casos de prueba y los falsos sirven para
-            afinar al juez.
+            como <b>error real</b> o <b>falso aviso</b>. En los reales el juez propone una regla: al aprobarla, Ali aprende y deja de
+            cometer ese error, y queda un caso de prueba que lo comprueba. Los falsos sirven para afinar al juez.
           </p>
         </div>
         <button
@@ -377,7 +521,7 @@ export default function RevisionPage() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {lista.map((f) => <FilaConversacion key={f.id} f={f} onEstado={marcar} onCaso={casoCreado} />)}
+          {lista.map((f) => <FilaConversacion key={f.id} f={f} onEstado={marcar} onCambio={cambiarFila} />)}
         </ul>
       )}
     </div>

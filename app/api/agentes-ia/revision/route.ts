@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import {
   correrRevision,
   crearCasoDesdeRevision,
+  crearReglaDesdeRevision,
   leerRevision,
   marcarEstado,
+  proponerRegla,
   revisionEnCurso,
   type EstadoError,
 } from '@/lib/revision_ali';
@@ -28,9 +30,40 @@ export async function GET(request: Request) {
  *
  * POST { accion: 'caso', id, debe: string[] } → convierte un error real en caso
  * de prueba.
+ *
+ * POST { accion: 'proponer_regla', id } → el juez propone una regla general
+ * para que Ali no repita el error (no guarda nada).
+ * POST { accion: 'regla', id, regla: { tema, como_lo_dice, respuesta, aprobar } }
+ * → la guarda en el conocimiento de Ali (aprobada si `aprobar`).
  */
 export async function POST(request: Request) {
-  const cuerpo = (await request.json().catch(() => ({}))) as { accion?: string; id?: number; debe?: string[] };
+  const cuerpo = (await request.json().catch(() => ({}))) as {
+    accion?: string;
+    id?: number;
+    debe?: string[];
+    regla?: { tema: string; como_lo_dice?: string | null; respuesta: string; aprobar?: boolean };
+  };
+
+  if (cuerpo.accion === 'proponer_regla') {
+    try {
+      if (!cuerpo.id) return NextResponse.json({ error: 'Falta el id' }, { status: 400 });
+      return NextResponse.json({ ok: true, propuesta: await proponerRegla(Number(cuerpo.id)) });
+    } catch (error) {
+      console.error('[revision-ali] No se pudo proponer la regla:', error);
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'No se pudo proponer la regla' }, { status: 400 });
+    }
+  }
+
+  if (cuerpo.accion === 'regla') {
+    try {
+      if (!cuerpo.id || !cuerpo.regla) return NextResponse.json({ error: 'Faltan id o regla' }, { status: 400 });
+      const regla = await crearReglaDesdeRevision(Number(cuerpo.id), cuerpo.regla);
+      return NextResponse.json({ ok: true, regla });
+    } catch (error) {
+      console.error('[revision-ali] No se pudo crear la regla:', error);
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'No se pudo crear la regla' }, { status: 400 });
+    }
+  }
 
   if (cuerpo.accion === 'caso') {
     try {
